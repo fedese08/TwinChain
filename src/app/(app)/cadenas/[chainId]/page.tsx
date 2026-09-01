@@ -1,0 +1,101 @@
+"use client";
+
+import { use, useCallback, useMemo, useRef, useState } from "react";
+import Link from "next/link";
+import { ChainCanvas } from "@/components/canvas/chain-canvas";
+import { ScenarioForm, type ScenarioFormHandle } from "@/components/scenario/scenario-form";
+import { cn } from "@/lib/utils";
+import { useMockDbStore } from "@/stores/mock-db-store";
+
+type Mode = "design" | "simulate";
+
+export default function ChainDetailPage({ params }: { params: Promise<{ chainId: string }> }) {
+  const { chainId } = use(params);
+  const [mode, setMode] = useState<Mode>("design");
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const scenarioFormRef = useRef<ScenarioFormHandle>(null);
+
+  const chain = useMockDbStore((s) => s.chains.find((c) => c.id === chainId));
+  const nodes = useMockDbStore((s) => s.nodes);
+  const chainNodes = useMemo(() => nodes.filter((n) => n.chainId === chainId), [nodes, chainId]);
+
+  const handleNodeSelect = useCallback((nodeId: string) => {
+    scenarioFormRef.current?.selectNode(nodeId);
+  }, []);
+
+  const highlightedNodeIds = useMemo(() => (selectedNodeId ? [selectedNodeId] : []), [selectedNodeId]);
+
+  if (!chain) {
+    return (
+      <div className="flex flex-1 items-center justify-center text-[13px] text-muted-foreground">
+        Cadena no encontrada. <Link href="/cadenas" className="ml-1 text-primary">Volver a cadenas</Link>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="flex h-[54px] flex-none items-center gap-3 border-b border-border bg-card px-3.5">
+        <Link href="/cadenas" className="flex flex-none items-center gap-2 text-[12.5px] text-muted-foreground hover:text-foreground">
+          <span className="font-mono text-[13px]">‹</span>Cadenas
+        </Link>
+        <div className="h-5 w-px flex-none bg-border" />
+        <div className="min-w-0 flex-1 truncate text-[14.5px] font-medium">{chain.name}</div>
+
+        <div className="flex flex-none items-center gap-px overflow-hidden rounded-lg border border-border bg-card">
+          <button
+            onClick={() => setMode("design")}
+            className={cn(
+              "px-3.5 py-1.5 text-[12.5px] whitespace-nowrap",
+              mode === "design" ? "bg-secondary font-medium" : "text-muted-foreground",
+            )}
+          >
+            Diseño y monitoreo
+          </button>
+          <button
+            onClick={() => setMode("simulate")}
+            className={cn(
+              "border-l border-border px-3.5 py-1.5 text-[12.5px] whitespace-nowrap",
+              mode === "simulate" ? "bg-secondary font-medium" : "text-muted-foreground",
+            )}
+          >
+            Simulación
+          </button>
+        </div>
+
+        {mode === "design" && (
+          <button
+            onClick={() => setMode("simulate")}
+            className="flex flex-none items-center gap-1.5 whitespace-nowrap rounded-lg bg-foreground px-3.5 py-1.5 text-[12.5px] font-medium text-background hover:bg-foreground/85"
+          >
+            <span className="font-mono text-[10px]">⑂</span>Simular
+          </button>
+        )}
+        {mode === "simulate" && (
+          <Link
+            href={`/cadenas/${chainId}/escenarios`}
+            className="flex-none whitespace-nowrap rounded-lg border border-border px-3.5 py-1.5 text-[12.5px] hover:bg-secondary"
+          >
+            Ver simulaciones
+          </Link>
+        )}
+      </div>
+
+      {mode === "design" ? (
+        <ChainCanvas chainId={chainId} mode="edit" />
+      ) : (
+        <div className="flex min-h-0 flex-1">
+          <ScenarioForm
+            ref={scenarioFormRef}
+            chainId={chainId}
+            chainNodes={chainNodes}
+            onSelectedNodeChange={setSelectedNodeId}
+          />
+          <div className="flex min-w-0 flex-1">
+            <ChainCanvas chainId={chainId} mode="select" selectedNodeIds={highlightedNodeIds} onNodeSelect={handleNodeSelect} />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

@@ -1,0 +1,94 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { Boxes, GitCompare, LibraryBig } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { useMockDbStore } from "@/stores/mock-db-store";
+
+const NAV_ITEMS = [
+  { href: "/cadenas", label: "Cadenas", icon: Boxes },
+  { href: "/comparar", label: "Comparar escenarios", icon: GitCompare },
+  { href: "/biblioteca", label: "Plantillas y nodos", icon: LibraryBig },
+] as const;
+
+export function Sidebar() {
+  const pathname = usePathname();
+  const organization = useMockDbStore((s) => s.organization);
+  const user = useMockDbStore((s) => s.user);
+  const roles = useMockDbStore((s) => s.roles);
+  const chainCount = useMockDbStore((s) => s.chains.length);
+  const scenarioCount = useMockDbStore((s) => s.scenarios.length);
+
+  const roleName = roles.find((r) => r.id === user.roleId)?.name ?? "";
+  const initials = organization.name
+    .split(" ")
+    .slice(0, 2)
+    .map((w) => w[0])
+    .join("")
+    .toUpperCase();
+  const userInitials = user.name
+    .split(" ")
+    .map((w) => w[0])
+    .join("")
+    .toUpperCase();
+
+  return (
+    <div className="flex w-[236px] flex-none flex-col gap-4 border-r border-border bg-card p-3">
+      <div className="flex items-center gap-2 px-2 pb-1 pt-1">
+        <span className="flex h-[22px] w-[22px] items-center justify-center rounded-md bg-gradient-to-br from-primary to-success font-mono text-[11px] font-semibold text-white">
+          TC
+        </span>
+        <span className="text-[15px] font-semibold tracking-tight">TwinChain</span>
+      </div>
+
+      <div className="flex items-center gap-2 rounded-lg border border-border bg-secondary/40 px-2.5 py-2">
+        <span className="flex h-5 w-5 flex-none items-center justify-center rounded-[5px] border border-accent bg-accent font-mono text-[8.5px] font-semibold text-accent-foreground">
+          {initials}
+        </span>
+        <div className="flex min-w-0 flex-col leading-tight">
+          <span className="truncate text-[12.5px] font-medium">{organization.name}</span>
+          <span className="font-mono text-[9.5px] text-muted-foreground">organización</span>
+        </div>
+      </div>
+
+      <nav className="flex flex-col gap-2">
+        <div className="flex flex-col gap-0.5">
+          {NAV_ITEMS.map((item) => {
+            const active = pathname === item.href || pathname.startsWith(item.href + "/");
+            const Icon = item.icon;
+            const count = item.href === "/cadenas" ? chainCount : item.href === "/comparar" ? scenarioCount : null;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={cn(
+                  "flex items-center gap-2.5 rounded-md px-2.5 py-2 text-[13.5px] transition-colors hover:bg-secondary",
+                  active ? "bg-accent font-medium text-accent-foreground" : "text-foreground/80",
+                )}
+              >
+                <Icon size={14} strokeWidth={2} className={active ? "text-accent-foreground" : "text-muted-foreground"} />
+                {item.label}
+                {count !== null && (
+                  <span className="ml-auto font-mono text-[10.5px] text-muted-foreground">{count}</span>
+                )}
+              </Link>
+            );
+          })}
+        </div>
+      </nav>
+
+      <div className="mt-auto flex flex-col gap-0.5 pt-2">
+        <div className="flex items-center gap-2.5 border-t border-border px-2 pb-1 pt-3">
+          <span className="flex h-[26px] w-[26px] items-center justify-center rounded-full border border-border bg-secondary font-mono text-[10px] text-foreground/80">
+            {userInitials}
+          </span>
+          <div className="flex flex-col leading-tight">
+            <span className="text-[12.5px]">{user.name}</span>
+            <span className="text-[10.5px] text-muted-foreground">{roleName}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

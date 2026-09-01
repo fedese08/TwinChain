@@ -1,0 +1,213 @@
+"use client";
+
+import { forwardRef, useEffect, useImperativeHandle } from "react";
+import { useRouter } from "next/navigation";
+import { Controller, useFieldArray, useForm, useWatch } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { Plus, Trash2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { EVENT_TYPE_SUGGESTIONS, scenarioFormSchema, type ScenarioFormValues } from "@/lib/validators/scenario";
+import { useMockDbStore } from "@/stores/mock-db-store";
+import type { SupplyChainNode } from "@/lib/mock/types";
+
+function todayIso(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+export interface ScenarioFormHandle {
+  /**
+   * Fija el nodo afectado del escenario — para elegirlo desde el canvas. Reemplaza al anterior:
+   * el escenario apunta a un solo nodo por vez. Volver a clickear el nodo ya elegido lo deselecciona.
+   */
+  selectNode: (nodeId: string) => void;
+}
+
+interface ScenarioFormProps {
+  chainId: string;
+  chainNodes: SupplyChainNode[];
+  onSelectedNodeChange?: (nodeId: string | null) => void;
+}
+
+export const ScenarioForm = forwardRef<ScenarioFormHandle, ScenarioFormProps>(function ScenarioForm(
+  { chainId, chainNodes, onSelectedNodeChange },
+  ref,
+) {
+  const router = useRouter();
+  const createScenario = useMockDbStore((s) => s.createScenario);
+
+  const {
+    register,
+    control,
+    handleSubmit,
+    getValues,
+    setValue,
+    formState: { errors, isSubmitting },
+  } = useForm<ScenarioFormValues>({
+    resolver: zodResolver(scenarioFormSchema),
+    defaultValues: { name: "", projectionHorizonWeeks: 16, nodeId: "", events: [] },
+  });
+
+  const { fields, append, remove } = useFieldArray({ control, name: "events" });
+  const selectedNodeId = useWatch({ control, name: "nodeId" });
+
+  useEffect(() => {
+    onSelectedNodeChange?.(selectedNodeId || null);
+  }, [selectedNodeId, onSelectedNodeChange]);
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      selectNode(nodeId: string) {
+        const current = getValues("nodeId");
+        // Reelegir el mismo nodo lo deselecciona; los eventos ya cargados se conservan.
+        setValue("nodeId", current === nodeId ? "" : nodeId, { shouldValidate: false });
+        // Al elegir un nodo por primera vez dejamos un evento listo para completar.
+        if (current !== nodeId && (getValues("events") ?? []).length === 0) {
+          append({ eventType: "", startDate: todayIso(), magnitude: 25 });
+        }
+      },
+    }),
+    [getValues, setValue, append],
+  );
+
+  function onSubmit(values: ScenarioFormValues) {
+    const scenarioId = createScenario(
+      chainId,
+      values.name,
+      values.projectionHorizonWeeks,
+      values.nodeId,
+      values.events,
+    );
+    router.push(`/cadenas/${chainId}/escenarios/${scenarioId}`);
+  }
+
+  return (
+    <form onSubmit={handleSubmit(onSubmit)} className="flex w-[300px] flex-none flex-col overflow-auto border-r border-border bg-card">
+      <div className="border-b border-border px-3.5 py-3">
+        <div className="text-[13.5px] font-medium">Nueva simulación</div>
+        <div className="mt-0.5 font-mono text-[10px] text-muted-foreground">fork — la cadena viva no se altera</div>
+      </div>
+
+      <div className="flex flex-col gap-4 p-3.5">
+        <div className="flex flex-col gap-1.5">
+          <Label className="font-mono text-[9.5px] uppercase tracking-wider text-muted-foreground">Nombre del escenario</Label>
+          <Input placeholder="ej. Corte de suministro en FAB-02" {...register("name")} />
+          {errors.name && <span className="text-[11px] text-destructive">{errors.name.message}</span>}
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <Label className="font-mono text-[9.5px] uppercase tracking-wider text-muted-foreground">
+            Horizonte de proyección (semanas)
+          </Label>
+          <Input type="number" min={1} max={52} {...register("projectionHorizonWeeks", { valueAsNumber: true })} />
+          {errors.projectionHorizonWeeks && (
+            <span className="text-[11px] text-destructive">{errors.projectionHorizonWeeks.message}</span>
+          )}
+        </div>
+
+        <div className="flex flex-col gap-1.5 border-t border-border pt-3.5">
+          <Label className="font-mono text-[9.5px] uppercase tracking-wider text-muted-foreground">Nodo afectado</Label>
+          <Controller
+            control={control}
+            name="nodeId"
+            render={({ field: nodeField }) => (
+              <Select value={nodeField.value} onValueChange={nodeField.onChange}>
+                <SelectTrigger className="h-8 text-[12px]">
+                  <SelectValue placeholder="Elegí un nodo">
+                    {(value: string | null) => {
+                      const node = chainNodes.find((n) => n.id === value);
+                      return node ? `${node.label} · ${node.nodeType}` : "Elegí un nodo";
+                    }}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {chainNodes.map((n) => (
+                    <SelectItem key={n.id} value={n.id}>
+                      {n.label} · {n.nodeType}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          />
+          <span className="text-[10.5px] leading-relaxed text-muted-foreground">
+            Un escenario afecta un solo nodo. Podés cargarle varios eventos.
+          </span>
+          {errors.nodeId && <span className="text-[11px] text-destructive">{errors.nodeId.message}</span>}
+        </div>
+
+        <div className="flex flex-col gap-2.5 border-t border-border pt-3.5">
+          <div className="flex items-center justify-between">
+            <Label className="font-mono text-[9.5px] uppercase tracking-wider text-muted-foreground">Eventos</Label>
+            <button
+              type="button"
+              onClick={() => append({ eventType: "", startDate: todayIso(), magnitude: 25 })}
+              className="flex items-center gap-1 text-[11.5px] text-primary hover:underline"
+            >
+              <Plus size={12} /> agregar evento
+            </button>
+          </div>
+
+          {fields.length === 0 && (
+            <div className="rounded-lg border border-dashed border-border p-3 text-center text-[11.5px] leading-relaxed text-muted-foreground">
+              Hacé click en un nodo del canvas para elegirlo, o usá &quot;agregar evento&quot;.
+            </div>
+          )}
+
+          {fields.map((field, index) => (
+            <div key={field.id} className="flex flex-col gap-2 rounded-lg border border-border p-2.5">
+              <div className="flex items-center justify-between">
+                <span className="font-mono text-[10px] text-muted-foreground">Evento {index + 1}</span>
+                <button type="button" onClick={() => remove(index)} className="text-muted-foreground hover:text-destructive">
+                  <Trash2 size={12} />
+                </button>
+              </div>
+
+              <Input placeholder="tipo de evento (ej. corte, huelga, demora)" list="event-type-suggestions" {...register(`events.${index}.eventType`)} />
+
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <Input type="date" {...register(`events.${index}.startDate`)} className="text-[12px]" />
+                </div>
+                <div className="flex w-[104px] items-center gap-1">
+                  <Input
+                    type="number"
+                    min={1}
+                    max={100}
+                    {...register(`events.${index}.magnitude`, { valueAsNumber: true })}
+                    className="text-[12px]"
+                  />
+                  <span className="font-mono text-[10.5px] text-muted-foreground">%</span>
+                </div>
+              </div>
+              {errors.events?.[index] && (
+                <span className="text-[10.5px] text-destructive">
+                  {errors.events[index]?.eventType?.message ||
+                    errors.events[index]?.startDate?.message ||
+                    errors.events[index]?.magnitude?.message}
+                </span>
+              )}
+            </div>
+          ))}
+          {errors.events?.root && <span className="text-[10.5px] text-destructive">{errors.events.root.message}</span>}
+          <datalist id="event-type-suggestions">
+            {EVENT_TYPE_SUGGESTIONS.map((t) => (
+              <option key={t} value={t} />
+            ))}
+          </datalist>
+        </div>
+
+        <div className="rounded-lg border border-border bg-secondary/30 p-2.5 text-[11px] leading-relaxed text-muted-foreground">
+          La duración de la disrupción no se carga: es la incógnita que el sistema resuelve al correr la simulación.
+        </div>
+
+        <Button type="submit" disabled={isSubmitting} className="bg-foreground text-background hover:bg-foreground/85">
+          ▶ Correr simulación
+        </Button>
+      </div>
+    </form>
+  );
+});

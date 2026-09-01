@@ -1,0 +1,271 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  Background,
+  Connection,
+  Controls,
+  MiniMap,
+  ReactFlow,
+  ReactFlowProvider,
+  addEdge as rfAddEdge,
+  useEdgesState,
+  useNodesState,
+  type Edge,
+  type Node,
+} from "@xyflow/react";
+import "@xyflow/react/dist/style.css";
+import { NodePalette } from "@/components/canvas/node-palette";
+import { NodeInspector } from "@/components/canvas/node-inspector";
+import { EdgeInspector } from "@/components/canvas/edge-inspector";
+import { SupplyChainNodeView, type SupplyChainNodeData } from "@/components/canvas/supply-chain-node";
+import { TransitEdge } from "@/components/canvas/transit-edge";
+import { useMockDbStore } from "@/stores/mock-db-store";
+import type { Severity } from "@/lib/mock/simulate";
+import type { NodeType } from "@/lib/mock/types";
+
+const NODE_TYPES = { supplyChainNode: SupplyChainNodeView };
+const EDGE_TYPES = { transitEdge: TransitEdge };
+
+export type ChainCanvasMode = "edit" | "select" | "display";
+
+function nodeDetail(nodeType: NodeType, productionCapacity?: number, storageCapacity?: number): string {
+  if (nodeType === "Fabrica") return productionCapacity ? `prod. ${productionCapacity} u/sem` : "sin capacidad cargada";
+  if (nodeType === "Almacen") return storageCapacity ? `almac. ${storageCapacity} u` : "sin capacidad cargada";
+  return "sin atributos propios";
+}
+
+interface CanvasInnerProps {
+  chainId: string;
+  mode: ChainCanvasMode;
+  selectedNodeIds?: string[];
+  onNodeSelect?: (nodeId: string) => void;
+  severityByNode?: Record<string, Severity>;
+  severityByEdge?: Record<string, Severity>;
+}
+
+function CanvasInner({ chainId, mode, selectedNodeIds, onNodeSelect, severityByNode, severityByEdge }: CanvasInnerProps) {
+  const isEdit = mode === "edit";
+  const isSelect = mode === "select";
+  const isDisplay = mode === "display";
+
+  const allNodes = useMockDbStore((s) => s.nodes);
+  const allEdges = useMockDbStore((s) => s.edges);
+  const weeklyPerformance = useMockDbStore((s) => s.weeklyPerformance);
+  const updateNodePosition = useMockDbStore((s) => s.updateNodePosition);
+  const addEdgeToStore = useMockDbStore((s) => s.addEdge);
+  const addNodeToStore = useMockDbStore((s) => s.addNode);
+
+  const chainNodes = useMemo(() => allNodes.filter((n) => n.chainId === chainId), [allNodes, chainId]);
+  const chainNodeIds = useMemo(() => new Set(chainNodes.map((n) => n.id)), [chainNodes]);
+  const chainEdges = useMemo(
+    () => allEdges.filter((e) => chainNodeIds.has(e.sourceNodeId) && chainNodeIds.has(e.targetNodeId)),
+    [allEdges, chainNodeIds],
+  );
+
+  const latestDeficitByNode = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const nodeId of chainNodeIds) {
+      const history = weeklyPerformance
+        .filter((w) => w.nodeId === nodeId)
+        .sort((a, b) => b.weekStart.localeCompare(a.weekStart));
+      map.set(nodeId, history[0]?.deficit ?? 0);
+    }
+    return map;
+  }, [weeklyPerformance, chainNodeIds]);
+
+  const selectedSet = useMemo(() => new Set(selectedNodeIds ?? []), [selectedNodeIds]);
+
+  const rebuiltNodes = useMemo(
+    (): Node[] =>
+      chainNodes.map((n) => ({
+        id: n.id,
+        type: "supplyChainNode",
+        position: n.canvasPosition,
+        // Tamaño fijo y conocido de antemano (ver supply-chain-node.tsx): se lo declaramos a
+        // React Flow para que no dependa de ResizeObserver para "medir" el nodo antes de mostrarlo.
+        width: 150,
+        height: 86,
+        data: {
+          label: n.label,
+          nodeType: n.nodeType,
+          detail: nodeDetail(n.nodeType, n.productionCapacity, n.storageCapacity),
+          latestDeficit: latestDeficitByNode.get(n.id) ?? 0,
+          highlighted: isSelect && selectedSet.has(n.id),
+          severity: isDisplay ? severityByNode?.[n.id] : undefined,
+        } satisfies SupplyChainNodeData,
+      })),
+    [chainNodes, latestDeficitByNode, isSelect, selectedSet, isDisplay, severityByNode],
+  );
+
+  const rebuiltEdges = useMemo(
+    (): Edge[] =>
+      chainEdges.map((e) => ({
+        id: e.id,
+        source: e.sourceNodeId,
+        target: e.targetNodeId,
+        type: "transitEdge",
+        data: { transitTimeDays: e.transitTimeDays, severity: isDisplay ? severityByEdge?.[e.id] : undefined },
+      })),
+    [chainEdges, isDisplay, severityByEdge],
+  );
+
+  const [rfNodes, setRfNodes, onNodesChange] = useNodesState<Node>(rebuiltNodes);
+  const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState<Edge>(rebuiltEdges);
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
+
+  // Mergea sobre los nodos/aristas que React Flow ya está gestionando en vez de
+  // reemplazarlos: un `setRfNodes(rebuiltNodes)` a secas le hace perder a React Flow
+  // el estado interno de medición (measured/dragging) y los deja en visibility:hidden.
+  useEffect(() => {
+    setRfNodes((current) => {
+      const existingById = new Map(current.map((n) => [n.id, n]));
+      return rebuiltNodes.map((n) => {
+        const existing = existingById.get(n.id);
+        return existing ? { ...existing, position: n.position, data: n.data } : n;
+      });
+    });
+  }, [rebuiltNodes, setRfNodes]);
+
+  useEffect(() => {
+    setRfEdges((current) => {
+      const existingById = new Map(current.map((e) => [e.id, e]));
+      return rebuiltEdges.map((e) => {
+        const existing = existingById.get(e.id);
+        return existing ? { ...existing, data: e.data } : e;
+      });
+    });
+  }, [rebuiltEdges, setRfEdges]);
+
+  const handleNodesChange: typeof onNodesChange = useCallback(
+    (changes) => {
+      // Siempre se aplica: React Flow necesita procesar los cambios de tipo "dimensions"
+      // para marcar los nodos como medidos, o quedan en visibility:hidden para siempre.
+      onNodesChange(changes);
+      if (!isEdit) return;
+      for (const change of changes) {
+        if (change.type === "position" && change.position && change.dragging === false) {
+          updateNodePosition(change.id, change.position);
+        }
+        if (change.type === "remove") {
+          setSelectedNodeId((current) => (current === change.id ? null : current));
+        }
+      }
+    },
+    [onNodesChange, updateNodePosition, isEdit],
+  );
+
+  const handleConnect = useCallback(
+    (connection: Connection) => {
+      if (!connection.source || !connection.target) return;
+      const edgeId = addEdgeToStore(connection.source, connection.target, 3);
+      setRfEdges((eds) =>
+        rfAddEdge({ ...connection, id: edgeId, type: "transitEdge", data: { transitTimeDays: 3 } }, eds),
+      );
+    },
+    [addEdgeToStore, setRfEdges],
+  );
+
+  function handleAddNode(type: NodeType) {
+    const offset = chainNodes.length * 12;
+    const position = { x: 120 + (offset % 400), y: 120 + Math.floor(offset / 400) * 90 };
+    const label = `${type.slice(0, 3).toUpperCase()}-${String(chainNodes.filter((n) => n.nodeType === type).length + 1).padStart(2, "0")}`;
+    addNodeToStore(chainId, type, label, position);
+  }
+
+  const selectedNode = isEdit && selectedNodeId ? chainNodes.find((n) => n.id === selectedNodeId) : undefined;
+  const selectedEdge = isEdit && selectedEdgeId ? chainEdges.find((e) => e.id === selectedEdgeId) : undefined;
+
+  const onNodeClick = isEdit
+    ? (_: unknown, node: Node) => {
+        setSelectedNodeId(node.id);
+        setSelectedEdgeId(null);
+      }
+    : isSelect && onNodeSelect
+      ? (_: unknown, node: Node) => onNodeSelect(node.id)
+      : undefined;
+
+  return (
+    // `h-full` ademas de `flex-1`: el canvas se usa tanto dentro de un padre flex (pantalla de
+    // cadena) como dentro de una caja de alto fijo (red fork del resultado), donde `flex-1` no
+    // aplica y sin altura propia colapsaria a 0.
+    <div className="flex h-full min-h-0 flex-1">
+      {isEdit && <NodePalette nodeCount={chainNodes.length} edgeCount={chainEdges.length} onAddNode={handleAddNode} />}
+      <div className="relative min-w-0 flex-1">
+        <ReactFlow
+          nodes={rfNodes}
+          edges={rfEdges}
+          onNodesChange={handleNodesChange}
+          onEdgesChange={onEdgesChange}
+          onConnect={isEdit ? handleConnect : undefined}
+          nodesDraggable={isEdit}
+          nodesConnectable={isEdit}
+          elementsSelectable={isEdit || isSelect}
+          nodeTypes={NODE_TYPES}
+          edgeTypes={EDGE_TYPES}
+          onNodeClick={onNodeClick}
+          onEdgeClick={
+            isEdit
+              ? (_, edge) => {
+                  setSelectedEdgeId(edge.id);
+                  setSelectedNodeId(null);
+                }
+              : undefined
+          }
+          onPaneClick={
+            isEdit
+              ? () => {
+                  setSelectedNodeId(null);
+                  setSelectedEdgeId(null);
+                }
+              : undefined
+          }
+          fitView
+          proOptions={{ hideAttribution: true }}
+        >
+          <Background gap={26} color="#dbe1ea" />
+          <Controls showInteractive={false} />
+          <MiniMap pannable zoomable style={{ background: "#fafbfd" }} />
+        </ReactFlow>
+
+        {isSelect && (
+          <div className="pointer-events-none absolute left-3.5 top-3.5 rounded-lg border border-border bg-card/90 px-3 py-2 font-mono text-[10.5px] text-muted-foreground">
+            Hacé click en el nodo que querés afectar — un escenario apunta a un solo nodo
+          </div>
+        )}
+
+        {isDisplay && (
+          <div className="absolute bottom-3.5 left-3.5 flex flex-col gap-1.5 rounded-lg border border-border bg-card/95 px-3 py-2.5 shadow-sm">
+            <div className="font-mono text-[9px] font-medium uppercase tracking-wider text-muted-foreground">
+              Propagación
+            </div>
+            <div className="flex items-center gap-2 text-[11px]">
+              <span className="h-2.5 w-2.5 rounded-sm border" style={{ background: "#fdeeeb", borderColor: "#d33f28" }} />
+              severo
+            </div>
+            <div className="flex items-center gap-2 text-[11px]">
+              <span className="h-2.5 w-2.5 rounded-sm border" style={{ background: "#fdf6e9", borderColor: "#e6b96b" }} />
+              moderado
+            </div>
+            <div className="flex items-center gap-2 text-[11px]">
+              <span className="h-2.5 w-2.5 rounded-sm border" style={{ background: "#fff", borderColor: "#d6dce6" }} />
+              sin efecto
+            </div>
+          </div>
+        )}
+      </div>
+      {isEdit && selectedNode && <NodeInspector node={selectedNode} onClose={() => setSelectedNodeId(null)} />}
+      {isEdit && selectedEdge && <EdgeInspector edge={selectedEdge} onClose={() => setSelectedEdgeId(null)} />}
+    </div>
+  );
+}
+
+export function ChainCanvas(props: { chainId: string } & Partial<Omit<CanvasInnerProps, "chainId">>) {
+  const { chainId, mode = "edit", ...rest } = props;
+  return (
+    <ReactFlowProvider>
+      <CanvasInner chainId={chainId} mode={mode} {...rest} />
+    </ReactFlowProvider>
+  );
+}
