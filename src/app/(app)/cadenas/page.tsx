@@ -3,6 +3,34 @@
 import Link from "next/link";
 import { useMockDbStore } from "@/stores/mock-db-store";
 import { NODE_TYPE_COLOR } from "@/lib/mock/node-visuals";
+import type { StabilityCheck } from "@/lib/mock/types";
+
+/**
+ * Veredicto CUSUM del pipeline de ingesta (C24). Corre por cada cadena nueva, no una sola vez
+ * en desarrollo: por eso una cadena recién creada aparece primero como "validando".
+ */
+function StabilityBadge({ check }: { check?: StabilityCheck }) {
+  if (!check) return null;
+
+  if (check.status === "corriendo") {
+    return (
+      <div className="flex items-center gap-1.5 font-mono text-[10.5px] text-muted-foreground">
+        <span className="h-2.5 w-2.5 animate-spin rounded-full border-[1.5px] border-border border-t-primary" />
+        validando estabilidad estructural (CUSUM)…
+      </div>
+    );
+  }
+
+  const alerta = check.status === "alerta";
+  return (
+    <div className="flex items-center gap-1.5 font-mono text-[10.5px] text-muted-foreground">
+      <span className="rounded border px-1 py-0.5" style={{ borderColor: alerta ? "#e9b8ad" : "#b9e2d8", color: alerta ? "#c23a24" : "#0a7d6a" }}>
+        CUSUM {alerta ? "alerta" : "ok"}
+      </span>
+      {alerta && check.changePointWeek ? `punto de cambio ${check.changePointWeek}` : `validada ${check.ranAt}`}
+    </div>
+  );
+}
 
 export default function ChainsPage() {
   const organization = useMockDbStore((s) => s.organization);
@@ -11,6 +39,7 @@ export default function ChainsPage() {
   const edges = useMockDbStore((s) => s.edges);
   const scenarios = useMockDbStore((s) => s.scenarios);
   const weeklyPerformance = useMockDbStore((s) => s.weeklyPerformance);
+  const stabilityChecks = useMockDbStore((s) => s.stabilityChecks);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-background">
@@ -72,6 +101,8 @@ export default function ChainsPage() {
                 <span className="h-1.5 w-1.5 rounded-full" style={{ background: stable ? "#0d9c84" : "#d33f28" }} />
                 {stable ? "desempeño estable" : `déficit promedio ${avgDeficit.toFixed(1)} pp`}
               </div>
+              {/* Validación de estabilidad estructural del pipeline de ingesta (C24). */}
+              <StabilityBadge check={stabilityChecks[chain.id]} />
             </Link>
           );
         })}

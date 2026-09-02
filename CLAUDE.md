@@ -83,15 +83,41 @@ cambió en nada, solo la implementación.
   - `/cadenas/[id]/escenarios` y `/escenarios/[scenarioId]` — listado y resultado: tabla_k, déficit proyectado por
     nodo (directos y propagados), y la "red fork" (`ChainCanvas mode="display"`) coloreando cada nodo/arista según
     severidad (severo/moderado/sin efecto) con un slider de semana para ver cómo avanza la propagación.
-  - `/comparar` — comparación de 2+ escenarios (tabla_k lado a lado).
+  - `/cadenas/[id]/escenarios/[scenarioId]` tiene dos vistas: **"Respuesta"** (veredicto de impacto, decisión
+    interactiva de reconfigurar según el costo k que asume el usuario, y la red de propagación) y **"Detalle
+    técnico"** (ficha de la corrida con réplicas/semilla, corridas guardadas, eventos, tabla_k completa y los
+    gráficos por nodo). Toda la jerga metodológica vive en la segunda; la primera no la menciona.
+  - **La recomendación NO sale de `tabla_k`** — sale de comparar la pérdida evitable contra k directamente. Motivo:
+    la fórmula actual de `computeReplicaThresholds` está **invertida** (el umbral baja cuando k sube, así que
+    "cuanto más caro reconfigurar, más conviene"), y el "no existe umbral" de los k altos se dispara porque el
+    umbral se hace muy chico, no porque el costo sea inalcanzable. Está marcado con ⚠️ en `simulate.ts`. **Definir
+    bien el umbral es metodología de la tesis** — no parchearlo por cuenta propia.
+  - `/comparar` — comparación de 2+ escenarios (tabla_k lado a lado, mediana + rango, última corrida de cada uno).
   - `/biblioteca` — referencia de tipos de nodo/arista/plantillas.
   - `src/lib/mock/simulate.ts` es **explícitamente un placeholder** (comentado como MOCK) — no es la propuesta
-    metodológica de la tesis. Incluye `computeChainPropagation`: un BFS que propaga cada Evento aguas abajo por las
-    Aristas (decae magnitud ~45%/salto, retrasa onset según `tiempo_transito`), reutilizando
-    `projectNodeWeeklyDeficit` con eventos sintéticos por salto. `ScenarioResult.kTable` ahora se calcula sobre el
-    déficit de toda la red propagada, no solo de los nodos con Evento directo.
+    metodológica de la tesis. Su API es `runScenarioSimulation(...)`: corre N réplicas (default 30) y devuelve
+    `projectionByNode` (mediana + rango por semana), `totalDeficit` y `kTable`. Internamente hace BFS aguas abajo
+    por las Aristas trasladando una fracción del déficit por salto y retrasando el onset según `tiempo_transito`.
   - `ChainCanvas` tiene tres modos (`edit`/`select`/`display`) en vez de un `readOnly` booleano — ver
     `src/components/canvas/chain-canvas.tsx`.
+- **RF corregidos de la bitácora, ya implementados en el mock** (no son "placeholder libre": el cálculo es de
+  mentira, pero la *forma* del resultado respeta las decisiones cerradas):
+  - **RF012** — `WeeklyPerformance` lleva `baselineLowerBand`/`baselineUpperBand`; los gráficos la sombrean.
+  - **RF023 / C36** — cada corrida barre 30 réplicas variando la posición dentro de esa banda y la fracción de
+    propagación. En producción la recomendación registrada es 200-300, todavía sin confirmar.
+  - **RF027** — la fracción trasladada por arista no es fija: se barre en el rango 0.45–0.65 entre réplicas.
+  - **RF029** — `KTableRow` es `{k, thresholdMedian, thresholdLow, thresholdHigh}`. Nunca un valor puntual.
+  - **RF030** — `rerunScenario` agrega una fila de `ScenarioResult` sin pisar las anteriores; la pantalla de
+    resultado tiene selector de corridas. Cada corrida guarda `seed` y `replications` para poder reproducirla.
+  - **RF022 / C23** — la reconfiguración es un **escalón**: desde `reconfigurationWeekIndex` el déficit cae a cero
+    de un salto. Es el **único** mecanismo de salida: el déficit no se corrige solo, se sostiene hasta el fin del
+    horizonte. El motor tuvo una rampa de recuperación automática (`RECOVERY_SPAN_WEEKS`) y se sacó a propósito
+    porque equivalía a hardcodear la duración de la disrupción — ver `docs/duracion-de-la-disrupcion.md`, **no
+    volver a agregarla**. El escalón viaja aguas abajo con el retraso de tránsito de cada nodo.
+  - **C36 (ejecución en background)** y **C24 (CUSUM en el pipeline de ingesta)** están simulados como estado de
+    runtime en el store — `pendingRuns` y `stabilityChecks`. **No son entidades del modelo de datos** y no deben
+    convertirse en tablas: el job y el pipeline son contenedores de la arquitectura C4, no filas. Cuando exista el
+    backend real, `pendingRuns` lo reemplaza el job de Vercel y `stabilityChecks` el pipeline de ingesta.
 - **`ChainCanvas` necesita un padre con altura.** Su raíz es `flex h-full min-h-0 flex-1`: dentro de un padre
   flex toma `flex-1`, y dentro de una caja de alto fijo (la red fork del resultado) toma `h-full`. Si el padre es
   `block` **y** se le saca el `h-full`, el canvas colapsa a 0 de alto y no se ve nada.
@@ -102,6 +128,8 @@ cambió en nada, solo la implementación.
   ni corre `fitView`** (`fitViewQueued` queda en `true`). Se verificó que los datos que llegan a `<ReactFlow>` son
   correctos (10/10 aristas con source/target válidos contra los 9 nodos) y que el layout sí se calcula
   (`getBoundingClientRect` da medidas reales). Confirmar el renderizado visual de aristas y el `fitView` en un
-  browser real la primera vez que se toque este código.
+  browser real la primera vez que se toque este código. **Los gráficos de Recharts sufren lo mismo**: los `path`
+  se generan con geometría correcta en el DOM pero el pane no los pinta, así que una captura del pane muestra ejes
+  sin curvas. No es un bug de la app — verificar en un browser real.
 - Próxima fase: reescribir el backend (Drizzle + PostgreSQL + Server Actions) contra `docs/modelo-datos.md`, y
   reemplazar `mock-db-store` por llamadas reales, manteniendo las pantallas ya construidas.

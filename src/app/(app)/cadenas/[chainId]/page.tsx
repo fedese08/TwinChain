@@ -16,6 +16,7 @@ export default function ChainDetailPage({ params }: { params: Promise<{ chainId:
   const scenarioFormRef = useRef<ScenarioFormHandle>(null);
 
   const chain = useMockDbStore((s) => s.chains.find((c) => c.id === chainId));
+  const stabilityCheck = useMockDbStore((s) => s.stabilityChecks[chainId]);
   const nodes = useMockDbStore((s) => s.nodes);
   const chainNodes = useMemo(() => nodes.filter((n) => n.chainId === chainId), [nodes, chainId]);
 
@@ -40,7 +41,30 @@ export default function ChainDetailPage({ params }: { params: Promise<{ chainId:
           <span className="font-mono text-[13px]">‹</span>Cadenas
         </Link>
         <div className="h-5 w-px flex-none bg-border" />
-        <div className="min-w-0 flex-1 truncate text-[14.5px] font-medium">{chain.name}</div>
+        <div className="min-w-0 truncate text-[14.5px] font-medium">{chain.name}</div>
+        {/* C24: el pipeline de ingesta valida la estabilidad estructural de cada cadena nueva. */}
+        {stabilityCheck && (
+          <div className="flex flex-none items-center gap-1.5 font-mono text-[10.5px] text-muted-foreground">
+            {stabilityCheck.status === "corriendo" ? (
+              <>
+                <span className="h-2.5 w-2.5 animate-spin rounded-full border-[1.5px] border-border border-t-primary" />
+                validando estabilidad (CUSUM)…
+              </>
+            ) : (
+              <span
+                className="rounded border px-1 py-0.5"
+                style={
+                  stabilityCheck.status === "alerta"
+                    ? { borderColor: "#e9b8ad", color: "#c23a24" }
+                    : { borderColor: "#b9e2d8", color: "#0a7d6a" }
+                }
+              >
+                CUSUM {stabilityCheck.status === "alerta" ? "alerta" : "ok"}
+              </span>
+            )}
+          </div>
+        )}
+        <div className="flex-1" />
 
         <div className="flex flex-none items-center gap-px overflow-hidden rounded-lg border border-border bg-card">
           <button

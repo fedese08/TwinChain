@@ -68,6 +68,10 @@ export interface WeeklyPerformance {
   actualValue: number;
   /** linea_base — predicho por ML, congelado al momento de la decisión. */
   baseline: number;
+  /** banda_inferior — extremo inferior de la banda de incertidumbre de la línea base (RF012). */
+  baselineLowerBand: number;
+  /** banda_superior — extremo superior de la banda de incertidumbre de la línea base (RF012). */
+  baselineUpperBand: number;
   /** deficit = max(baseline - actualValue, 0). Nunca negativo: las semanas buenas no compensan a las malas. */
   deficit: number;
 }
@@ -94,11 +98,44 @@ export interface Scenario {
   createdAt: string;
 }
 
+/**
+ * Una fila de tabla_k. El umbral no es un valor único sino la mediana sobre las réplicas
+ * estocásticas de la corrida, acompañada del rango observado (RF029: mediana y rango, nunca
+ * un valor puntual). `null` en los tres campos = a partir de este k ya no existe umbral.
+ */
 export interface KTableRow {
   /** k — costo de reconfigurar, en semanas malas equivalentes. */
   k: number;
-  /** umbral de reconfiguración resultante para ese k; null = a partir de este k ya no existe umbral. */
-  threshold: number | null;
+  /** Mediana del umbral sobre las réplicas. */
+  thresholdMedian: number | null;
+  /** Extremo inferior del rango observado entre réplicas. */
+  thresholdLow: number | null;
+  /** Extremo superior del rango observado entre réplicas. */
+  thresholdHigh: number | null;
+}
+
+/**
+ * Corrida encolada. En el sistema real el motor corre como job en background dentro del
+ * monolito (decisión 13 / C36) y recién al terminar escribe la fila de Resultado; en el mock
+ * se simula esa asincronía con una demora. NO es una entidad del modelo de datos: es estado
+ * del job, no un dato persistido.
+ */
+export interface PendingRun {
+  id: string;
+  scenarioId: string;
+  startedAt: number;
+}
+
+/**
+ * Veredicto de la validación de estabilidad estructural (CUSUM) que el pipeline de ingesta
+ * corre por cada cadena nueva (decisión 14 / C24). Tampoco es una entidad del modelo: el
+ * pipeline de ingesta es un contenedor de la arquitectura, no una tabla.
+ */
+export interface StabilityCheck {
+  status: "corriendo" | "estable" | "alerta";
+  /** Semana detectada como punto de cambio, si la validación encontró uno. */
+  changePointWeek?: string;
+  ranAt?: string;
 }
 
 export interface ScenarioResult {
@@ -106,4 +143,16 @@ export interface ScenarioResult {
   scenarioId: string;
   runDate: string;
   kTable: KTableRow[];
+  /** Cantidad de réplicas estocásticas que produjeron esta corrida (RF023). */
+  replications: number;
+  /**
+   * Semilla del generador pseudoaleatorio de esta corrida. Junto con `replications` permite
+   * reproducirla exactamente — cada corrida se conserva y no se pisa (RF030).
+   */
+  seed: number;
+  /**
+   * Semana (índice dentro del horizonte) en la que se aplicó la reconfiguración, si se aplicó.
+   * La transición es un escalón, no una rampa (RF022 / C23).
+   */
+  reconfigurationWeekIndex: number | null;
 }

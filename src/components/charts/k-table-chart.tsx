@@ -1,10 +1,21 @@
 "use client";
 
-import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, CartesianGrid, Cell, ErrorBar, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import type { KTableRow } from "@/lib/mock/types";
 
 export function KTableChart({ rows }: { rows: KTableRow[] }) {
-  const data = rows.map((r) => ({ k: `k=${r.k}`, umbral: r.threshold ?? 0, existe: r.threshold !== null }));
+  const data = rows.map((r) => ({
+    k: `k=${r.k}`,
+    umbral: r.thresholdMedian ?? 0,
+    existe: r.thresholdMedian !== null,
+    // Offsets hacia cada extremo del rango observado entre réplicas (RF029).
+    rango:
+      r.thresholdMedian !== null && r.thresholdLow !== null && r.thresholdHigh !== null
+        ? ([r.thresholdMedian - r.thresholdLow, r.thresholdHigh - r.thresholdMedian] as [number, number])
+        : ([0, 0] as [number, number]),
+    low: r.thresholdLow,
+    high: r.thresholdHigh,
+  }));
 
   return (
     <ResponsiveContainer width="100%" height={170}>
@@ -15,13 +26,19 @@ export function KTableChart({ rows }: { rows: KTableRow[] }) {
         <Tooltip
           contentStyle={{ fontSize: 11, borderRadius: 8, border: "1px solid #e4e8ef" }}
           formatter={(value, _name, item) =>
-            item?.payload?.existe ? [Number(value).toFixed(1), "umbral"] : ["no existe umbral", ""]
+            item?.payload?.existe
+              ? [
+                  `${Number(value).toFixed(1)} (rango ${Number(item.payload.low).toFixed(1)}–${Number(item.payload.high).toFixed(1)})`,
+                  "umbral mediano",
+                ]
+              : ["no existe umbral", ""]
           }
         />
         <Bar dataKey="umbral" radius={[3, 3, 0, 0]}>
           {data.map((d, i) => (
             <Cell key={i} fill={d.existe ? "#3a5bd9" : "#e4e8ef"} />
           ))}
+          <ErrorBar dataKey="rango" width={4} strokeWidth={1.2} stroke="#1f2a44" />
         </Bar>
       </BarChart>
     </ResponsiveContainer>

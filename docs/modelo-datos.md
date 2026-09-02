@@ -121,7 +121,13 @@ Registro semanal de desempeño real y esperado por nodo. Es la serie de tiempo s
 | semana | date | | fecha de inicio de la semana que representa el registro |
 | valor_real | float | | medido, sale de los datos reales (Olist: comparación de fecha estimada vs. fecha real de entrega) |
 | linea_base | float | | predicho por el modelo de ML, congelado al momento de la decisión — no se recalcula con el tiempo |
+| banda_inferior | float | | extremo inferior de la banda de incertidumbre de la línea base (RF012) |
+| banda_superior | float | | extremo superior de la banda de incertidumbre de la línea base (RF012) |
 | deficit | float | | linea_base − valor_real, nunca negativo (las semanas buenas no compensan a las malas) |
+
+**Banda de incertidumbre (RF012).** La línea base no se registra como un valor puntual: el modelo de ML devuelve
+también la banda dentro de la cual cae la predicción, y esa banda es la que barren las réplicas estocásticas de C36
+al correr una simulación. Sin ella, RF023 no tendría de dónde sacar la variabilidad de cada réplica.
 
 ### Escenario
 Configuración armada por un usuario para correr una simulación.
@@ -142,7 +148,18 @@ para poder comparar cómo cambió la recomendación con más datos.
 | id | UUID | PK | |
 | escenario_id | UUID | FK → Escenario | |
 | fecha_corrida | date | | |
-| tabla_k | JSONB — array de `{k, umbral}` | | correspondencia entre k (costo de reconfigurar, en semanas malas equivalentes) y el umbral de reconfiguración resultante; incluye el k a partir del cual el umbral deja de existir |
+| tabla_k | JSONB — array de `{k, umbral_mediana, umbral_min, umbral_max}` | | correspondencia entre k (costo de reconfigurar, en semanas malas equivalentes) y el umbral de reconfiguración resultante; incluye el k a partir del cual el umbral deja de existir |
+| replicas | int | | cantidad de réplicas estocásticas que produjeron esta corrida (RF023) |
+| semilla | bigint | | semilla del generador pseudoaleatorio — permite reproducir la corrida exactamente (RF030) |
+| semana_reconfiguracion | int | nullable | semana del horizonte en la que se aplicó la reconfiguración; null = no se reconfiguró (RF022) |
+
+**El umbral es mediana y rango, nunca un valor puntual (RF029 / C36).** Cada corrida barre N réplicas variando los
+parámetros dentro de la banda de incertidumbre (RF023) y, para cada k, reporta la mediana de los umbrales obtenidos
+más el rango observado entre réplicas. Un k se marca como "sin umbral" solo si ninguna réplica encontró uno.
+
+**Cada corrida se conserva (RF030).** `Resultado` sigue siendo 1-a-muchos con `Escenario`: volver a correr el mismo
+escenario agrega una fila, nunca pisa la anterior. `semilla` y `replicas` son lo que hace que una corrida guardada
+se pueda volver a reproducir tal cual — conservarla sin poder repetirla no alcanza para defenderla.
 
 ## Relaciones y cardinalidad
 
@@ -181,11 +198,13 @@ para poder comparar cómo cambió la recomendación con más datos.
   afecta **un único Nodo** — puede acumularle varios Eventos, pero todos sobre ese mismo Nodo. El modelo lo soporta
   estructuralmente (cada Evento lleva su `nodo_id`), así que habilitar C29 sería relajar la validación, no migrar el
   schema. Ver "Un Escenario, un solo Nodo" más abajo.
-- **C36** (réplicas estocásticas, resultado con rango en vez de valor puntual) puede requerir que `tabla_k` guarde
-  un rango por cada k en vez de un umbral puntual. Con `tabla_k` como JSONB alcanza con cambiar la forma del objeto
-  sin migrar el schema; si en algún momento se necesita indexar o hacer queries agregadas sobre los valores de k,
-  ahí sí conviene normalizarlo a una tabla `resultado_k` (`resultado_id` FK, `k`, `umbral`). Pendiente de decidir
-  cuando se resuelva C36.
+- ~~**C36** (réplicas estocásticas, resultado con rango en vez de valor puntual)~~ — **resuelto**: `tabla_k` guarda
+  `{k, umbral_mediana, umbral_min, umbral_max}` por cada k, y `Resultado` suma `replicas`, `semilla` y
+  `semana_reconfiguracion` (ver la entidad más arriba). Como `tabla_k` es JSONB, el cambio de forma no requirió
+  migrar nada. Si en algún momento se necesita indexar o hacer queries agregadas sobre los valores de k, ahí sí
+  conviene normalizarlo a una tabla `resultado_k` (`resultado_id` FK, `k`, `umbral_mediana`, `umbral_min`,
+  `umbral_max`). El número de réplicas de producción sigue sin confirmarse (la recomendación registrada es 200-300);
+  el frontend mock corre 30 para no trabar la UI en la demo.
 - La calibración del detector (**C20**) fue evaluada y se determinó que no agrega entidades ni atributos a este
   modelo — es un proceso de desarrollo que se resuelve una sola vez, antes de que el sistema esté en producción, y
   no se refleja en el modelo de datos.

@@ -11,6 +11,7 @@ export default function ScenarioListPage({ params }: { params: Promise<{ chainId
   const scenarios = useMemo(() => allScenarios.filter((sc) => sc.chainId === chainId), [allScenarios, chainId]);
   const events = useMockDbStore((s) => s.events);
   const results = useMockDbStore((s) => s.results);
+  const pendingRuns = useMockDbStore((s) => s.pendingRuns);
   const nodes = useMockDbStore((s) => s.nodes);
 
   if (!chain) {
@@ -41,25 +42,28 @@ export default function ScenarioListPage({ params }: { params: Promise<{ chainId
 
       <div className="flex-1 overflow-auto px-5 pb-6">
         <div className="overflow-hidden rounded-xl border border-border bg-card">
-          <div className="grid grid-cols-[1.6fr_1.4fr_0.7fr_0.9fr_0.9fr_0.8fr] border-b border-border bg-secondary/30 px-4 py-2.5 font-mono text-[9px] font-medium uppercase tracking-wider text-muted-foreground">
+          <div className="grid grid-cols-[1.6fr_1.4fr_0.7fr_1.1fr_0.9fr_0.8fr] border-b border-border bg-secondary/30 px-4 py-2.5 font-mono text-[9px] font-medium uppercase tracking-wider text-muted-foreground">
             <div>Escenario</div>
             <div>Eventos</div>
             <div>Horizonte</div>
-            <div>Umbral (k=1)</div>
+            <div>Umbral k=1 (mediana)</div>
             <div>Sin umbral desde</div>
-            <div>Corrida</div>
+            <div>Corridas</div>
           </div>
           {scenarios.map((scenario) => {
             const scenarioEvents = events.filter((e) => e.scenarioId === scenario.id);
-            const result = results.find((r) => r.scenarioId === scenario.id);
-            const k1 = result?.kTable.find((r) => r.k === 1)?.threshold ?? null;
-            const firstNull = result?.kTable.find((r) => r.threshold === null)?.k ?? null;
+            const scenarioRuns = results.filter((r) => r.scenarioId === scenario.id);
+            // La última corrida es la que se muestra en el listado; las anteriores se conservan (RF030).
+            const result = scenarioRuns[scenarioRuns.length - 1];
+            const k1 = result?.kTable.find((r) => r.k === 1);
+            const firstNull = result?.kTable.find((r) => r.thresholdMedian === null)?.k ?? null;
+            const running = pendingRuns.some((r) => r.scenarioId === scenario.id);
 
             return (
               <Link
                 key={scenario.id}
                 href={`/cadenas/${chainId}/escenarios/${scenario.id}`}
-                className="grid grid-cols-[1.6fr_1.4fr_0.7fr_0.9fr_0.9fr_0.8fr] items-center border-b border-border px-4 py-3 last:border-b-0 hover:bg-secondary/30"
+                className="grid grid-cols-[1.6fr_1.4fr_0.7fr_1.1fr_0.9fr_0.8fr] items-center border-b border-border px-4 py-3 last:border-b-0 hover:bg-secondary/30"
               >
                 <div className="min-w-0">
                   <div className="truncate text-[13px] font-medium">{scenario.name}</div>
@@ -79,9 +83,27 @@ export default function ScenarioListPage({ params }: { params: Promise<{ chainId
                   })}
                 </div>
                 <div className="font-mono text-[12.5px]">{scenario.projectionHorizonWeeks} sem</div>
-                <div className="font-mono text-[13px] font-medium">{k1 !== null ? k1.toFixed(1) : "—"}</div>
+                <div className="font-mono">
+                  <span className="text-[13px] font-medium">
+                    {k1?.thresholdMedian !== null && k1?.thresholdMedian !== undefined ? k1.thresholdMedian.toFixed(1) : "—"}
+                  </span>
+                  {k1?.thresholdLow !== null && k1?.thresholdLow !== undefined && k1.thresholdHigh !== null && (
+                    <span className="ml-1.5 text-[10px] text-muted-foreground">
+                      {k1.thresholdLow.toFixed(1)}–{k1.thresholdHigh.toFixed(1)}
+                    </span>
+                  )}
+                </div>
                 <div className="font-mono text-[12.5px] text-muted-foreground">{firstNull !== null ? `k=${firstNull}` : "no aplica"}</div>
-                <div className="font-mono text-[11px] text-muted-foreground">{scenario.createdAt}</div>
+                <div className="font-mono text-[11px] text-muted-foreground">
+                  {running ? (
+                    <span className="flex items-center gap-1.5 text-primary">
+                      <span className="h-2.5 w-2.5 animate-spin rounded-full border-[1.5px] border-border border-t-primary" />
+                      corriendo
+                    </span>
+                  ) : (
+                    `${scenarioRuns.length} · ${result?.runDate ?? scenario.createdAt}`
+                  )}
+                </div>
               </Link>
             );
           })}

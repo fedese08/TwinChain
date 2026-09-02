@@ -62,11 +62,16 @@ export default function CompareScenariosPage() {
                       <th className="whitespace-nowrap px-3.5 py-2.5 text-left font-mono text-[9px] font-medium uppercase tracking-wider text-muted-foreground">
                         k
                       </th>
-                      {selectedScenarios.map((s) => (
-                        <th key={s.id} className="min-w-[140px] px-3.5 py-2.5 text-left font-mono text-[9px] font-medium uppercase tracking-wider text-muted-foreground">
-                          {s.name}
-                        </th>
-                      ))}
+                      {selectedScenarios.map((s) => {
+                        const scenarioRuns = results.filter((r) => r.scenarioId === s.id);
+                        const lastRun = scenarioRuns[scenarioRuns.length - 1];
+                        return (
+                          <th key={s.id} className="min-w-[160px] px-3.5 py-2.5 text-left font-mono text-[9px] font-medium uppercase tracking-wider text-muted-foreground">
+                            {s.name}
+                            {lastRun && <span className="ml-1 normal-case"> · {lastRun.replications} rép.</span>}
+                          </th>
+                        );
+                      })}
                     </tr>
                   </thead>
                   <tbody>
@@ -74,11 +79,22 @@ export default function CompareScenariosPage() {
                       <tr key={k} className="border-b border-border last:border-b-0">
                         <td className="px-3.5 py-2 font-mono text-muted-foreground">k={k}</td>
                         {selectedScenarios.map((s) => {
-                          const result = results.find((r) => r.scenarioId === s.id);
+                          const scenarioRuns = results.filter((r) => r.scenarioId === s.id);
+                          const result = scenarioRuns[scenarioRuns.length - 1];
                           const row = result?.kTable.find((r) => r.k === k);
+                          const hasRange = row?.thresholdLow !== null && row?.thresholdHigh !== null;
                           return (
-                            <td key={s.id} className="px-3.5 py-2 font-mono font-medium">
-                              {row?.threshold !== null && row?.threshold !== undefined ? row.threshold.toFixed(1) : "—"}
+                            <td key={s.id} className="px-3.5 py-2 font-mono">
+                              <span className="font-medium">
+                                {row?.thresholdMedian !== null && row?.thresholdMedian !== undefined
+                                  ? row.thresholdMedian.toFixed(1)
+                                  : "—"}
+                              </span>
+                              {row && hasRange && (
+                                <span className="ml-1.5 text-[10.5px] text-muted-foreground">
+                                  {row.thresholdLow!.toFixed(1)}–{row.thresholdHigh!.toFixed(1)}
+                                </span>
+                              )}
                             </td>
                           );
                         })}
@@ -117,8 +133,9 @@ export default function CompareScenariosPage() {
 
               <div className="rounded-lg border border-border bg-secondary/30 p-3 text-[11.5px] leading-relaxed text-muted-foreground">
                 Todos los escenarios se calculan con el mismo barrido de k (costo de reconfigurar, en semanas malas
-                equivalentes). Un umbral más bajo en un k dado indica que se justifica reconfigurar con menos déficit
-                acumulado.
+                equivalentes). El número grande es la mediana sobre las réplicas y el chico es el rango observado —
+                nunca se reporta un valor puntual. Un umbral más bajo en un k dado indica que se justifica
+                reconfigurar con menos déficit acumulado. Se compara la última corrida de cada escenario.
               </div>
             </div>
           )}

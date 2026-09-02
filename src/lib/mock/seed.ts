@@ -1,12 +1,13 @@
 import { addWeeks, startOfWeek, toIsoDate } from "@/lib/mock/dates";
-import { createRng } from "@/lib/mock/rng";
-import { computeKTable, projectNodeWeeklyDeficit } from "@/lib/mock/simulate";
+import { createRng, hashSeed } from "@/lib/mock/rng";
+import { runScenarioSimulation } from "@/lib/mock/simulate";
 import type {
   Chain,
   DisruptionEvent,
   Organization,
   Scenario,
   ScenarioResult,
+  StabilityCheck,
   SupplyChainEdge,
   SupplyChainNode,
   User,
@@ -28,8 +29,8 @@ export const seedRoles: UserRole[] = [
 
 export const seedUser: User = {
   id: "user-1",
-  name: "A. Rivas",
-  email: "a.rivas@andesmanufactura.com",
+  name: "Federico Sena",
+  email: "fedesena2000@gmail.com",
   roleId: "role-admin",
   organizationId: seedOrganization.id,
 };
@@ -85,7 +86,18 @@ function generateHistory(nodeId: string, seed: number, basePerformance: number, 
     const noise = (rng() - 0.55) * volatility;
     const actualValue = Math.min(100, Math.max(0, baseline + noise));
     const deficit = Math.max(0, baseline - actualValue);
-    history.push({ id: `wp-${nodeId}-${i}`, nodeId, weekStart, actualValue, baseline, deficit });
+    // Banda de incertidumbre de la línea base (RF012): más ancha cuanto más volátil es el nodo.
+    const bandHalfWidth = volatility * 0.35;
+    history.push({
+      id: `wp-${nodeId}-${i}`,
+      nodeId,
+      weekStart,
+      actualValue,
+      baseline,
+      baselineLowerBand: Math.max(0, baseline - bandHalfWidth),
+      baselineUpperBand: Math.min(100, baseline + bandHalfWidth),
+      deficit,
+    });
   }
   return history;
 }
@@ -113,9 +125,19 @@ export const seedWeeklyPerformance: WeeklyPerformance[] = seedNodes.flatMap((nod
   return generateHistory(node.id, profile.seed, profile.base, profile.volatility);
 });
 
-function weeksAgoIso(weeks: number): string {
+export function weeksAgoIso(weeks: number): string {
   return toIsoDate(addWeeks(startOfWeek(new Date()), -weeks));
 }
+
+/**
+ * Las cadenas del seed ya pasaron por el pipeline de ingesta, así que arrancan con su
+ * validación CUSUM resuelta (C24). "Cadena Sur" queda con alerta a propósito: la demo tiene
+ * que poder mostrar los dos veredictos.
+ */
+export const seedStabilityChecks: Record<string, StabilityCheck> = {
+  "chain-norte": { status: "estable", ranAt: weeksAgoIso(4) },
+  "chain-sur": { status: "alerta", ranAt: weeksAgoIso(4), changePointWeek: weeksAgoIso(9) },
+};
 
 export const seedScenarios: Scenario[] = [
   {
@@ -153,26 +175,47 @@ export const seedEvents: DisruptionEvent[] = [
   { id: "event-4", scenarioId: "scenario-3", nodeId: "node-sup-02", eventType: "corte", startDate: weeksAgoIso(2), magnitude: 20 },
 ];
 
-function buildResult(scenario: Scenario, events: DisruptionEvent[]): ScenarioResult {
-  const affectedNodeIds = [...new Set(events.map((e) => e.nodeId))];
-  let totalDeficit = 0;
-  for (const nodeId of affectedNodeIds) {
-    const history = seedWeeklyPerformance.filter((w) => w.nodeId === nodeId);
-    const nodeEvents = events.filter((e) => e.nodeId === nodeId);
-    const projection = projectNodeWeeklyDeficit(history, nodeEvents, scenario.projectionHorizonWeeks);
-    totalDeficit += projection.reduce((sum, w) => sum + w.deficit, 0);
-  }
+function buildResult(scenario: Scenario, events: DisruptionEvent[], runId: string, runDate: string): ScenarioResult {
+  const chainNodes = seedNodes.filter((n) => n.chainId === scenario.chainId);
+  const chainNodeIds = new Set(chainNodes.map((n) => n.id));
+  const chainEdges = seedEdges.filter((e) => chainNodeIds.has(e.sourceNodeId) && chainNodeIds.has(e.targetNodeId));
+  const seed = hashSeed(runId);
+
+  const outcome = runScenarioSimulation(
+    chainNodes,
+    chainEdges,
+    events,
+    seedWeeklyPerformance,
+    scenario.projectionHorizonWeeks,
+    { seed },
+  );
+
   return {
-    id: `result-${scenario.id}`,
+    id: runId,
     scenarioId: scenario.id,
-    runDate: scenario.createdAt,
-    kTable: computeKTable(totalDeficit, scenario.projectionHorizonWeeks),
+    runDate,
+    kTable: outcome.kTable,
+    replications: outcome.replications,
+    seed,
+    reconfigurationWeekIndex: outcome.reconfigurationWeekIndex,
   };
 }
 
-export const seedResults: ScenarioResult[] = seedScenarios.map((scenario) =>
-  buildResult(
-    scenario,
-    seedEvents.filter((e) => e.scenarioId === scenario.id),
+export const seedResults: ScenarioResult[] = [
+  ...seedScenarios.map((scenario) =>
+    buildResult(
+      scenario,
+      seedEvents.filter((e) => e.scenarioId === scenario.id),
+      `result-${scenario.id}`,
+      scenario.createdAt,
+    ),
   ),
-);
+  // Segunda corrida del mismo escenario: cada corrida se conserva por separado, no se pisa
+  // la anterior (RF030) — el listado de corridas del resultado arranca con algo que mostrar.
+  buildResult(
+    seedScenarios[0],
+    seedEvents.filter((e) => e.scenarioId === seedScenarios[0].id),
+    `result-${seedScenarios[0].id}-2`,
+    weeksAgoIso(0),
+  ),
+];
