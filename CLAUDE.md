@@ -92,6 +92,11 @@ cambió en nada, solo la implementación.
     "cuanto más caro reconfigurar, más conviene"), y el "no existe umbral" de los k altos se dispara porque el
     umbral se hace muy chico, no porque el costo sea inalcanzable. Está marcado con ⚠️ en `simulate.ts`. **Definir
     bien el umbral es metodología de la tesis** — no parchearlo por cuenta propia.
+  - **`MIN_PROPAGATED_MAGNITUDE` (piso de propagación) corta la dispersión con magnitudes bajas y realistas.**
+    Cada salto multiplica por `PROPAGATION_FRACTION` (0.45–0.65) antes de comparar contra el piso (3), así que un
+    evento de ~1–4% de magnitud nunca llega ni al primer vecino — queda encerrado en el nodo de origen, sin
+    importar cuán conectada esté la red. Marcado con ⚠️ en `simulate.ts`. Detectado en una demo (magnitud 1% no se
+    dispersaba); mientras no se recalibre, usar magnitudes de al menos ~15–20% para que la propagación se vea.
   - `/comparar` — comparación de 2+ escenarios (tabla_k lado a lado, mediana + rango, última corrida de cada uno).
   - `/biblioteca` — referencia de tipos de nodo/arista/plantillas.
   - `src/lib/mock/simulate.ts` es **explícitamente un placeholder** (comentado como MOCK) — no es la propuesta

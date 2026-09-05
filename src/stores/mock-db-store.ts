@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { createJSONStorage, persist } from "zustand/middleware";
 import {
   seedChains,
   seedEdges,
@@ -73,12 +74,24 @@ interface MockDbState {
   updateNodePosition: (nodeId: string, position: { x: number; y: number }) => void;
   updateNode: (
     nodeId: string,
-    patch: Partial<Pick<SupplyChainNode, "label" | "productionCapacity" | "storageCapacity">>,
+    patch: Partial<
+      Pick<
+        SupplyChainNode,
+        "label" | "supplyCapacity" | "productionCapacity" | "storageCapacity" | "currentStockLevel"
+      >
+    >,
   ) => void;
   addEdge: (sourceNodeId: string, targetNodeId: string, transitTimeDays: number) => string;
   updateEdge: (edgeId: string, patch: Partial<Pick<SupplyChainEdge, "transitTimeDays">>) => void;
   removeEdge: (edgeId: string) => void;
   removeNode: (nodeId: string) => RemoveNodeResult;
+  /**
+   * Borra el nodo junto con sus aristas en una sola operación. Respeta la regla del modelo
+   * (una arista nunca queda apuntando a un nodo inexistente): saca primero las aristas y
+   * después el nodo, en el mismo `set`. Es la acción explícita que dispara el usuario cuando
+   * confirma que quiere llevarse también las conexiones.
+   */
+  removeNodeWithEdges: (nodeId: string) => void;
   createScenario: (
     chainId: string,
     name: string,
@@ -94,7 +107,21 @@ interface MockDbState {
   rerunScenario: (scenarioId: string, reconfigurationWeekIndex?: number | null) => void;
 }
 
-export const useMockDbStore = create<MockDbState>()((set, get) => {
+/**
+ * Almacenamiento de sesión para el mock. Sin backend, el estado vivía solo en memoria: cualquier
+ * recarga completa (incluidas las que dispara el HMR en desarrollo) lo reseteaba al seed, con lo
+ * cual los nodos creados se perdían y los borrados que venían de la plantilla reaparecían.
+ * Se persiste en sessionStorage para que la edición sobreviva la recarga sin volverse permanente.
+ * Cuando exista el backend real, esto se reemplaza por las llamadas al servidor.
+ */
+const sessionStorageOrNoop = createJSONStorage(() => {
+  if (typeof window === "undefined") {
+    return { getItem: () => null, setItem: () => {}, removeItem: () => {} };
+  }
+  return window.sessionStorage;
+});
+
+export const useMockDbStore = create<MockDbState>()(persist((set, get) => {
   /**
    * Encola una corrida y la resuelve después de una demora, imitando al job en background
    * del monolito (C36): la fila de Resultado aparece recién cuando el job termina.
@@ -240,6 +267,13 @@ export const useMockDbStore = create<MockDbState>()((set, get) => {
       return { ok: true };
     },
 
+    removeNodeWithEdges: (nodeId) => {
+      set((state) => ({
+        edges: state.edges.filter((e) => e.sourceNodeId !== nodeId && e.targetNodeId !== nodeId),
+        nodes: state.nodes.filter((n) => n.id !== nodeId),
+      }));
+    },
+
     createScenario: (chainId, name, projectionHorizonWeeks, nodeId, newEvents) => {
       const scenarioId = genId("scenario");
       const events: DisruptionEvent[] = newEvents.map((e) => ({
@@ -274,4 +308,26 @@ export const useMockDbStore = create<MockDbState>()((set, get) => {
       launchSimulationJob(scenarioId, reconfigurationWeekIndex);
     },
   };
-});
+}, {
+  name: "twinchain-mock-db",
+  storage: sessionStorageOrNoop,
+  version: 1,
+  // El servidor no tiene sessionStorage: si se hidratara en el render inicial, el HTML del
+  // servidor y el del cliente no coincidirían. Se rehidrata a mano al montar (ver StoreHydration).
+  skipHydration: true,
+  // `pendingRuns` es estado de un job en vuelo: si se persistiera, al recargar quedaría una
+  // corrida "corriendo" que ya no tiene ningún timer detrás.
+  partialize: (state) => ({
+    organization: state.organization,
+    roles: state.roles,
+    user: state.user,
+    chains: state.chains,
+    nodes: state.nodes,
+    edges: state.edges,
+    weeklyPerformance: state.weeklyPerformance,
+    scenarios: state.scenarios,
+    events: state.events,
+    results: state.results,
+    stabilityChecks: state.stabilityChecks,
+  }),
+}));

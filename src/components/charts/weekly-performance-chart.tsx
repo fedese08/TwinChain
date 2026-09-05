@@ -1,6 +1,16 @@
 "use client";
 
-import { Area, ComposedChart, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import {
+  Area,
+  CartesianGrid,
+  ComposedChart,
+  Line,
+  ReferenceLine,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { formatWeekLabel } from "@/lib/mock/dates";
 
 export interface WeeklyChartPoint {
@@ -44,9 +54,19 @@ export function WeeklyPerformanceChart({
       ? chartData[reconfigurationWeekIndex].label
       : null;
 
+  const legend = [
+    { name: "valor real", color: "#002860", kind: "line" as const },
+    { name: "línea base", color: "#0a7d6a", kind: "dashed" as const },
+    { name: "banda esperada", color: "#0d9c84", kind: "area" as const },
+    { name: "déficit", color: "#d33f28", kind: "area" as const },
+    ...(hasReplicaRange ? [{ name: "rango simulado", color: "#0060ff", kind: "area" as const }] : []),
+  ];
+
   return (
+    <div className="flex flex-col gap-1">
     <ResponsiveContainer width="100%" height={height}>
       <ComposedChart data={chartData} margin={{ top: 4, right: 4, left: -22, bottom: 0 }}>
+        <CartesianGrid stroke="#eef1f6" vertical={false} />
         <XAxis dataKey="label" tick={{ fontSize: 9.5, fill: "#9aa4b3" }} interval="preserveStartEnd" axisLine={false} tickLine={false} />
         <YAxis tick={{ fontSize: 9.5, fill: "#9aa4b3" }} width={30} axisLine={false} tickLine={false} domain={[0, 100]} />
         <Tooltip
@@ -57,13 +77,42 @@ export function WeeklyPerformanceChart({
               : [Number(value).toFixed(1), name]
           }
         />
-        <Area type="monotone" dataKey="bandaLineaBase" name="banda de la línea base" fill="#d9f2ec" stroke="none" />
+        {/* Rellenos con borde propio y opacidad: sobre el fondo blanco de la tarjeta los tonos
+            planos muy claros (#d9f2ec / #fdeeeb) se perdían y la banda y el déficit no se leían. */}
+        <Area
+          type="monotone"
+          dataKey="bandaLineaBase"
+          name="banda de la línea base"
+          fill="#0d9c84"
+          fillOpacity={0.16}
+          stroke="#0d9c84"
+          strokeOpacity={0.35}
+          strokeWidth={1}
+        />
         {hasReplicaRange && (
-          <Area type="monotone" dataKey="rangoReplicas" name="rango entre réplicas" fill="#dfe5fa" stroke="none" />
+          <Area
+            type="monotone"
+            dataKey="rangoReplicas"
+            name="rango entre réplicas"
+            fill="#0060ff"
+            fillOpacity={0.14}
+            stroke="#0060ff"
+            strokeOpacity={0.3}
+            strokeWidth={1}
+          />
         )}
-        <Area type="monotone" dataKey="deficit" name="déficit" fill="#fdeeeb" stroke="none" />
-        <Line type="monotone" dataKey="baseline" name="línea base" stroke="#0d9c84" strokeWidth={1.6} strokeDasharray="4 3" dot={false} />
-        <Line type="monotone" dataKey="actualValue" name="valor real" stroke="#3a5bd9" strokeWidth={2} dot={false} />
+        <Area
+          type="monotone"
+          dataKey="deficit"
+          name="déficit"
+          fill="#d33f28"
+          fillOpacity={0.22}
+          stroke="#d33f28"
+          strokeOpacity={0.5}
+          strokeWidth={1}
+        />
+        <Line type="monotone" dataKey="baseline" name="línea base" stroke="#0a7d6a" strokeWidth={1.8} strokeDasharray="4 3" dot={false} />
+        <Line type="monotone" dataKey="actualValue" name="valor real" stroke="#002860" strokeWidth={2.2} dot={false} />
         {reconfigurationLabel && (
           <ReferenceLine
             x={reconfigurationLabel}
@@ -74,5 +123,28 @@ export function WeeklyPerformanceChart({
         )}
       </ComposedChart>
     </ResponsiveContainer>
+
+      {/* Leyenda propia: la de Recharts ocupa demasiado alto para estos gráficos chicos. */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pl-1 text-[10px] text-muted-foreground">
+        {legend.map((item) => (
+          <span key={item.name} className="flex items-center gap-1.5">
+            {item.kind === "area" ? (
+              <span
+                className="h-2.5 w-3.5 rounded-[2px] border"
+                style={{ background: item.color, opacity: 0.3, borderColor: item.color }}
+              />
+            ) : (
+              <span
+                className="h-0 w-3.5"
+                style={{
+                  borderTop: `2px ${item.kind === "dashed" ? "dashed" : "solid"} ${item.color}`,
+                }}
+              />
+            )}
+            {item.name}
+          </span>
+        ))}
+      </div>
+    </div>
   );
 }

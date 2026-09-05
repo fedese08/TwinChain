@@ -41,19 +41,19 @@ export const seedChains: Chain[] = [
 ];
 
 export const seedNodes: SupplyChainNode[] = [
-  { id: "node-sup-01", chainId: "chain-norte", nodeType: "Proveedor", label: "SUP-01", canvasPosition: { x: 40, y: 80 } },
-  { id: "node-sup-02", chainId: "chain-norte", nodeType: "Proveedor", label: "SUP-02", canvasPosition: { x: 40, y: 300 } },
+  { id: "node-sup-01", chainId: "chain-norte", nodeType: "Proveedor", label: "SUP-01", supplyCapacity: 5200, canvasPosition: { x: 40, y: 80 } },
+  { id: "node-sup-02", chainId: "chain-norte", nodeType: "Proveedor", label: "SUP-02", supplyCapacity: 3800, canvasPosition: { x: 40, y: 300 } },
   { id: "node-fab-01", chainId: "chain-norte", nodeType: "Fabrica", label: "FAB-01", productionCapacity: 4200, canvasPosition: { x: 300, y: 80 } },
   { id: "node-fab-02", chainId: "chain-norte", nodeType: "Fabrica", label: "FAB-02", productionCapacity: 3100, canvasPosition: { x: 300, y: 300 } },
-  { id: "node-alm-01", chainId: "chain-norte", nodeType: "Almacen", label: "ALM-01", storageCapacity: 9000, canvasPosition: { x: 560, y: 80 } },
-  { id: "node-alm-02", chainId: "chain-norte", nodeType: "Almacen", label: "ALM-02", storageCapacity: 6500, canvasPosition: { x: 560, y: 300 } },
+  { id: "node-alm-01", chainId: "chain-norte", nodeType: "Almacen", label: "ALM-01", storageCapacity: 9000, currentStockLevel: 6100, canvasPosition: { x: 560, y: 80 } },
+  { id: "node-alm-02", chainId: "chain-norte", nodeType: "Almacen", label: "ALM-02", storageCapacity: 6500, currentStockLevel: 2400, canvasPosition: { x: 560, y: 300 } },
   { id: "node-ven-01", chainId: "chain-norte", nodeType: "Vendedor", label: "VEN-01", canvasPosition: { x: 820, y: 80 } },
   { id: "node-ven-02", chainId: "chain-norte", nodeType: "Vendedor", label: "VEN-02", canvasPosition: { x: 820, y: 300 } },
   { id: "node-cli-01", chainId: "chain-norte", nodeType: "Cliente", label: "CLI-01", canvasPosition: { x: 1080, y: 190 } },
 
-  { id: "node-s2-sup-01", chainId: "chain-sur", nodeType: "Proveedor", label: "SUP-01", canvasPosition: { x: 40, y: 160 } },
+  { id: "node-s2-sup-01", chainId: "chain-sur", nodeType: "Proveedor", label: "SUP-01", supplyCapacity: 2100, canvasPosition: { x: 40, y: 160 } },
   { id: "node-s2-fab-01", chainId: "chain-sur", nodeType: "Fabrica", label: "FAB-01", productionCapacity: 1800, canvasPosition: { x: 300, y: 160 } },
-  { id: "node-s2-alm-01", chainId: "chain-sur", nodeType: "Almacen", label: "ALM-01", storageCapacity: 3200, canvasPosition: { x: 560, y: 160 } },
+  { id: "node-s2-alm-01", chainId: "chain-sur", nodeType: "Almacen", label: "ALM-01", storageCapacity: 3200, currentStockLevel: 2950, canvasPosition: { x: 560, y: 160 } },
   { id: "node-s2-ven-01", chainId: "chain-sur", nodeType: "Vendedor", label: "VEN-01", canvasPosition: { x: 820, y: 160 } },
   { id: "node-s2-cli-01", chainId: "chain-sur", nodeType: "Cliente", label: "CLI-01", canvasPosition: { x: 1080, y: 160 } },
 ];
@@ -79,23 +79,33 @@ export const seedEdges: SupplyChainEdge[] = [
 function generateHistory(nodeId: string, seed: number, basePerformance: number, volatility: number): WeeklyPerformance[] {
   const rng = createRng(seed);
   const firstWeek = addWeeks(startOfWeek(new Date()), -WEEKS_OF_HISTORY);
+
+  // La línea base se estima UNA sola vez y queda congelada (Diseño B, Fase I / Fase II): el
+  // sistema no la recalcula con las semanas que va monitoreando, porque si la referencia se
+  // moviera junto con la caída que se quiere detectar, el déficit se encogería solo y la
+  // disrupción sostenida no se detectaría nunca. Por eso es un valor único por nodo, no uno
+  // por semana. Su banda de incertidumbre (RF012) es fija por la misma razón — más ancha
+  // cuanto más volátil es el nodo.
+  const baseline = basePerformance;
+  const bandHalfWidth = volatility * 0.35;
+  const baselineLowerBand = Math.max(0, baseline - bandHalfWidth);
+  const baselineUpperBand = Math.min(100, baseline + bandHalfWidth);
+
   const history: WeeklyPerformance[] = [];
   for (let i = 0; i < WEEKS_OF_HISTORY; i++) {
     const weekStart = toIsoDate(addWeeks(firstWeek, i));
-    const baseline = basePerformance + (rng() - 0.5) * 1.5;
+    // Lo único que varía semana a semana es la medición real.
     const noise = (rng() - 0.55) * volatility;
     const actualValue = Math.min(100, Math.max(0, baseline + noise));
     const deficit = Math.max(0, baseline - actualValue);
-    // Banda de incertidumbre de la línea base (RF012): más ancha cuanto más volátil es el nodo.
-    const bandHalfWidth = volatility * 0.35;
     history.push({
       id: `wp-${nodeId}-${i}`,
       nodeId,
       weekStart,
       actualValue,
       baseline,
-      baselineLowerBand: Math.max(0, baseline - bandHalfWidth),
-      baselineUpperBand: Math.min(100, baseline + bandHalfWidth),
+      baselineLowerBand,
+      baselineUpperBand,
       deficit,
     });
   }

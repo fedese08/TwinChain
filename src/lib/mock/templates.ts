@@ -15,8 +15,10 @@ interface TemplateNodeBlueprint {
   label: string;
   x: number;
   y: number;
+  supplyCapacity?: number;
   productionCapacity?: number;
   storageCapacity?: number;
+  currentStockLevel?: number;
 }
 
 interface TemplateEdgeBlueprint {
@@ -32,9 +34,9 @@ interface TemplateBlueprint {
 
 const LINEAR: TemplateBlueprint = {
   nodes: [
-    { nodeType: "Proveedor", label: "SUP-01", x: 40, y: 160 },
+    { nodeType: "Proveedor", label: "SUP-01", x: 40, y: 160, supplyCapacity: 2500 },
     { nodeType: "Fabrica", label: "FAB-01", x: 300, y: 160, productionCapacity: 2000 },
-    { nodeType: "Almacen", label: "ALM-01", x: 560, y: 160, storageCapacity: 4000 },
+    { nodeType: "Almacen", label: "ALM-01", x: 560, y: 160, storageCapacity: 4000, currentStockLevel: 2600 },
     { nodeType: "Vendedor", label: "VEN-01", x: 820, y: 160 },
     { nodeType: "Cliente", label: "CLI-01", x: 1080, y: 160 },
   ],
@@ -48,12 +50,12 @@ const LINEAR: TemplateBlueprint = {
 
 const FORKED: TemplateBlueprint = {
   nodes: [
-    { nodeType: "Proveedor", label: "SUP-01", x: 40, y: 80 },
-    { nodeType: "Proveedor", label: "SUP-02", x: 40, y: 300 },
+    { nodeType: "Proveedor", label: "SUP-01", x: 40, y: 80, supplyCapacity: 2800 },
+    { nodeType: "Proveedor", label: "SUP-02", x: 40, y: 300, supplyCapacity: 2200 },
     { nodeType: "Fabrica", label: "FAB-01", x: 300, y: 80, productionCapacity: 2200 },
     { nodeType: "Fabrica", label: "FAB-02", x: 300, y: 300, productionCapacity: 1800 },
-    { nodeType: "Almacen", label: "ALM-01", x: 560, y: 80, storageCapacity: 4200 },
-    { nodeType: "Almacen", label: "ALM-02", x: 560, y: 300, storageCapacity: 3600 },
+    { nodeType: "Almacen", label: "ALM-01", x: 560, y: 80, storageCapacity: 4200, currentStockLevel: 3100 },
+    { nodeType: "Almacen", label: "ALM-02", x: 560, y: 300, storageCapacity: 3600, currentStockLevel: 1500 },
     { nodeType: "Vendedor", label: "VEN-01", x: 820, y: 80 },
     { nodeType: "Vendedor", label: "VEN-02", x: 820, y: 300 },
     { nodeType: "Cliente", label: "CLI-01", x: 1080, y: 190 },
@@ -81,9 +83,9 @@ function buildComplex(): TemplateBlueprint {
     const fab = `FAB-0${b + 1}`;
     const alm = `ALM-0${b + 1}`;
     const ven = `VEN-0${b + 1}`;
-    nodes.push({ nodeType: "Proveedor", label: sup, x: 40, y });
+    nodes.push({ nodeType: "Proveedor", label: sup, x: 40, y, supplyCapacity: 1800 + b * 350 });
     nodes.push({ nodeType: "Fabrica", label: fab, x: 300, y, productionCapacity: 1500 + b * 300 });
-    nodes.push({ nodeType: "Almacen", label: alm, x: 560, y, storageCapacity: 3000 + b * 400 });
+    nodes.push({ nodeType: "Almacen", label: alm, x: 560, y, storageCapacity: 3000 + b * 400, currentStockLevel: 1800 + b * 250 });
     nodes.push({ nodeType: "Vendedor", label: ven, x: 820, y });
     edges.push({ from: sup, to: fab, transitTimeDays: 4 + b });
     edges.push({ from: fab, to: alm, transitTimeDays: 2 });
@@ -121,8 +123,10 @@ export function instantiateTemplate(
       chainId,
       nodeType: n.nodeType,
       label: n.label,
+      supplyCapacity: n.supplyCapacity,
       productionCapacity: n.productionCapacity,
       storageCapacity: n.storageCapacity,
+      currentStockLevel: n.currentStockLevel,
       canvasPosition: { x: n.x, y: n.y },
     };
   });

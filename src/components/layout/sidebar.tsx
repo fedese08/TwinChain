@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Boxes, GitCompare, LibraryBig } from "lucide-react";
@@ -34,21 +35,31 @@ export function Sidebar() {
     .toUpperCase();
 
   return (
-    <div className="flex w-[236px] flex-none flex-col gap-4 border-r border-border bg-card p-3">
-      <div className="flex items-center gap-2 px-2 pb-1 pt-1">
-        <span className="flex h-[22px] w-[22px] items-center justify-center rounded-md bg-gradient-to-br from-primary to-success font-mono text-[11px] font-semibold text-white">
-          TC
+    <div className="flex w-[236px] flex-none flex-col gap-4 border-r border-sidebar-border bg-sidebar p-3 text-sidebar-foreground">
+      {/* Logotipo a sangre: el conjunto marca + nombre ocupa todo el ancho útil de la barra. */}
+      <div className="flex items-center gap-2.5 pb-1 pt-1">
+        <Image
+          src="/logo.png"
+          alt=""
+          width={44}
+          height={44}
+          priority
+          className="h-11 w-11 flex-none"
+        />
+        {/* Fuente propia (Sora) y dos pesos para que "Chain" cargue el acento. */}
+        <span className="font-display text-[30px] leading-none tracking-tight">
+          <span className="font-semibold text-sidebar-foreground/70">Twin</span>
+          <span className="font-bold">Chain</span>
         </span>
-        <span className="text-[15px] font-semibold tracking-tight">TwinChain</span>
       </div>
 
-      <div className="flex items-center gap-2 rounded-lg border border-border bg-secondary/40 px-2.5 py-2">
-        <span className="flex h-5 w-5 flex-none items-center justify-center rounded-[5px] border border-accent bg-accent font-mono text-[8.5px] font-semibold text-accent-foreground">
+      <div className="flex items-center gap-2 rounded-lg border border-sidebar-border bg-sidebar-accent/40 px-2.5 py-2">
+        <span className="flex h-5 w-5 flex-none items-center justify-center rounded-[5px] border border-sidebar-primary bg-sidebar-primary font-mono text-[8.5px] font-semibold text-sidebar-primary-foreground">
           {initials}
         </span>
         <div className="flex min-w-0 flex-col leading-tight">
           <span className="truncate text-[12.5px] font-medium">{organization.name}</span>
-          <span className="font-mono text-[9.5px] text-muted-foreground">organización</span>
+          <span className="font-mono text-[9.5px] text-sidebar-foreground/60">organización</span>
         </div>
       </div>
 
@@ -63,14 +74,16 @@ export function Sidebar() {
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  "flex items-center gap-2.5 rounded-md px-2.5 py-2 text-[13.5px] transition-colors hover:bg-secondary",
-                  active ? "bg-accent font-medium text-accent-foreground" : "text-foreground/80",
+                  "flex items-center gap-2.5 rounded-md px-2.5 py-2 text-[13.5px] transition-colors hover:bg-sidebar-accent",
+                  active
+                    ? "bg-sidebar-primary/20 font-medium text-sidebar-accent-foreground"
+                    : "text-sidebar-foreground/80",
                 )}
               >
-                <Icon size={14} strokeWidth={2} className={active ? "text-accent-foreground" : "text-muted-foreground"} />
+                <Icon size={14} strokeWidth={2} className={active ? "text-sidebar-primary" : "text-sidebar-foreground/50"} />
                 {item.label}
                 {count !== null && (
-                  <span className="ml-auto font-mono text-[10.5px] text-muted-foreground">{count}</span>
+                  <span className="ml-auto font-mono text-[10.5px] text-sidebar-foreground/50">{count}</span>
                 )}
               </Link>
             );
@@ -79,13 +92,13 @@ export function Sidebar() {
       </nav>
 
       <div className="mt-auto flex flex-col gap-0.5 pt-2">
-        <div className="flex items-center gap-2.5 border-t border-border px-2 pb-1 pt-3">
-          <span className="flex h-[26px] w-[26px] items-center justify-center rounded-full border border-border bg-secondary font-mono text-[10px] text-foreground/80">
+        <div className="flex items-center gap-2.5 border-t border-sidebar-border px-2 pb-1 pt-3">
+          <span className="flex h-[26px] w-[26px] items-center justify-center rounded-full border border-sidebar-border bg-sidebar-accent font-mono text-[10px] text-sidebar-foreground/80">
             {userInitials}
           </span>
           <div className="flex flex-col leading-tight">
             <span className="text-[12.5px]">{user.name}</span>
-            <span className="text-[10.5px] text-muted-foreground">{roleName}</span>
+            <span className="text-[10.5px] text-sidebar-foreground/60">{roleName}</span>
           </div>
         </div>
       </div>

@@ -2,6 +2,15 @@ import { z } from "zod";
 
 export const EVENT_TYPE_SUGGESTIONS = ["corte", "huelga", "demora", "pico_demanda", "falla_calidad"] as const;
 
+/** Etiquetas legibles para el desplegable — el valor guardado sigue siendo el de la lista de arriba. */
+export const EVENT_TYPE_LABELS: Record<string, string> = {
+  corte: "Corte de suministro",
+  huelga: "Huelga",
+  demora: "Demora en la entrega",
+  pico_demanda: "Pico de demanda",
+  falla_calidad: "Falla de calidad",
+};
+
 // tipo es una lista abierta según el modelo de datos — el schema solo exige que no esté vacío.
 // El nodo NO va acá: un escenario apunta a un único nodo (ver `nodeId` en el schema de abajo),
 // y todos sus eventos caen sobre ese mismo nodo.

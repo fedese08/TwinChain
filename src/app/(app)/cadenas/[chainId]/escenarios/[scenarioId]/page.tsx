@@ -1,14 +1,18 @@
 "use client";
 
-import { use, useEffect, useMemo, useRef, useState } from "react";
+import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Check, X } from "lucide-react";
 import { WeeklyPerformanceChart } from "@/components/charts/weekly-performance-chart";
+import { CrisisTimelineChart } from "@/components/charts/crisis-timeline-chart";
+import { WeekPlayer } from "@/components/scenario/week-player";
+import { SimulationIntro } from "@/components/scenario/simulation-intro";
 import { KTableChart } from "@/components/charts/k-table-chart";
 import { ChainCanvas } from "@/components/canvas/chain-canvas";
 import { Button } from "@/components/ui/button";
 import { classifySeverity, runScenarioSimulation, type ProjectedWeek, type Severity } from "@/lib/mock/simulate";
 import { formatWeekLabel } from "@/lib/mock/dates";
+import { hashSeed } from "@/lib/mock/rng";
 import { useMockDbStore } from "@/stores/mock-db-store";
 import { cn } from "@/lib/utils";
 
@@ -81,6 +85,30 @@ export default function ScenarioResultPage({
     });
   }, [chainNodes, chainEdges, events, weeklyPerformance, scenario, result]);
 
+  // La animación de entrada solo corre en la primera corrida del escenario: al volver a abrir
+  // uno ya calculado se entra derecho al resultado.
+  const introEligibleRef = useRef<boolean | null>(null);
+  if (introEligibleRef.current === null) introEligibleRef.current = runs.length === 0;
+  const [introDone, setIntroDone] = useState(false);
+  const finishIntro = useCallback(() => setIntroDone(true), []);
+  const playingIntro = Boolean(introEligibleRef.current) && !introDone;
+
+  /**
+   * Pasada liviana con el mismo motor, solo para animar la propagación sobre la red. No se
+   * guarda ni se muestra como resultado: es la vista previa que reemplaza al spinner.
+   *
+   * Depende de que la intro siga corriendo, **no** de que falte `result`. Antes se anulaba
+   * apenas el job escribía la fila de Resultado (~1,6 s), así que la animación se cortaba de
+   * golpe a mitad de camino y alargar sus tiempos no tenía ningún efecto visible.
+   */
+  const previewOutcome = useMemo(() => {
+    if (!scenario || !playingIntro || events.length === 0) return null;
+    return runScenarioSimulation(chainNodes, chainEdges, events, weeklyPerformance, scenario.projectionHorizonWeeks, {
+      seed: hashSeed(scenario.id),
+      replications: 12,
+    });
+  }, [chainNodes, chainEdges, events, weeklyPerformance, scenario, playingIntro]);
+
   const propagation = useMemo((): Map<string, ProjectedWeek[]> => outcome?.projectionByNode ?? new Map(), [outcome]);
 
   const directlyAffectedNodeIds = useMemo(() => [...new Set(events.map((e) => e.nodeId))], [events]);
@@ -125,6 +153,7 @@ export default function ScenarioResultPage({
   }, [weekly]);
 
   const [weekIndex, setWeekIndex] = useState(peakWeekIndex);
+  const [playing, setPlaying] = useState(false);
   const effectiveWeekIndex = Math.min(weekIndex, (scenario?.projectionHorizonWeeks ?? 1) - 1);
   /** Costo de reconfigurar que asume el usuario, en semanas malas equivalentes (k). */
   const [assumedK, setAssumedK] = useState(3);
@@ -149,11 +178,51 @@ export default function ScenarioResultPage({
     return any?.[effectiveWeekIndex]?.weekStart ? formatWeekLabel(any[effectiveWeekIndex].weekStart) : "";
   }, [propagation, effectiveWeekIndex]);
 
+  /** Peor momento de la vista previa — hasta ahí llega la animación de entrada. */
+  const previewPeakWeek = useMemo(() => {
+    if (!previewOutcome || !scenario) return 0;
+    let bestIndex = 0;
+    let best = -1;
+    for (let i = 0; i < scenario.projectionHorizonWeeks; i++) {
+      let total = 0;
+      for (const weeks of previewOutcome.projectionByNode.values()) total += weeks[i]?.deficit ?? 0;
+      if (total > best) {
+        best = total;
+        bestIndex = i;
+      }
+    }
+    return bestIndex;
+  }, [previewOutcome, scenario]);
+
+  /** Curva de la crisis: operación perdida por semana, en semanas equivalentes. */
+  const crisisData = useMemo(() => {
+    const anyProjection = [...propagation.values()][0] ?? [];
+    return weekly.perWeek.map((total, i) => ({
+      weekStart: anyProjection[i]?.weekStart ?? "",
+      lost: total / 100,
+    }));
+  }, [weekly, propagation]);
+
   if (!chain || !scenario) {
     return (
       <div className="flex flex-1 items-center justify-center text-[13px] text-muted-foreground">
         Escenario no encontrado.
       </div>
+    );
+  }
+
+  // Mientras corre el job se muestra la propagación avanzando sobre la red hasta el peor
+  // momento, en vez de un spinner. Al terminar la animación se pasa al resultado.
+  if (playingIntro && previewOutcome) {
+    return (
+      <SimulationIntro
+        chainId={chainId}
+        chainNodes={chainNodes}
+        chainEdges={chainEdges}
+        projectionByNode={previewOutcome.projectionByNode}
+        peakWeekIndex={previewPeakWeek}
+        onDone={finishIntro}
+      />
     );
   }
 
@@ -186,14 +255,27 @@ export default function ScenarioResultPage({
   // No se usa `tabla_k` para esto a propósito: su fórmula actual (mock) hace que el umbral BAJE
   // cuando k sube, así que dispararía la recomendación al revés. Ver la nota en simulate.ts.
   const avoidableNow = weekly.avoidableFromWeek[0] ?? 0;
-  const worthReconfiguring = avoidableNow >= assumedK;
+  // El tope del costo escala con la pérdida del propio escenario. Con un máximo fijo (10), en un
+  // escenario que pierde más que eso el veredicto quedaba clavado en "sí conviene" para cualquier
+  // posición del slider: nunca se podía plantear un costo mayor a la pérdida evitable.
+  const kMax = Math.max(10, Math.ceil(avoidableNow * 1.5));
+  const effectiveK = Math.min(assumedK, kMax);
+  const worthReconfiguring = avoidableNow >= effectiveK;
   // Último momento en que reconfigurar todavía se paga solo: después, lo que queda por evitar
   // ya no alcanza a cubrir el costo.
   const lastWorthwhileWeek = weekly.avoidableFromWeek.reduce(
-    (last, avoidable, i) => (avoidable >= assumedK ? i : last),
+    (last, avoidable, i) => (avoidable >= effectiveK ? i : last),
     -1,
   );
-  const progressToThreshold = assumedK > 0 ? Math.min(1, avoidableNow / assumedK) : 0;
+  // Qué porción de la pérdida evitable se lleva el costo de reconfigurar. Se prefiere a
+  // `avoidableNow / effectiveK`, que saturaba en 100% apenas convenía y dejaba la barra siempre
+  // llena: así se ve cuánto margen queda.
+  const costShareOfAvoidable = avoidableNow > 0 ? Math.min(1, effectiveK / avoidableNow) : 1;
+  // Posición del punto de equilibrio sobre el riel del slider. Solo se dibuja si cae dentro del
+  // rango: con una pérdida menor a 1 semana no hay nada que señalar.
+  const showBreakEven = avoidableNow >= 1 && avoidableNow <= kMax;
+  const breakEvenPct = ((avoidableNow - 1) / Math.max(1, kMax - 1)) * 100;
+  const breakEvenLeft = `calc(${breakEvenPct}% + ${(8 - (breakEvenPct / 100) * 16).toFixed(2)}px)`;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-background">
@@ -298,31 +380,56 @@ export default function ScenarioResultPage({
                 operación equivalentes.
               </div>
 
-              <div className="mt-4 flex items-center gap-3">
-                <span className="flex-none font-mono text-[10.5px] text-muted-foreground">reconfigurar me cuesta</span>
-                <input
-                  type="range"
-                  min={1}
-                  max={10}
-                  value={assumedK}
-                  onChange={(e) => setAssumedK(Number(e.target.value))}
-                  className="h-1.5 flex-1 accent-primary"
-                />
-                <span className="w-24 flex-none text-right font-mono text-[12.5px] font-medium">
-                  {assumedK} {assumedK === 1 ? "semana" : "semanas"}
+              <div className="mt-4 flex items-start gap-3">
+                <span className="mt-0.5 flex-none font-mono text-[10.5px] text-muted-foreground">
+                  reconfigurar me cuesta
+                </span>
+                <div className="relative min-w-0 flex-1 pb-5">
+                  <input
+                    type="range"
+                    min={1}
+                    max={kMax}
+                    value={effectiveK}
+                    onChange={(e) => setAssumedK(Number(e.target.value))}
+                    className="h-1.5 w-full accent-primary"
+                  />
+                  {/* Punto de equilibrio sobre la escala del slider. La marca es una línea real
+                      apoyada en el riel — antes era un "▲" dentro de un texto centrado, así que
+                      el triángulo caía a la izquierda del valor que decía señalar. El desfase de
+                      8px compensa el radio del thumb, que no llega a los extremos del riel. */}
+                  {showBreakEven && (
+                    <>
+                      <span
+                        className="pointer-events-none absolute top-[9px] h-2 w-px -translate-x-1/2 bg-muted-foreground/60"
+                        style={{ left: breakEvenLeft }}
+                      />
+                      <span
+                        className="pointer-events-none absolute top-[19px] -translate-x-1/2 whitespace-nowrap font-mono text-[9.5px] text-muted-foreground"
+                        style={{ left: breakEvenLeft }}
+                      >
+                        deja de convenir en {avoidableNow.toFixed(1)}
+                      </span>
+                    </>
+                  )}
+                </div>
+                <span className="mt-0.5 w-24 flex-none text-right font-mono text-[12.5px] font-medium">
+                  {effectiveK} {effectiveK === 1 ? "semana" : "semanas"}
                 </span>
               </div>
 
+              {/* El color acompaña a la acción recomendada (hacelo / no lo hagas), no a la gravedad:
+                  un ✓ sobre rojo mandaba señales contradictorias. La gravedad ya la comunica el
+                  bloque de impacto de arriba. */}
               <div className="mt-4 flex items-start gap-3 rounded-xl border p-4"
                 style={
                   worthReconfiguring
-                    ? { borderColor: "#f0c4ba", background: "#fdeeeb" }
-                    : { borderColor: "#b9e2d8", background: "#e8f6f3" }
+                    ? { borderColor: "#c3d0f5", background: "#eef2fe" }
+                    : { borderColor: "#dbe1ea", background: "#f4f6f9" }
                 }
               >
                 <span
                   className="mt-0.5 flex h-6 w-6 flex-none items-center justify-center rounded-full text-white"
-                  style={{ background: worthReconfiguring ? "#c23a24" : "#0a7d6a" }}
+                  style={{ background: worthReconfiguring ? "#0060ff" : "#8c96a6" }}
                 >
                   {worthReconfiguring ? <Check size={14} /> : <X size={14} />}
                 </span>
@@ -335,7 +442,7 @@ export default function ScenarioResultPage({
                       <>
                         Reconfigurando ahora evitás{" "}
                         <span className="font-medium text-foreground">{avoidableNow.toFixed(1)} semanas</span> de
-                        pérdida, contra un costo de {assumedK}.
+                        pérdida, contra un costo de {effectiveK}.
                         {lastWorthwhileWeek >= 0 && lastWorthwhileWeek + 1 < scenario.projectionHorizonWeeks && (
                           <>
                             {" "}
@@ -347,27 +454,30 @@ export default function ScenarioResultPage({
                       </>
                     ) : (
                       <>
-                        Reconfigurar cuesta {assumedK}{" "}
-                        {assumedK === 1 ? "semana" : "semanas"} y en todo el horizonte solo evitarías{" "}
+                        Reconfigurar cuesta {effectiveK}{" "}
+                        {effectiveK === 1 ? "semana" : "semanas"} y en todo el horizonte solo evitarías{" "}
                         <span className="font-mono">{avoidableNow.toFixed(1)}</span>. Sale más caro el remedio que la
                         enfermedad.
                       </>
                     )}
                   </div>
 
+                  {/* La barra entera es la pérdida que evitás; el relleno, lo que te cuesta
+                      evitarla. Si el relleno tapa toda la barra, el remedio cuesta más que la
+                      enfermedad. */}
                   <div className="mt-3">
                     <div className="h-1.5 overflow-hidden rounded-full bg-card">
                       <div
-                        className="h-full rounded-full"
+                        className="h-full rounded-full transition-all"
                         style={{
-                          width: `${progressToThreshold * 100}%`,
-                          background: worthReconfiguring ? "#c23a24" : "#0d9c84",
+                          width: `${costShareOfAvoidable * 100}%`,
+                          background: worthReconfiguring ? "#0060ff" : "#8c96a6",
                         }}
                       />
                     </div>
                     <div className="mt-1 flex justify-between font-mono text-[9.5px] text-muted-foreground">
+                      <span>cuesta {effectiveK.toFixed(1)}</span>
                       <span>evitás {avoidableNow.toFixed(1)}</span>
-                      <span>cuesta {assumedK.toFixed(1)}</span>
                     </div>
                   </div>
                 </div>
@@ -394,6 +504,52 @@ export default function ScenarioResultPage({
               </div>
             </div>
 
+            {/* La curva de la crisis: cuándo pega, cuánto dura, cuál es el peor momento. */}
+            <div className="rounded-2xl border border-border bg-card p-4">
+              <div className="mb-1 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                <span className="text-[14px] font-medium">Cómo evoluciona la crisis</span>
+                <span className="text-[11.5px] text-muted-foreground">
+                  cuánta operación se pierde cada semana
+                </span>
+              </div>
+              <CrisisTimelineChart
+                data={crisisData}
+                currentWeekIndex={effectiveWeekIndex}
+                reconfigurationWeekIndex={result.reconfigurationWeekIndex}
+                onSeek={(i) => {
+                  setPlaying(false);
+                  setWeekIndex(i);
+                }}
+              />
+              <div className="mt-2 grid grid-cols-3 gap-2 border-t border-border pt-3">
+                {[
+                  {
+                    label: "Arranca",
+                    value: firstAffectedWeek >= 0 ? `semana ${firstAffectedWeek + 1}` : "sin impacto",
+                    note: "primera semana con pérdida",
+                  },
+                  {
+                    label: "Peor momento",
+                    value: `semana ${peakWeekIndex + 1}`,
+                    note: `se pierde ${((weekly.perWeek[peakWeekIndex] ?? 0) / 100).toFixed(2)} de semana`,
+                  },
+                  {
+                    label: "Cuánto dura",
+                    value: `${weeksInDeficit} ${weeksInDeficit === 1 ? "semana" : "semanas"}`,
+                    note: reconfigured ? "hasta la reconfiguración" : "no se corrige solo",
+                  },
+                ].map((stat) => (
+                  <div key={stat.label} className="rounded-xl bg-secondary/40 px-3 py-2">
+                    <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">
+                      {stat.label}
+                    </div>
+                    <div className="mt-0.5 text-[13.5px] font-medium">{stat.value}</div>
+                    <div className="text-[10.5px] text-muted-foreground">{stat.note}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
             {/* Cómo se mueve por la red — la parte visual. */}
             <div className="rounded-2xl border border-border bg-card p-4">
               <div className="mb-2.5 flex flex-wrap items-baseline gap-x-3 gap-y-1">
@@ -405,19 +561,15 @@ export default function ScenarioResultPage({
               <div className="flex h-[360px] overflow-hidden rounded-xl border border-border">
                 <ChainCanvas chainId={chainId} mode="display" severityByNode={severityByNode} severityByEdge={severityByEdge} />
               </div>
-              <div className="mt-2.5 flex items-center gap-3">
-                <span className="font-mono text-[10.5px] text-muted-foreground">semana</span>
-                <input
-                  type="range"
-                  min={0}
-                  max={Math.max(0, scenario.projectionHorizonWeeks - 1)}
-                  value={effectiveWeekIndex}
-                  onChange={(e) => setWeekIndex(Number(e.target.value))}
-                  className="h-1.5 flex-1 accent-primary"
+              <div className="mt-3">
+                <WeekPlayer
+                  weekIndex={effectiveWeekIndex}
+                  weekCount={scenario.projectionHorizonWeeks}
+                  weekLabel={weekLabel}
+                  playing={playing}
+                  onWeekIndexChange={setWeekIndex}
+                  onPlayingChange={setPlaying}
                 />
-                <span className="w-24 flex-none text-right font-mono text-[11px] text-muted-foreground">
-                  {effectiveWeekIndex + 1}/{scenario.projectionHorizonWeeks} · {weekLabel}
-                </span>
               </div>
             </div>
           </div>
@@ -501,7 +653,7 @@ export default function ScenarioResultPage({
                     key={row.k}
                     className={cn(
                       "flex flex-col items-center gap-0.5 rounded-md py-1.5",
-                      row.k === assumedK ? "bg-accent" : "bg-secondary/40",
+                      row.k === effectiveK ? "bg-accent" : "bg-secondary/40",
                     )}
                   >
                     <span className="text-muted-foreground">k={row.k}</span>

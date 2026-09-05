@@ -26,7 +26,7 @@ export function TransitEdge({
   const edgeData = data as { transitTimeDays?: number; severity?: Severity } | undefined;
   const severityColors = edgeData?.severity ? SEVERITY_COLOR[edgeData.severity] : null;
 
-  const stroke = severityColors ? severityColors.stroke : selected ? "#3a5bd9" : "#c3cede";
+  const stroke = severityColors ? severityColors.stroke : selected ? "#0060ff" : "#c3cede";
   const strokeWidth = severityColors ? (edgeData?.severity === "severe" ? 2.6 : 2) : selected ? 2 : 1.5;
 
   return (
@@ -37,8 +37,8 @@ export function TransitEdge({
           className="absolute rounded-full border bg-card px-1.5 py-0.5 font-mono text-[9.5px]"
           style={{
             transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
-            borderColor: severityColors ? severityColors.border : selected ? "#3a5bd9" : "var(--border)",
-            color: severityColors ? severityColors.stroke : selected ? "#2b47bb" : "#616b7c",
+            borderColor: severityColors ? severityColors.border : selected ? "#0060ff" : "var(--border)",
+            color: severityColors ? severityColors.stroke : selected ? "#002860" : "#616b7c",
             pointerEvents: "all",
           }}
         >

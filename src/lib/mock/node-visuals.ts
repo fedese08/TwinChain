@@ -1,7 +1,7 @@
 import type { NodeType } from "@/lib/mock/types";
 
 export const NODE_TYPE_COLOR: Record<NodeType, string> = {
-  Proveedor: "#3a5bd9",
+  Proveedor: "#0060ff",
   Fabrica: "#dfa63c",
   Almacen: "#0d9c84",
   Vendedor: "#8b5cf6",

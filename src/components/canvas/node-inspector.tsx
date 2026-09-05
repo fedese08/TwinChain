@@ -11,10 +11,41 @@ import { NODE_TYPE_CODE, NODE_TYPE_COLOR } from "@/lib/mock/node-visuals";
 import { useMockDbStore } from "@/stores/mock-db-store";
 import type { SupplyChainNode } from "@/lib/mock/types";
 
+/** Campos numéricos editables de un Nodo — los atributos propios por tipo del modelo de datos. */
+type NumericField = "supplyCapacity" | "productionCapacity" | "storageCapacity" | "currentStockLevel";
+
+interface AttributeField {
+  field: NumericField;
+  label: string;
+  placeholder: string;
+  /** Aclaración al pie, para los campos que no son lo que parecen. */
+  note?: string;
+}
+
+/**
+ * Atributos propios por tipo de nodo (docs/modelo-datos.md). Vendedor y Cliente no tienen: se
+ * agregan cuando haga falta, no se inventan.
+ */
+const ATTRIBUTES_BY_TYPE: Record<string, AttributeField[]> = {
+  Proveedor: [{ field: "supplyCapacity", label: "Capacidad sum.", placeholder: "u/sem" }],
+  Fabrica: [{ field: "productionCapacity", label: "Capacidad prod.", placeholder: "u/sem" }],
+  Almacen: [
+    { field: "storageCapacity", label: "Capacidad almac.", placeholder: "u" },
+    {
+      field: "currentStockLevel",
+      label: "Stock actual",
+      placeholder: "u",
+      note: "Dato de contexto: no entra en el cálculo de la simulación.",
+    },
+  ],
+  Vendedor: [],
+  Cliente: [],
+};
+
 const TYPE_NOTE: Record<string, string> = {
-  Proveedor: "Sin atributos propios identificados todavía — conceptual, no validado con datos reales.",
+  Proveedor: "capacidad_suministro es el único atributo propio de este tipo — conceptual, no validado con datos reales.",
   Fabrica: "capacidad_produccion es el único atributo propio de este tipo.",
-  Almacen: "capacidad_almacenamiento es el único atributo propio de este tipo.",
+  Almacen: "capacidad_almacenamiento y nivel_stock_actual son sus atributos propios.",
   Vendedor: "Corresponde al seller_id de Olist — el único nodo con desempeño real medido.",
   Cliente: "Sin atributos propios identificados todavía.",
 };
@@ -24,17 +55,18 @@ export function NodeInspector({ node, onClose }: { node: SupplyChainNode; onClos
   const nodes = useMockDbStore((s) => s.nodes);
   const weeklyPerformance = useMockDbStore((s) => s.weeklyPerformance);
   const removeNode = useMockDbStore((s) => s.removeNode);
+  const removeNodeWithEdges = useMockDbStore((s) => s.removeNodeWithEdges);
   const updateNode = useMockDbStore((s) => s.updateNode);
 
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [label, setLabel] = useState(node.label);
-  const [capacity, setCapacity] = useState(
-    String(node.nodeType === "Fabrica" ? node.productionCapacity ?? "" : node.storageCapacity ?? ""),
-  );
+  const [numericDraft, setNumericDraft] = useState<Record<string, string>>({});
 
   useEffect(() => {
+    setConfirmingDelete(false);
     setLabel(node.label);
-    setCapacity(String(node.nodeType === "Fabrica" ? node.productionCapacity ?? "" : node.storageCapacity ?? ""));
-  }, [node.id, node.label, node.nodeType, node.productionCapacity, node.storageCapacity]);
+    setNumericDraft({});
+  }, [node.id, node.label]);
 
   const connections = edges
     .filter((e) => e.sourceNodeId === node.id || e.targetNodeId === node.id)
@@ -55,20 +87,41 @@ export function NodeInspector({ node, onClose }: { node: SupplyChainNode; onClos
     if (trimmed) updateNode(node.id, { label: trimmed });
   }
 
-  function commitCapacity(value: string) {
-    setCapacity(value);
+  function commitNumeric(field: NumericField, value: string) {
+    // El borrador se guarda tal cual para no pelearse con lo que el usuario está tipeando
+    // (un campo vacío o a medio escribir no debe volver a rellenarse solo).
+    setNumericDraft((current) => ({ ...current, [field]: value }));
     const parsed = value === "" ? undefined : Number(value);
     if (parsed !== undefined && Number.isNaN(parsed)) return;
-    if (node.nodeType === "Fabrica") updateNode(node.id, { productionCapacity: parsed });
-    if (node.nodeType === "Almacen") updateNode(node.id, { storageCapacity: parsed });
+    updateNode(node.id, { [field]: parsed });
+  }
+
+  function numericValue(field: NumericField): string {
+    return numericDraft[field] ?? String(node[field] ?? "");
   }
 
   function handleDelete() {
+    // Con conexiones el borrado directo se rechaza (una arista no puede quedar apuntando a un
+    // nodo que ya no existe), así que se pide confirmación para llevarse también las aristas.
+    if (connections.length > 0) {
+      setConfirmingDelete(true);
+      return;
+    }
     const result = removeNode(node.id);
     if (!result.ok) {
       toast.error(result.reason);
       return;
     }
+    onClose();
+  }
+
+  function handleDeleteWithEdges() {
+    const removed = connections.length;
+    removeNodeWithEdges(node.id);
+    toast.success(
+      `${node.label} eliminado junto con ${removed} ${removed === 1 ? "conexión" : "conexiones"}.`,
+    );
+    setConfirmingDelete(false);
     onClose();
   }
 
@@ -93,36 +146,25 @@ export function NodeInspector({ node, onClose }: { node: SupplyChainNode; onClos
             <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">Tipo</div>
             <div className="mt-0.5 font-mono text-[15px]">{node.nodeType}</div>
           </div>
-          {node.nodeType === "Fabrica" && (
-            <div className="rounded-lg border border-border bg-secondary/40 p-2.5">
+          {(ATTRIBUTES_BY_TYPE[node.nodeType] ?? []).map((attr) => (
+            <div key={attr.field} className="rounded-lg border border-border bg-secondary/40 p-2.5">
               <Label className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">
-                Capacidad prod.
+                {attr.label}
               </Label>
               <Input
                 type="number"
                 min={0}
-                value={capacity}
-                onChange={(e) => commitCapacity(e.target.value)}
-                placeholder="u/sem"
+                value={numericValue(attr.field)}
+                onChange={(e) => commitNumeric(attr.field, e.target.value)}
+                placeholder={attr.placeholder}
+                title={attr.note}
                 className="mt-0.5 h-6 border-none bg-transparent p-0 font-mono text-[15px] shadow-none focus-visible:ring-0"
               />
+              {attr.note && (
+                <div className="mt-0.5 text-[9px] leading-tight text-muted-foreground">{attr.note}</div>
+              )}
             </div>
-          )}
-          {node.nodeType === "Almacen" && (
-            <div className="rounded-lg border border-border bg-secondary/40 p-2.5">
-              <Label className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">
-                Capacidad almac.
-              </Label>
-              <Input
-                type="number"
-                min={0}
-                value={capacity}
-                onChange={(e) => commitCapacity(e.target.value)}
-                placeholder="u"
-                className="mt-0.5 h-6 border-none bg-transparent p-0 font-mono text-[15px] shadow-none focus-visible:ring-0"
-              />
-            </div>
-          )}
+          ))}
         </div>
         <div className="text-[11px] leading-relaxed text-muted-foreground">{TYPE_NOTE[node.nodeType]}</div>
 
@@ -164,12 +206,31 @@ export function NodeInspector({ node, onClose }: { node: SupplyChainNode; onClos
           </div>
         </div>
 
-        <Button variant="outline" size="sm" className="text-destructive hover:text-destructive" onClick={handleDelete}>
-          <Trash2 className="mr-1.5" size={13} />
-          Eliminar nodo
-        </Button>
-        {connections.length > 0 && (
-          <div className="font-mono text-[10.5px] text-muted-foreground">Desconectá el nodo antes de eliminarlo.</div>
+        {confirmingDelete ? (
+          <div className="flex flex-col gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3">
+            <div className="text-[12px] leading-relaxed">
+              <span className="font-medium">{node.label}</span> tiene{" "}
+              {connections.length === 1 ? "1 conexión" : `${connections.length} conexiones`}. Al eliminarlo se
+              borran también.
+            </div>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                className="flex-1 bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                onClick={handleDeleteWithEdges}
+              >
+                Eliminar igual
+              </Button>
+              <Button variant="outline" size="sm" className="flex-1" onClick={() => setConfirmingDelete(false)}>
+                Cancelar
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <Button variant="outline" size="sm" className="text-destructive hover:text-destructive" onClick={handleDelete}>
+            <Trash2 className="mr-1.5" size={13} />
+            Eliminar nodo
+          </Button>
         )}
       </div>
     </div>

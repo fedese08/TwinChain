@@ -22,16 +22,27 @@ import { SupplyChainNodeView, type SupplyChainNodeData } from "@/components/canv
 import { TransitEdge } from "@/components/canvas/transit-edge";
 import { useMockDbStore } from "@/stores/mock-db-store";
 import type { Severity } from "@/lib/mock/simulate";
-import type { NodeType } from "@/lib/mock/types";
+import type { NodeType, SupplyChainNode } from "@/lib/mock/types";
 
 const NODE_TYPES = { supplyChainNode: SupplyChainNodeView };
 const EDGE_TYPES = { transitEdge: TransitEdge };
 
 export type ChainCanvasMode = "edit" | "select" | "display";
 
-function nodeDetail(nodeType: NodeType, productionCapacity?: number, storageCapacity?: number): string {
-  if (nodeType === "Fabrica") return productionCapacity ? `prod. ${productionCapacity} u/sem` : "sin capacidad cargada";
-  if (nodeType === "Almacen") return storageCapacity ? `almac. ${storageCapacity} u` : "sin capacidad cargada";
+function nodeDetail(node: SupplyChainNode): string {
+  if (node.nodeType === "Proveedor") {
+    return node.supplyCapacity ? `sum. ${node.supplyCapacity} u/sem` : "sin capacidad cargada";
+  }
+  if (node.nodeType === "Fabrica") {
+    return node.productionCapacity ? `prod. ${node.productionCapacity} u/sem` : "sin capacidad cargada";
+  }
+  if (node.nodeType === "Almacen") {
+    if (!node.storageCapacity) return "sin capacidad cargada";
+    // Con stock cargado se muestra la ocupación, que es más informativa que la capacidad sola.
+    return node.currentStockLevel !== undefined
+      ? `${node.currentStockLevel}/${node.storageCapacity} u`
+      : `almac. ${node.storageCapacity} u`;
+  }
   return "sin atributos propios";
 }
 
@@ -89,7 +100,7 @@ function CanvasInner({ chainId, mode, selectedNodeIds, onNodeSelect, severityByN
         data: {
           label: n.label,
           nodeType: n.nodeType,
-          detail: nodeDetail(n.nodeType, n.productionCapacity, n.storageCapacity),
+          detail: nodeDetail(n),
           latestDeficit: latestDeficitByNode.get(n.id) ?? 0,
           highlighted: isSelect && selectedSet.has(n.id),
           severity: isDisplay ? severityByNode?.[n.id] : undefined,
@@ -168,9 +179,32 @@ function CanvasInner({ chainId, mode, selectedNodeIds, onNodeSelect, severityByN
   );
 
   function handleAddNode(type: NodeType) {
-    const offset = chainNodes.length * 12;
-    const position = { x: 120 + (offset % 400), y: 120 + Math.floor(offset / 400) * 90 };
-    const label = `${type.slice(0, 3).toUpperCase()}-${String(chainNodes.filter((n) => n.nodeType === type).length + 1).padStart(2, "0")}`;
+    const prefix = type.slice(0, 3).toUpperCase();
+
+    // El número sale del máximo sufijo ya usado, no de cuántos nodos hay: contando, al borrar
+    // un nodo el siguiente que se crea reciclaba su mismo nombre y parecía que el borrado
+    // "volvía a aparecer".
+    const usedNumbers = chainNodes
+      .map((n) => new RegExp(`^${prefix}-(\\d+)$`).exec(n.label)?.[1])
+      .filter((n): n is string => n !== undefined)
+      .map(Number);
+    const nextNumber = (usedNumbers.length > 0 ? Math.max(...usedNumbers) : 0) + 1;
+    const label = `${prefix}-${String(nextNumber).padStart(2, "0")}`;
+
+    // Misma razón para la posición: se busca un hueco libre en vez de derivarla de la cantidad
+    // de nodos, que hacía que el nodo nuevo cayera exactamente encima del que se acababa de borrar.
+    const taken = chainNodes.map((n) => n.canvasPosition);
+    const isFree = (x: number, y: number) => !taken.some((p) => Math.abs(p.x - x) < 90 && Math.abs(p.y - y) < 60);
+    let position = { x: 120, y: 120 };
+    for (let slot = 0; slot < 200; slot++) {
+      const x = 120 + (slot % 5) * 180;
+      const y = 120 + Math.floor(slot / 5) * 110;
+      if (isFree(x, y)) {
+        position = { x, y };
+        break;
+      }
+    }
+
     addNodeToStore(chainId, type, label, position);
   }
 
@@ -226,7 +260,11 @@ function CanvasInner({ chainId, mode, selectedNodeIds, onNodeSelect, severityByN
         >
           <Background gap={26} color="#dbe1ea" />
           <Controls showInteractive={false} />
-          <MiniMap pannable zoomable style={{ background: "#fafbfd" }} />
+          {/* El minimapa sirve para moverse por un canvas que se edita; en la vista de
+              resultado (mode="display") la red se mira, no se navega, así que ahí estorba. */}
+          {!isDisplay && (
+            <MiniMap pannable zoomable style={{ background: "#fafbfd", width: 116, height: 82 }} />
+          )}
         </ReactFlow>
 
         {isSelect && (

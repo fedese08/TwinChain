@@ -55,6 +55,17 @@ export const DEFAULT_REPLICATIONS = 30;
 const PROPAGATION_FRACTION_MIN = 0.45;
 const PROPAGATION_FRACTION_MAX = 0.65;
 
+/**
+ * ⚠️ PENDIENTE DE AJUSTE — el piso corta la propagación con magnitudes bajas, realistas para un
+ * usuario (ej. 1%). El primer salto ya multiplica por PROPAGATION_FRACTION (0.45–0.65), así que
+ * cualquier evento por debajo de ~5% de magnitud nunca llega ni al vecino inmediato — no importa
+ * cuán conectada esté la red, la disrupción queda encerrada en el nodo de origen. No es un bug
+ * de código: el piso existe a propósito para no propagar infinitamente con valores ínfimos, pero
+ * quedó calibrado alto respecto al rango de magnitudes que se espera cargar en la demo/uso real.
+ * No bajarlo por cuenta propia — es un parámetro de la metodología, igual que el resto de este
+ * archivo (ver nota de cabecera). Mientras tanto, para que la propagación se vea en una demo,
+ * usar magnitudes de al menos ~15–20%.
+ */
 const MIN_PROPAGATED_MAGNITUDE = 3;
 const MAX_PROPAGATION_HOPS = 6;
 const K_MAX = 10;

@@ -64,9 +64,21 @@ origen/destino — eso vive en Arista.
 Atributos propios por tipo (no van en el diagrama como cajas aparte — se documentan acá y se implementan como
 columnas nullable de la misma tabla Nodo, ver nota de implementación abajo):
 
-- Fabrica → `capacidad_produccion` (float)
-- Almacen → `capacidad_almacenamiento` (float)
-- Proveedor, Vendedor, Cliente → sin atributos propios identificados todavía; se agregan cuando haga falta
+- Proveedor → `capacidad_suministro` (float, u/semana)
+- Fabrica → `capacidad_produccion` (float, u/semana)
+- Almacen → `capacidad_almacenamiento` (float, u) y `nivel_stock_actual` (float, u)
+- Vendedor, Cliente → sin atributos propios identificados todavía; se agregan cuando haga falta
+
+**`nivel_stock_actual` es un dato descriptivo, no un insumo de cálculo.** RF027 excluye
+explícitamente inventario y unidades físicas de la propagación ("...sin incluir inventario ni
+unidades físicas en el cálculo"), así que este campo existe para dar contexto operativo en la
+ficha del nodo y **no debe entrar en ninguna fórmula** del motor de simulación. Se agregó por
+decisión del usuario, con esa restricción explícita.
+
+Ninguno de estos atributos participa hoy del cálculo: son estructurales, reservados para cuando
+el motor real modele restricciones de capacidad. Vendedor se deja sin atributos a propósito —
+los candidatos naturales (región, categoría) son justamente las variables de contexto que RF017
+descartó para condicionar la línea base, y agregarlos invitaría a usarlos contra esa decisión.
 
 Vendedor es el tipo que corresponde al `seller_id` de Olist — el único nodo para el que hay datos reales de
 desempeño. Proveedor y Fábrica, por ahora, son conceptuales: no hay forma de validarlos empíricamente con el dataset
@@ -74,7 +86,8 @@ elegido.
 
 **Nota de implementación (PostgreSQL, para Claude Code):** esto se implementa como **herencia de tabla única**
 (single table inheritance) — una sola tabla `nodos` con las columnas comunes (`id`, `tipo`, `cadena_id`) más las
-columnas propias de cada tipo, todas nullable (`capacidad_produccion`, `capacidad_almacenamiento`). No se crean
+columnas propias de cada tipo, todas nullable (`capacidad_suministro`, `capacidad_produccion`,
+`capacidad_almacenamiento`, `nivel_stock_actual`). No se crean
 tablas separadas por tipo. Opcionalmente se puede reforzar con un `CHECK` a nivel tabla (ej.
 `CHECK (tipo <> 'Fabrica' OR capacidad_produccion IS NOT NULL)`) para que la base rechace un nodo Fábrica sin
 capacidad cargada — evaluar si conviene o si esa validación queda mejor del lado de la aplicación, como en el resto

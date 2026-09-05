@@ -10,6 +10,8 @@
   --font-sans: var(--font-sans);
   --font-mono: var(--font-geist-mono);
   --font-heading: var(--font-sans);
+  /* Solo para el logotipo — ver layout.tsx. */
+  --font-display: var(--font-display);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -54,21 +56,24 @@
 }
 
 :root {
-  /* Paleta trasladada de TwinChain v2.dc.html — no reinventar colores acá */
+  /* Paleta tomada del logo (public/logo.png): navy #002860 + azul #0060ff, muestreados por
+     píxel del propio archivo — no son colores elegidos a ojo. El resto de la paleta original
+     de TwinChain v2.dc.html se mantiene donde no es "color de marca": los semánticos
+     (success/warning/destructive) siguen comunicando estado, no identidad, y no se tocan. */
   --background: #f4f6f9;
   --foreground: #151a23;
   --card: #ffffff;
   --card-foreground: #151a23;
   --popover: #ffffff;
   --popover-foreground: #151a23;
-  --primary: #3a5bd9;
+  --primary: #0060ff;
   --primary-foreground: #ffffff;
   --secondary: #f1f4f9;
   --secondary-foreground: #151a23;
   --muted: #eef1f6;
   --muted-foreground: #616b7c;
-  --accent: #eef2fe;
-  --accent-foreground: #2b47bb;
+  --accent: #e8f0ff;
+  --accent-foreground: #002860;
   --destructive: #d33f28;
   --destructive-foreground: #ffffff;
   --success: #0d9c84;
@@ -77,21 +82,82 @@
   --warning-foreground: #151a23;
   --border: #e4e8ef;
   --input: #e4e8ef;
-  --ring: #3a5bd9;
-  --chart-1: #3a5bd9;
+  --ring: #0060ff;
+  --chart-1: #0060ff;
   --chart-2: #0d9c84;
   --chart-3: #dfa63c;
   --chart-4: #d33f28;
   --chart-5: #8c96a6;
   --radius: 0.5rem;
-  --sidebar: #ffffff;
+  /* Sidebar con tinte azulado propio — distinto tanto del fondo general (--background, gris
+     neutro) como del blanco del canvas/tarjetas, pero claro (mismo azul de marca que el resto
+     de la UI, no una paleta nueva). El navy del logo entra acá como el "primary" oscuro del
+     sidebar (el chip sólido de la organización), separado del azul brillante que ya usa el
+     resto de la interfaz. */
+  --sidebar: #e6edff;
   --sidebar-foreground: #151a23;
-  --sidebar-primary: #3a5bd9;
+  --sidebar-primary: #002860;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #f1f4f9;
+  --sidebar-accent: #d3ddf3;
   --sidebar-accent-foreground: #151a23;
-  --sidebar-border: #e4e8ef;
-  --sidebar-ring: #3a5bd9;
+  --sidebar-border: #c7d1eb;
+  --sidebar-ring: #0060ff;
+}
+
+/* --- Pantalla de carga inicial (ver splash-screen.tsx) --------------------------------- */
+@keyframes splash-logo-in {
+  from {
+    opacity: 0;
+    transform: scale(0.86);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes splash-text-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Barra indeterminada: una franja que barre el riel de lado a lado. */
+@keyframes splash-sweep {
+  from {
+    transform: translateX(-115%);
+  }
+  to {
+    transform: translateX(315%);
+  }
+}
+
+.splash-logo {
+  animation: splash-logo-in 620ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.splash-text {
+  animation: splash-text-in 620ms cubic-bezier(0.16, 1, 0.3, 1) 140ms both;
+}
+
+.splash-sweep {
+  animation: splash-sweep 1150ms cubic-bezier(0.4, 0, 0.2, 1) 220ms infinite;
+}
+
+/* Sin movimiento para quien lo pidió a nivel sistema: el contenido igual se ve. */
+@media (prefers-reduced-motion: reduce) {
+  .splash-logo,
+  .splash-text,
+  .splash-sweep {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
 }
 
 @layer base {

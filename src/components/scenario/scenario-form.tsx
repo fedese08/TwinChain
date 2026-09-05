@@ -9,7 +9,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { EVENT_TYPE_SUGGESTIONS, scenarioFormSchema, type ScenarioFormValues } from "@/lib/validators/scenario";
+import {
+  EVENT_TYPE_LABELS,
+  EVENT_TYPE_SUGGESTIONS,
+  scenarioFormSchema,
+  type ScenarioFormValues,
+} from "@/lib/validators/scenario";
 import { useMockDbStore } from "@/stores/mock-db-store";
 import type { SupplyChainNode } from "@/lib/mock/types";
 
@@ -166,7 +171,26 @@ export const ScenarioForm = forwardRef<ScenarioFormHandle, ScenarioFormProps>(fu
                 </button>
               </div>
 
-              <Input placeholder="tipo de evento (ej. corte, huelga, demora)" list="event-type-suggestions" {...register(`events.${index}.eventType`)} />
+              <Controller
+                control={control}
+                name={`events.${index}.eventType`}
+                render={({ field: typeField }) => (
+                  <Select value={typeField.value} onValueChange={typeField.onChange}>
+                    <SelectTrigger className="h-8 text-[12px]">
+                      <SelectValue placeholder="Tipo de evento">
+                        {(value: string | null) => EVENT_TYPE_LABELS[value ?? ""] ?? "Tipo de evento"}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {EVENT_TYPE_SUGGESTIONS.map((t) => (
+                        <SelectItem key={t} value={t}>
+                          {EVENT_TYPE_LABELS[t]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
 
               <div className="flex gap-2">
                 <div className="flex-1">
@@ -193,11 +217,6 @@ export const ScenarioForm = forwardRef<ScenarioFormHandle, ScenarioFormProps>(fu
             </div>
           ))}
           {errors.events?.root && <span className="text-[10.5px] text-destructive">{errors.events.root.message}</span>}
-          <datalist id="event-type-suggestions">
-            {EVENT_TYPE_SUGGESTIONS.map((t) => (
-              <option key={t} value={t} />
-            ))}
-          </datalist>
         </div>
 
         <div className="rounded-lg border border-border bg-secondary/30 p-2.5 text-[11px] leading-relaxed text-muted-foreground">

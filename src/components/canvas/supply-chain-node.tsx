@@ -37,7 +37,7 @@ function SupplyChainNodeComponent({ data }: NodeProps) {
       <Handle type="target" position={Position.Left} className="!bg-muted-foreground" />
       <div className="flex items-center gap-1.5">
         <span className="h-[7px] w-[7px] flex-none rounded-[2px]" style={{ background: color }} />
-        <span className="font-mono text-[9px] font-medium uppercase tracking-wider text-muted-foreground">
+        <span className="min-w-0 truncate font-mono text-[9px] font-medium uppercase tracking-wider text-muted-foreground">
           {NODE_TYPE_CODE[nodeType]}
         </span>
         {highlighted && (
@@ -46,8 +46,14 @@ function SupplyChainNodeComponent({ data }: NodeProps) {
           </span>
         )}
         {!highlighted && !severityColors && latestDeficit > 2 && (
-          <span className="ml-auto font-mono text-[9.5px] font-medium text-destructive">
-            −{latestDeficit.toFixed(0)}
+          // No es un valor negativo: es el déficit de la última semana (línea_base − valor_real,
+          // nunca negativo por definición del modelo). El "−" es solo una marca visual de
+          // pérdida — antes iba sin ninguna etiqueta y se leía como un número negativo suelto.
+          <span
+            className="ml-auto flex-none rounded-sm bg-destructive/10 px-1 py-[1px] font-mono text-[8.5px] font-medium whitespace-nowrap text-destructive"
+            title={`Déficit de la última semana: ${latestDeficit.toFixed(1)}% por debajo de la línea base esperada`}
+          >
+            déf. −{latestDeficit.toFixed(0)}%
           </span>
         )}
       </div>

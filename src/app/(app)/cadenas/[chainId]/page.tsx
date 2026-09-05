@@ -42,13 +42,14 @@ export default function ChainDetailPage({ params }: { params: Promise<{ chainId:
         </Link>
         <div className="h-5 w-px flex-none bg-border" />
         <div className="min-w-0 truncate text-[14.5px] font-medium">{chain.name}</div>
-        {/* C24: el pipeline de ingesta valida la estabilidad estructural de cada cadena nueva. */}
+        {/* C24: el pipeline de ingesta valida la estabilidad estructural de cada cadena nueva.
+            El nombre del mecanismo (CUSUM) no se muestra: es jerga para quien opera la cadena. */}
         {stabilityCheck && (
           <div className="flex flex-none items-center gap-1.5 font-mono text-[10.5px] text-muted-foreground">
             {stabilityCheck.status === "corriendo" ? (
               <>
                 <span className="h-2.5 w-2.5 animate-spin rounded-full border-[1.5px] border-border border-t-primary" />
-                validando estabilidad (CUSUM)…
+                revisando historial…
               </>
             ) : (
               <span
@@ -59,7 +60,7 @@ export default function ChainDetailPage({ params }: { params: Promise<{ chainId:
                     : { borderColor: "#b9e2d8", color: "#0a7d6a" }
                 }
               >
-                CUSUM {stabilityCheck.status === "alerta" ? "alerta" : "ok"}
+                {stabilityCheck.status === "alerta" ? "cambió el comportamiento" : "desempeño estable"}
               </span>
             )}
           </div>
@@ -87,14 +88,6 @@ export default function ChainDetailPage({ params }: { params: Promise<{ chainId:
           </button>
         </div>
 
-        {mode === "design" && (
-          <button
-            onClick={() => setMode("simulate")}
-            className="flex flex-none items-center gap-1.5 whitespace-nowrap rounded-lg bg-foreground px-3.5 py-1.5 text-[12.5px] font-medium text-background hover:bg-foreground/85"
-          >
-            <span className="font-mono text-[10px]">⑂</span>Simular
-          </button>
-        )}
         {mode === "simulate" && (
           <Link
             href={`/cadenas/${chainId}/escenarios`}

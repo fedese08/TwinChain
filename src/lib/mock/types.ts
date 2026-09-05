@@ -43,10 +43,19 @@ export interface SupplyChainNode {
   nodeType: NodeType;
   /** Código visible en canvas/tablas (ej. "FAB-02"). Metadata de UI, no del modelo formal. */
   label: string;
+  /** Solo si nodeType === "Proveedor" (capacidad_suministro), en u/semana. */
+  supplyCapacity?: number;
   /** Solo si nodeType === "Fabrica" (capacidad_produccion). */
   productionCapacity?: number;
   /** Solo si nodeType === "Almacen" (capacidad_almacenamiento). */
   storageCapacity?: number;
+  /**
+   * Solo si nodeType === "Almacen" (nivel_stock_actual). **Dato descriptivo, no entra en ningún
+   * cálculo**: RF027 excluye explícitamente inventario y unidades físicas de la propagación
+   * ("...sin incluir inventario ni unidades físicas en el cálculo"). Se muestra en el inspector
+   * como contexto operativo y nada más.
+   */
+  currentStockLevel?: number;
   /** Posición en el canvas. Metadata de UI, no del modelo formal. */
   canvasPosition: { x: number; y: number };
 }
