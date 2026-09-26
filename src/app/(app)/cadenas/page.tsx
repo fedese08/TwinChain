@@ -26,7 +26,7 @@ function StabilityBadge({ check }: { check?: StabilityCheck }) {
   const alerta = check.status === "alerta";
   return (
     <div className="flex items-center gap-1.5 font-mono text-[10.5px] text-muted-foreground">
-      <span className="rounded border px-1 py-0.5" style={{ borderColor: alerta ? "#e9b8ad" : "#b9e2d8", color: alerta ? "#c23a24" : "#0a7d6a" }}>
+      <span className="rounded border px-1 py-0.5" style={{ borderColor: alerta ? "#f5c9a8" : "#b9e2d8", color: alerta ? "#c2571f" : "#0a7d6a" }}>
         {alerta ? "cambió el comportamiento" : "desempeño estable"}
       </span>
       {alerta && check.changePointWeek ? `desde ${check.changePointWeek}` : `revisado ${check.ranAt}`}
@@ -78,7 +78,7 @@ export default function ChainsPage() {
               href={`/cadenas/${chain.id}`}
               className="flex flex-col gap-2.5 rounded-xl border border-border bg-card p-3.5 shadow-xs transition-colors hover:border-primary/40"
             >
-              <div className="flex h-[104px] items-center justify-center gap-1.5 rounded-lg border border-border bg-secondary/30">
+              <div className="flex h-[104px] items-center justify-center gap-1.5 rounded-lg border border-border bg-muted/30">
                 {chainNodes.slice(0, 5).map((n) => (
                   <span
                     key={n.id}
@@ -99,8 +99,8 @@ export default function ChainsPage() {
               <div className="font-mono text-[11px] text-muted-foreground">
                 {chainNodes.length} nodos · {chainEdges.length} aristas · {chainScenarios.length} simulaciones
               </div>
-              <div className="flex items-center gap-1.5 text-[11.5px]" style={{ color: stable ? "#0a7d6a" : "#c23a24" }}>
-                <span className="h-1.5 w-1.5 rounded-full" style={{ background: stable ? "#0d9c84" : "#d33f28" }} />
+              <div className="flex items-center gap-1.5 text-[11.5px]" style={{ color: stable ? "#0a7d6a" : "#c2571f" }}>
+                <span className="h-1.5 w-1.5 rounded-full" style={{ background: stable ? "#0d9c84" : "#f2703c" }} />
                 {stable ? "desempeño estable" : `déficit promedio ${avgDeficit.toFixed(1)} pp`}
               </div>
               {/* Validación de estabilidad estructural del pipeline de ingesta (C24). */}

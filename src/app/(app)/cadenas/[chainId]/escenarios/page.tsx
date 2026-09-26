@@ -42,7 +42,7 @@ export default function ScenarioListPage({ params }: { params: Promise<{ chainId
 
       <div className="flex-1 overflow-auto px-5 pb-6">
         <div className="overflow-hidden rounded-xl border border-border bg-card">
-          <div className="grid grid-cols-[1.6fr_1.4fr_0.7fr_1.1fr_0.9fr_0.8fr] border-b border-border bg-secondary/30 px-4 py-2.5 font-mono text-[9px] font-medium uppercase tracking-wider text-muted-foreground">
+          <div className="grid grid-cols-[1.6fr_1.4fr_0.7fr_1.1fr_0.9fr_0.8fr] border-b border-border bg-muted/30 px-4 py-2.5 font-mono text-[9px] font-medium uppercase tracking-wider text-muted-foreground">
             <div>Escenario</div>
             <div>Eventos</div>
             <div>Horizonte</div>
@@ -63,7 +63,7 @@ export default function ScenarioListPage({ params }: { params: Promise<{ chainId
               <Link
                 key={scenario.id}
                 href={`/cadenas/${chainId}/escenarios/${scenario.id}`}
-                className="grid grid-cols-[1.6fr_1.4fr_0.7fr_1.1fr_0.9fr_0.8fr] items-center border-b border-border px-4 py-3 last:border-b-0 hover:bg-secondary/30"
+                className="grid grid-cols-[1.6fr_1.4fr_0.7fr_1.1fr_0.9fr_0.8fr] items-center border-b border-border px-4 py-3 last:border-b-0 hover:bg-muted/30"
               >
                 <div className="min-w-0">
                   <div className="truncate text-[13px] font-medium">{scenario.name}</div>

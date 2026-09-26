@@ -21,7 +21,7 @@ type View = "answer" | "detail";
 /** Franjas de impacto sobre el horizonte proyectado — para traducir el déficit a algo legible. */
 function classifyImpact(badWeeks: number, horizonWeeks: number) {
   const share = horizonWeeks > 0 ? badWeeks / horizonWeeks : 0;
-  if (share >= 0.25) return { label: "Impacto alto", tone: "#c23a24", bg: "#fdeeeb", border: "#f0c4ba" };
+  if (share >= 0.25) return { label: "Impacto alto", tone: "#c2571f", bg: "#fdece0", border: "#f5c9a8" };
   if (share >= 0.1) return { label: "Impacto moderado", tone: "#a8761f", bg: "#fdf5e7", border: "#eddbb4" };
   return { label: "Impacto bajo", tone: "#0a7d6a", bg: "#e8f6f3", border: "#b9e2d8" };
 }
@@ -298,7 +298,7 @@ export default function ScenarioResultPage({
         <div className="flex items-center gap-px overflow-hidden rounded-lg border border-border">
           <button
             onClick={() => setView("answer")}
-            className={cn("px-3 py-1.5 text-[12.5px]", view === "answer" ? "bg-secondary font-medium" : "text-muted-foreground")}
+            className={cn("px-3 py-1.5 text-[12.5px]", view === "answer" ? "bg-muted font-medium" : "text-muted-foreground")}
           >
             Respuesta
           </button>
@@ -306,7 +306,7 @@ export default function ScenarioResultPage({
             onClick={() => setView("detail")}
             className={cn(
               "border-l border-border px-3 py-1.5 text-[12.5px]",
-              view === "detail" ? "bg-secondary font-medium" : "text-muted-foreground",
+              view === "detail" ? "bg-muted font-medium" : "text-muted-foreground",
             )}
           >
             Detalle técnico
@@ -423,13 +423,13 @@ export default function ScenarioResultPage({
               <div className="mt-4 flex items-start gap-3 rounded-xl border p-4"
                 style={
                   worthReconfiguring
-                    ? { borderColor: "#c3d0f5", background: "#eef2fe" }
-                    : { borderColor: "#dbe1ea", background: "#f4f6f9" }
+                    ? { borderColor: "rgba(59, 130, 246, 0.35)", background: "rgba(59, 130, 246, 0.1)" }
+                    : { borderColor: "var(--border)", background: "var(--muted)" }
                 }
               >
                 <span
                   className="mt-0.5 flex h-6 w-6 flex-none items-center justify-center rounded-full text-white"
-                  style={{ background: worthReconfiguring ? "#0060ff" : "#8c96a6" }}
+                  style={{ background: worthReconfiguring ? "#3b82f6" : "#8c96a6" }}
                 >
                   {worthReconfiguring ? <Check size={14} /> : <X size={14} />}
                 </span>
@@ -471,7 +471,7 @@ export default function ScenarioResultPage({
                         className="h-full rounded-full transition-all"
                         style={{
                           width: `${costShareOfAvoidable * 100}%`,
-                          background: worthReconfiguring ? "#0060ff" : "#8c96a6",
+                          background: worthReconfiguring ? "#3b82f6" : "#8c96a6",
                         }}
                       />
                     </div>
@@ -539,7 +539,7 @@ export default function ScenarioResultPage({
                     note: reconfigured ? "hasta la reconfiguración" : "no se corrige solo",
                   },
                 ].map((stat) => (
-                  <div key={stat.label} className="rounded-xl bg-secondary/40 px-3 py-2">
+                  <div key={stat.label} className="rounded-xl bg-muted/40 px-3 py-2">
                     <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">
                       {stat.label}
                     </div>
@@ -589,7 +589,7 @@ export default function ScenarioResultPage({
                     v: result.reconfigurationWeekIndex !== null ? `sem. ${result.reconfigurationWeekIndex + 1}` : "no",
                   },
                 ].map((item) => (
-                  <div key={item.k} className="rounded-lg bg-secondary/40 px-2.5 py-2">
+                  <div key={item.k} className="rounded-lg bg-muted/40 px-2.5 py-2">
                     <div className="text-[9px] uppercase tracking-wider text-muted-foreground">{item.k}</div>
                     <div className="mt-0.5 truncate font-medium">{item.v}</div>
                   </div>
@@ -611,7 +611,7 @@ export default function ScenarioResultPage({
                         "rounded border px-2 py-0.5 font-mono text-[10px]",
                         run.id === result.id
                           ? "border-primary/50 bg-accent text-accent-foreground"
-                          : "border-border text-muted-foreground hover:bg-secondary",
+                          : "border-border text-muted-foreground hover:bg-muted",
                       )}
                     >
                       #{runs.length - i} · {run.runDate}
@@ -653,7 +653,7 @@ export default function ScenarioResultPage({
                     key={row.k}
                     className={cn(
                       "flex flex-col items-center gap-0.5 rounded-md py-1.5",
-                      row.k === effectiveK ? "bg-accent" : "bg-secondary/40",
+                      row.k === effectiveK ? "bg-accent" : "bg-muted/40",
                     )}
                   >
                     <span className="text-muted-foreground">k={row.k}</span>

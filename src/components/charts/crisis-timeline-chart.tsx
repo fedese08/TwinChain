@@ -68,8 +68,8 @@ export function CrisisTimelineChart({
       >
         <defs>
           <linearGradient id="crisisFill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#d33f28" stopOpacity={0.28} />
-            <stop offset="100%" stopColor="#d33f28" stopOpacity={0.02} />
+            <stop offset="0%" stopColor="#f2703c" stopOpacity={0.28} />
+            <stop offset="100%" stopColor="#f2703c" stopOpacity={0.02} />
           </linearGradient>
         </defs>
 
@@ -98,7 +98,7 @@ export function CrisisTimelineChart({
           type="monotone"
           dataKey="lost"
           name="operación perdida"
-          stroke="#d33f28"
+          stroke="#f2703c"
           strokeWidth={2}
           fill="url(#crisisFill)"
         />
@@ -109,14 +109,14 @@ export function CrisisTimelineChart({
             x={peak.week}
             y={peak.lost}
             r={4}
-            fill="#d33f28"
+            fill="#f2703c"
             stroke="#fff"
             strokeWidth={1.5}
             label={{
               value: "peor momento",
               position: "top",
               fontSize: 9.5,
-              fill: "#c23a24",
+              fill: "#f2703c",
             }}
           />
         )}
@@ -135,15 +135,15 @@ export function CrisisTimelineChart({
         {reconfigurationWeekIndex !== null && chartData[reconfigurationWeekIndex] && (
           <ReferenceLine
             x={chartData[reconfigurationWeekIndex].week}
-            stroke="#0d9c84"
+            stroke="#12b48a"
             strokeWidth={1.6}
-            label={{ value: "se reconfigura", position: "top", fontSize: 9.5, fill: "#0a7d6a" }}
+            label={{ value: "se reconfigura", position: "top", fontSize: 9.5, fill: "#12b48a" }}
           />
         )}
 
         {/* Semana que se está viendo en la red, para que el gráfico y el mapa cuenten lo mismo. */}
         {current && (
-          <ReferenceLine x={current.week} stroke="#0060ff" strokeWidth={1.6} ifOverflow="extendDomain" />
+          <ReferenceLine x={current.week} stroke="#3b82f6" strokeWidth={1.6} ifOverflow="extendDomain" />
         )}
       </ComposedChart>
     </ResponsiveContainer>

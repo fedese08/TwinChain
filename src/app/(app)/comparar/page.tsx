@@ -8,12 +8,12 @@ import { useMockDbStore } from "@/stores/mock-db-store";
 import { cn } from "@/lib/utils";
 
 /** Colores de serie — mismos que usa el resto de la app para gráficos. */
-const SERIES_COLORS = ["#0060ff", "#0d9c84", "#dfa63c", "#d33f28", "#8c96a6"];
+const SERIES_COLORS = ["#3b82f6", "#0d9c84", "#dfa63c", "#f2703c", "#8c96a6"];
 
 /** Traduce el déficit acumulado a una franja legible, igual que en la pantalla de resultado. */
 function classifyImpact(badWeeks: number, horizonWeeks: number) {
   const share = horizonWeeks > 0 ? badWeeks / horizonWeeks : 0;
-  if (share >= 0.25) return { label: "Impacto alto", tone: "#c23a24", bg: "#fdeeeb" };
+  if (share >= 0.25) return { label: "Impacto alto", tone: "#c2571f", bg: "#fdece0" };
   if (share >= 0.1) return { label: "Impacto moderado", tone: "#a8761f", bg: "#fdf5e7" };
   return { label: "Impacto bajo", tone: "#0a7d6a", bg: "#e8f6f3" };
 }
@@ -132,7 +132,7 @@ export default function CompareScenariosPage() {
                 onClick={() => toggle(scenario.id)}
                 className={cn(
                   "flex items-start gap-2 rounded-lg border px-2.5 py-2 text-left",
-                  active ? "border-primary/40 bg-accent" : "border-transparent hover:bg-secondary/50",
+                  active ? "border-primary/40 bg-accent" : "border-transparent hover:bg-muted/50",
                 )}
               >
                 <span
@@ -199,7 +199,7 @@ export default function CompareScenariosPage() {
                             </span>
                           </span>
                         </div>
-                        <div className="relative h-6 overflow-hidden rounded-md bg-secondary/60">
+                        <div className="relative h-6 overflow-hidden rounded-md bg-muted/60">
                           {/* Rango: entre el mejor y el peor caso de las réplicas. */}
                           <div
                             className="absolute inset-y-0 rounded-md opacity-25"
@@ -257,7 +257,7 @@ export default function CompareScenariosPage() {
                       </div>
                     </div>
 
-                    <div className="rounded-xl bg-secondary/40 px-3 py-2 text-[11.5px] leading-relaxed">
+                    <div className="rounded-xl bg-muted/40 px-3 py-2 text-[11.5px] leading-relaxed">
                       {c.affectedNode ? (
                         <>
                           <span className="font-medium">{c.affectedNode.label}</span> sufre{" "}
@@ -302,7 +302,7 @@ export default function CompareScenariosPage() {
                 ))}
               </div>
 
-              <div className="rounded-xl border border-border bg-secondary/30 p-3 text-[11.5px] leading-relaxed text-muted-foreground">
+              <div className="rounded-xl border border-border bg-muted/30 p-3 text-[11.5px] leading-relaxed text-muted-foreground">
                 Una &quot;semana de operación perdida&quot; equivale a tener toda la cadena parada durante una semana.
                 El rango de cada barra muestra hasta dónde puede variar el resultado según cómo se comporte la
                 propagación.

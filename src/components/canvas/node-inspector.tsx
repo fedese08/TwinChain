@@ -142,12 +142,12 @@ export function NodeInspector({ node, onClose }: { node: SupplyChainNode; onClos
 
       <div className="flex flex-col gap-3.5 p-3.5">
         <div className="grid grid-cols-2 gap-2">
-          <div className="rounded-lg border border-border bg-secondary/40 p-2.5">
+          <div className="rounded-lg border border-border bg-muted/40 p-2.5">
             <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">Tipo</div>
             <div className="mt-0.5 font-mono text-[15px]">{node.nodeType}</div>
           </div>
           {(ATTRIBUTES_BY_TYPE[node.nodeType] ?? []).map((attr) => (
-            <div key={attr.field} className="rounded-lg border border-border bg-secondary/40 p-2.5">
+            <div key={attr.field} className="rounded-lg border border-border bg-muted/40 p-2.5">
               <Label className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">
                 {attr.label}
               </Label>
@@ -173,7 +173,7 @@ export function NodeInspector({ node, onClose }: { node: SupplyChainNode; onClos
             Desempeño semanal
           </div>
           {history.length > 0 ? (
-            <div className="rounded-lg border border-border bg-secondary/20 p-1">
+            <div className="rounded-lg border border-border bg-muted/20 p-1">
               <WeeklyPerformanceChart data={history} />
             </div>
           ) : (

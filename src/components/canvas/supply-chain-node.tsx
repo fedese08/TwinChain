@@ -21,7 +21,7 @@ function SupplyChainNodeComponent({ data }: NodeProps) {
   const deficitRatio = Math.min(1, latestDeficit / 20);
 
   const severityColors = severity ? SEVERITY_COLOR[severity] : null;
-  const borderColor = severityColors ? severityColors.border : deficitRatio > 0.5 ? "#d33f28" : "var(--border)";
+  const borderColor = severityColors ? severityColors.border : deficitRatio > 0.5 ? "#f2703c" : "var(--border)";
   const background = severityColors ? severityColors.fill : "var(--card)";
 
   return (
@@ -31,7 +31,7 @@ function SupplyChainNodeComponent({ data }: NodeProps) {
         borderColor,
         background,
         borderWidth: highlighted ? 2 : 1,
-        boxShadow: highlighted ? "0 0 0 3px rgba(58,91,217,.18)" : undefined,
+        boxShadow: highlighted ? "0 0 0 3px rgba(59,130,246,.2)" : undefined,
       }}
     >
       <Handle type="target" position={Position.Left} className="!bg-muted-foreground" />
@@ -63,7 +63,7 @@ function SupplyChainNodeComponent({ data }: NodeProps) {
         {!severityColors && (
           <div
             className="h-[3px] rounded-sm"
-            style={{ width: `${Math.round((1 - deficitRatio) * 100)}%`, background: deficitRatio > 0.5 ? "#d33f28" : color }}
+            style={{ width: `${Math.round((1 - deficitRatio) * 100)}%`, background: deficitRatio > 0.5 ? "#f2703c" : color }}
           />
         )}
       </div>

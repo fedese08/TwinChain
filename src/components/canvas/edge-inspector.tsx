@@ -43,7 +43,7 @@ export function EdgeInspector({ edge, onClose }: { edge: SupplyChainEdge; onClos
             className="font-mono"
           />
         </div>
-        <div className="rounded-lg border border-border bg-secondary/30 p-2.5 text-[11.5px] leading-relaxed text-muted-foreground">
+        <div className="rounded-lg border border-border bg-muted/30 p-2.5 text-[11.5px] leading-relaxed text-muted-foreground">
           El tránsito vive en la arista, no en un nodo — sin costo asociado: el modelo no registra magnitudes
           monetarias en ningún punto del sistema.
         </div>

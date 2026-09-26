@@ -56,7 +56,7 @@ export default function ChainDetailPage({ params }: { params: Promise<{ chainId:
                 className="rounded border px-1 py-0.5"
                 style={
                   stabilityCheck.status === "alerta"
-                    ? { borderColor: "#e9b8ad", color: "#c23a24" }
+                    ? { borderColor: "#f5c9a8", color: "#c2571f" }
                     : { borderColor: "#b9e2d8", color: "#0a7d6a" }
                 }
               >
@@ -72,7 +72,7 @@ export default function ChainDetailPage({ params }: { params: Promise<{ chainId:
             onClick={() => setMode("design")}
             className={cn(
               "px-3.5 py-1.5 text-[12.5px] whitespace-nowrap",
-              mode === "design" ? "bg-secondary font-medium" : "text-muted-foreground",
+              mode === "design" ? "bg-muted font-medium" : "text-muted-foreground",
             )}
           >
             Diseño y monitoreo
@@ -81,7 +81,7 @@ export default function ChainDetailPage({ params }: { params: Promise<{ chainId:
             onClick={() => setMode("simulate")}
             className={cn(
               "border-l border-border px-3.5 py-1.5 text-[12.5px] whitespace-nowrap",
-              mode === "simulate" ? "bg-secondary font-medium" : "text-muted-foreground",
+              mode === "simulate" ? "bg-muted font-medium" : "text-muted-foreground",
             )}
           >
             Simulación
@@ -91,7 +91,7 @@ export default function ChainDetailPage({ params }: { params: Promise<{ chainId:
         {mode === "simulate" && (
           <Link
             href={`/cadenas/${chainId}/escenarios`}
-            className="flex-none whitespace-nowrap rounded-lg border border-border px-3.5 py-1.5 text-[12.5px] hover:bg-secondary"
+            className="flex-none whitespace-nowrap rounded-lg border border-border px-3.5 py-1.5 text-[12.5px] hover:bg-muted"
           >
             Ver simulaciones
           </Link>

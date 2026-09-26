@@ -27,7 +27,7 @@ export function NodePalette({
             key={type}
             disabled={atLimit}
             onClick={() => onAddNode(type)}
-            className="flex items-center gap-2.5 rounded-lg border border-border bg-card px-2.5 py-2 text-left transition-colors hover:border-primary/40 hover:bg-secondary/60 disabled:cursor-not-allowed disabled:opacity-40"
+            className="flex items-center gap-2.5 rounded-lg border border-border bg-card px-2.5 py-2 text-left transition-colors hover:border-primary/40 hover:bg-muted/60 disabled:cursor-not-allowed disabled:opacity-40"
           >
             <span className="h-2 w-2 flex-none rounded-sm" style={{ background: NODE_TYPE_COLOR[type] }} />
             <span className="flex min-w-0 flex-col leading-tight">

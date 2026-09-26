@@ -219,7 +219,7 @@ export const ScenarioForm = forwardRef<ScenarioFormHandle, ScenarioFormProps>(fu
           {errors.events?.root && <span className="text-[10.5px] text-destructive">{errors.events.root.message}</span>}
         </div>
 
-        <div className="rounded-lg border border-border bg-secondary/30 p-2.5 text-[11px] leading-relaxed text-muted-foreground">
+        <div className="rounded-lg border border-border bg-muted/30 p-2.5 text-[11px] leading-relaxed text-muted-foreground">
           La duración de la disrupción no se carga: es la incógnita que el sistema resuelve al correr la simulación.
         </div>
 

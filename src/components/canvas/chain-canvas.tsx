@@ -279,7 +279,7 @@ function CanvasInner({ chainId, mode, selectedNodeIds, onNodeSelect, severityByN
               Propagación
             </div>
             <div className="flex items-center gap-2 text-[11px]">
-              <span className="h-2.5 w-2.5 rounded-sm border" style={{ background: "#fdeeeb", borderColor: "#d33f28" }} />
+              <span className="h-2.5 w-2.5 rounded-sm border" style={{ background: "#fdece0", borderColor: "#f2703c" }} />
               severo
             </div>
             <div className="flex items-center gap-2 text-[11px]">

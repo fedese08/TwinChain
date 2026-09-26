@@ -36,7 +36,7 @@ export default function NewChainPage() {
   }
 
   return (
-    <div className="relative flex flex-1 items-center justify-center bg-[radial-gradient(#dbe1ea_1.1px,transparent_1.1px)] bg-[length:26px_26px] bg-secondary/20">
+    <div className="relative flex flex-1 items-center justify-center bg-[radial-gradient(#dbe1ea_1.1px,transparent_1.1px)] bg-[length:26px_26px] bg-muted/20">
       <div className="absolute inset-x-0 top-0 flex h-[52px] items-center gap-3 border-b border-border bg-card px-3.5">
         <Link href="/cadenas" className="flex items-center gap-2 text-[12.5px] text-muted-foreground hover:text-foreground">
           <span className="font-mono text-[13px]">‹</span>Cadenas
@@ -142,7 +142,7 @@ export default function NewChainPage() {
         <div className="flex gap-2.5">
           <Link
             href="/cadenas"
-            className="flex-none rounded-lg border border-border px-3.5 py-2.5 text-[12.5px] hover:bg-secondary"
+            className="flex-none rounded-lg border border-border px-3.5 py-2.5 text-[12.5px] hover:bg-muted"
           >
             Cancelar
           </Link>

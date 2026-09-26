@@ -68,7 +68,7 @@ export function WeekPlayer({
         }}
         disabled={atStart}
         aria-label="Semana anterior"
-        className="flex h-8 w-8 flex-none items-center justify-center rounded-full border border-border text-muted-foreground transition-colors hover:bg-secondary disabled:opacity-35 disabled:hover:bg-transparent"
+        className="flex h-8 w-8 flex-none items-center justify-center rounded-full border border-border text-muted-foreground transition-colors hover:bg-muted disabled:opacity-35 disabled:hover:bg-transparent"
       >
         <SkipBack size={13} />
       </button>
@@ -81,7 +81,7 @@ export function WeekPlayer({
         }}
         disabled={atEnd}
         aria-label="Semana siguiente"
-        className="flex h-8 w-8 flex-none items-center justify-center rounded-full border border-border text-muted-foreground transition-colors hover:bg-secondary disabled:opacity-35 disabled:hover:bg-transparent"
+        className="flex h-8 w-8 flex-none items-center justify-center rounded-full border border-border text-muted-foreground transition-colors hover:bg-muted disabled:opacity-35 disabled:hover:bg-transparent"
       >
         <SkipForward size={13} />
       </button>
@@ -94,7 +94,7 @@ export function WeekPlayer({
         }}
         disabled={atStart}
         aria-label="Volver al principio"
-        className="flex h-8 w-8 flex-none items-center justify-center rounded-full border border-border text-muted-foreground transition-colors hover:bg-secondary disabled:opacity-35 disabled:hover:bg-transparent"
+        className="flex h-8 w-8 flex-none items-center justify-center rounded-full border border-border text-muted-foreground transition-colors hover:bg-muted disabled:opacity-35 disabled:hover:bg-transparent"
       >
         <RotateCcw size={12} />
       </button>
