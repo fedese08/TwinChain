@@ -52,6 +52,7 @@ export async function loadSnapshot(member: Member): Promise<AppSnapshot> {
     userId: member.id,
     organizationName: member.organizacionNombre,
     canWrite: can(member, "chain:write"),
+    canRun: can(member, "scenario:run"),
     chains: chainRows.map(toChain),
     nodes: nodeRows.map(toNode),
     edges: edgeRows.map(toEdge),

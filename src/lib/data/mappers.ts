@@ -7,10 +7,12 @@ import type {
   EventoRow,
   NodoRow,
   ResultadoRow,
+  TablaKRow,
 } from "@/lib/db/schema";
 import type {
   Chain,
   DisruptionEvent,
+  KTableRow,
   Scenario,
   ScenarioResult,
   SupplyChainEdge,
@@ -87,3 +89,12 @@ export const toResult = (r: ResultadoRow): ScenarioResult => ({
   seed: r.semilla,
   reconfigurationWeekIndex: r.semanaReconfiguracion,
 });
+
+/** Inverso de la parte `tablaK` de `toResult`: la forma en que se guarda en la columna JSONB. */
+export const toKTableRows = (rows: KTableRow[]): TablaKRow[] =>
+  rows.map((row) => ({
+    k: row.k,
+    umbral_mediana: row.thresholdMedian,
+    umbral_min: row.thresholdLow,
+    umbral_max: row.thresholdHigh,
+  }));

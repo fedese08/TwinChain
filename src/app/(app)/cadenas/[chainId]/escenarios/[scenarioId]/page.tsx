@@ -42,6 +42,7 @@ export default function ScenarioResultPage({
   const weeklyPerformance = useAppStore((s) => s.weeklyPerformance);
   const pendingRuns = useAppStore((s) => s.pendingRuns);
   const rerunScenario = useAppStore((s) => s.rerunScenario);
+  const canRun = useAppStore((s) => s.canRun);
 
   const [view, setView] = useState<View>("answer");
 
@@ -485,13 +486,13 @@ export default function ScenarioResultPage({
 
               <div className="mt-3 flex flex-wrap items-center gap-2.5">
                 {reconfigured ? (
-                  <Button variant="outline" size="sm" disabled={isRunning} onClick={() => rerunScenario(scenarioId, null)}>
+                  <Button variant="outline" size="sm" disabled={isRunning || !canRun} onClick={() => rerunScenario(scenarioId, null)}>
                     Ver qué pasa si no reconfiguro
                   </Button>
                 ) : (
                   <Button
                     size="sm"
-                    disabled={isRunning || !worthReconfiguring}
+                    disabled={isRunning || !canRun || !worthReconfiguring}
                     className="bg-foreground text-background hover:bg-foreground/85"
                     onClick={() => rerunScenario(scenarioId, 0)}
                   >

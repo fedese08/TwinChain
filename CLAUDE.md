@@ -83,10 +83,18 @@ cambió en nada, solo la implementación.
      Los ids de nodo/arista los genera el cliente (`crypto.randomUUID()`) para que el optimista coincida con la base.
   4. **Desempeño semanal** — la lectura ya sale de la base (viene en el snapshot); no hay escritura todavía
      (datos de demo por seed; la ingesta real es de una fase posterior).
-  5. **Escenarios + simulación** y 6. **comparar y retirar el mock** — **pendientes**. Hoy las corridas se leen de
-     la base pero `createScenario`/`rerunScenario` siguen siendo locales (`launchSimulationJob` en el store): lo
-     que se crea ahí **se pierde al recargar**. `stabilityChecks` (C24) sigue siendo simulación de runtime y solo
-     aparece en cadenas creadas en la sesión; `lib/mock/types.ts` y `lib/mock/*` siguen siendo los tipos de la UI.
+  5. **Escenarios + simulación — hecho y verificado (29 checks de API + UI).** `POST /api/escenarios` crea el
+     escenario con sus eventos y **corre la simulación en el servidor** (`src/lib/simulation/run-scenario.ts` arma las
+     entradas desde la base y llama a `runScenarioSimulation` **tal cual**), todo en una transacción: o quedan
+     escenario, eventos y primera corrida, o nada. `POST /api/escenarios/[id]/corridas` agrega una corrida nueva
+     (con o sin escalón de reconfiguración) **sin pisar las anteriores** (RF030). La `semilla` de cada corrida sale
+     del id de la propia corrida (`hashSeed`), así que se reproduce **exacta** con semilla + réplicas: es lo que hace
+     la pantalla de resultado al reconstruir las curvas. Es **síncrono** (30 réplicas tardan milisegundos): cuando
+     el motor pase a 200-300 réplicas hay que mover la corrida a un job real (`after()` / cola) — ver C36. El cliente
+     genera los ids del escenario y de sus eventos para mostrarlo al instante y que la pantalla de resultado siga
+     con su animación de espera mientras el servidor corre. Exige el permiso `scenario:run`.
+  6. **Retirar el mock — parcial.** Comparar y biblioteca ya leen de la base (vía snapshot). Queda `stabilityChecks`
+     (C24), que sigue siendo simulación de runtime y solo aparece en cadenas creadas en la sesión.
   - **Reglas del backend (no romper):** (a) la sesión JWT guarda **solo la identidad**; organización y rol se leen
     de la base en cada request (`getCurrentUser` en `src/lib/auth/session.ts`). (b) toda query de negocio filtra por
     el `organizacionId` que devuelve `requireApiMember()` / `requirePageMember()` — **nunca** por uno que venga en

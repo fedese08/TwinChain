@@ -1,6 +1,6 @@
 import { and, eq, or, type SQL } from "drizzle-orm";
 import type { Member } from "@/lib/auth/session";
-import { aristas, cadenas, nodos, type Database } from "@/lib/db";
+import { aristas, cadenas, escenarios, nodos, type Database } from "@/lib/db";
 
 /**
  * Cadenas que el miembro puede ver: las de su organización que son compartidas, más las privadas
@@ -40,6 +40,16 @@ export async function findVisibleEdge(db: Database, member: Member, edgeId: stri
     .innerJoin(nodos, eq(aristas.nodoOrigenId, nodos.id))
     .innerJoin(cadenas, eq(nodos.cadenaId, cadenas.id))
     .where(and(eq(aristas.id, edgeId), chainVisibleTo(member)))
+    .limit(1);
+  return row ?? null;
+}
+
+export async function findVisibleScenario(db: Database, member: Member, scenarioId: string) {
+  const [row] = await db
+    .select({ escenario: escenarios, cadena: cadenas })
+    .from(escenarios)
+    .innerJoin(cadenas, eq(escenarios.cadenaId, cadenas.id))
+    .where(and(eq(escenarios.id, scenarioId), chainVisibleTo(member)))
     .limit(1);
   return row ?? null;
 }

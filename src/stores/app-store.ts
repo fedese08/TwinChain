@@ -3,7 +3,6 @@ import { toast } from "sonner";
 import type { AppSnapshot } from "@/lib/data/snapshot-types";
 import { addWeeks, startOfWeek, toIsoDate } from "@/lib/mock/dates";
 import { hashSeed } from "@/lib/mock/rng";
-import { runScenarioSimulation } from "@/lib/mock/simulate";
 import type {
   Chain,
   DisruptionEvent,
@@ -42,7 +41,6 @@ type NodePatch = Partial<
   Pick<SupplyChainNode, "label" | "supplyCapacity" | "productionCapacity" | "storageCapacity" | "currentStockLevel">
 > & { position?: { x: number; y: number } };
 
-const SIMULATION_JOB_DELAY_MS = 1600;
 const INGESTION_CHECK_DELAY_MS = 1300;
 /** Cuánto se espera antes de mandar un cambio: agrupa lo que se tipea letra por letra en un solo guardado. */
 const PATCH_DEBOUNCE_MS = 450;
@@ -62,16 +60,20 @@ function enqueue<T>(task: () => Promise<T>): Promise<T> {
   return run;
 }
 
-type SendResult = { ok: true } | { ok: false; error: string; code?: string };
+type SendResult<T = unknown> = { ok: true; data: T } | { ok: false; error: string; code?: string };
 
-async function send(method: "POST" | "PATCH" | "DELETE", url: string, body?: unknown): Promise<SendResult> {
+async function send<T = unknown>(
+  method: "POST" | "PATCH" | "DELETE",
+  url: string,
+  body?: unknown,
+): Promise<SendResult<T>> {
   try {
     const response = await fetch(url, {
       method,
       headers: body === undefined ? undefined : { "Content-Type": "application/json" },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
-    if (response.ok) return { ok: true };
+    if (response.ok) return { ok: true, data: (await response.json().catch(() => null)) as T };
     if (response.status === 401) {
       window.location.href = "/login";
       return { ok: false, error: "Tu sesión venció" };
@@ -119,6 +121,7 @@ interface AppState {
   userId: string;
   organizationName: string;
   canWrite: boolean;
+  canRun: boolean;
   chains: Chain[];
   nodes: SupplyChainNode[];
   edges: SupplyChainEdge[];
@@ -169,57 +172,6 @@ interface AppState {
 }
 
 export const useAppStore = create<AppState>()((set, get) => {
-  /**
-   * Encola una corrida y la resuelve después de una demora, imitando al job en background
-   * del monolito (C36). TODAVÍA LOCAL: los escenarios y sus corridas se leen de la base pero se
-   * escriben acá, así que se pierden al recargar (se migra en el paso de escenarios).
-   */
-  function launchSimulationJob(scenarioId: string, reconfigurationWeekIndex: number | null) {
-    const runId = genId("result");
-    set((s) => ({ pendingRuns: [...s.pendingRuns, { id: runId, scenarioId, startedAt: Date.now() }] }));
-
-    setTimeout(() => {
-      const state = get();
-      const scenario = state.scenarios.find((sc) => sc.id === scenarioId);
-      if (!scenario) {
-        set((s) => ({ pendingRuns: s.pendingRuns.filter((r) => r.id !== runId) }));
-        return;
-      }
-
-      const scenarioEvents = state.events.filter((e) => e.scenarioId === scenarioId);
-      const chainNodes = state.nodes.filter((n) => n.chainId === scenario.chainId);
-      const chainNodeIds = new Set(chainNodes.map((n) => n.id));
-      const chainEdges = state.edges.filter(
-        (e) => chainNodeIds.has(e.sourceNodeId) && chainNodeIds.has(e.targetNodeId),
-      );
-      const seed = hashSeed(runId);
-
-      const outcome = runScenarioSimulation(
-        chainNodes,
-        chainEdges,
-        scenarioEvents,
-        state.weeklyPerformance,
-        scenario.projectionHorizonWeeks,
-        { seed, reconfigurationWeekIndex },
-      );
-
-      const result: ScenarioResult = {
-        id: runId,
-        scenarioId,
-        runDate: new Date().toISOString().slice(0, 10),
-        kTable: outcome.kTable,
-        replications: outcome.replications,
-        seed,
-        reconfigurationWeekIndex: outcome.reconfigurationWeekIndex,
-      };
-
-      set((s) => ({
-        results: [...s.results, result],
-        pendingRuns: s.pendingRuns.filter((r) => r.id !== runId),
-      }));
-    }, SIMULATION_JOB_DELAY_MS);
-  }
-
   /**
    * Dispara la validación de estabilidad estructural del pipeline de ingesta (C24). Sigue siendo
    * una simulación de runtime (no es una entidad del modelo): el veredicto es determinístico a
@@ -298,6 +250,7 @@ export const useAppStore = create<AppState>()((set, get) => {
     userId: "",
     organizationName: "",
     canWrite: false,
+    canRun: false,
     chains: [],
     nodes: [],
     edges: [],
@@ -313,6 +266,7 @@ export const useAppStore = create<AppState>()((set, get) => {
         userId: snapshot.userId,
         organizationName: snapshot.organizationName,
         canWrite: snapshot.canWrite,
+        canRun: snapshot.canRun,
         chains: snapshot.chains,
         nodes: snapshot.nodes,
         edges: snapshot.edges,
@@ -472,16 +426,17 @@ export const useAppStore = create<AppState>()((set, get) => {
     },
 
     createScenario: (chainId, name, projectionHorizonWeeks, nodeId, newEvents) => {
-      const scenarioId = genId("scenario");
+      // Los ids los genera el cliente: el escenario se ve al instante (la pantalla de resultado
+      // arranca su animación de espera) mientras el servidor corre la simulación y la guarda.
+      const scenarioId = crypto.randomUUID();
       const events: DisruptionEvent[] = newEvents.map((e) => ({
-        id: genId("event"),
+        id: crypto.randomUUID(),
         scenarioId,
         nodeId,
         eventType: e.eventType,
         startDate: e.startDate,
         magnitude: e.magnitude,
       }));
-
       const scenario: Scenario = {
         id: scenarioId,
         chainId,
@@ -490,19 +445,62 @@ export const useAppStore = create<AppState>()((set, get) => {
         name,
         createdAt: new Date().toISOString().slice(0, 10),
       };
+      const pendingId = genId("run");
 
       set((s) => ({
         scenarios: [...s.scenarios, scenario],
         events: [...s.events, ...events],
+        pendingRuns: [...s.pendingRuns, { id: pendingId, scenarioId, startedAt: Date.now() }],
       }));
 
-      // El Resultado no se escribe acá: lo escribe el job cuando termina (C36).
-      launchSimulationJob(scenarioId, null);
+      void enqueue(async () => {
+        const result = await send<{ result: ScenarioResult }>("POST", "/api/escenarios", {
+          id: scenarioId,
+          chainId,
+          name,
+          projectionHorizonWeeks,
+          nodeId,
+          events: events.map((e) => ({
+            id: e.id,
+            eventType: e.eventType,
+            startDate: e.startDate,
+            magnitude: e.magnitude,
+          })),
+        });
+
+        if (!result.ok) {
+          // No se pudo guardar ni correr: el escenario desaparece igual que si nunca se hubiera creado.
+          set((s) => ({
+            scenarios: s.scenarios.filter((sc) => sc.id !== scenarioId),
+            events: s.events.filter((e) => e.scenarioId !== scenarioId),
+            pendingRuns: s.pendingRuns.filter((r) => r.id !== pendingId),
+          }));
+          toast.error(result.error);
+          return;
+        }
+        set((s) => ({
+          results: [...s.results, result.data.result],
+          pendingRuns: s.pendingRuns.filter((r) => r.id !== pendingId),
+        }));
+      });
+
       return scenarioId;
     },
 
     rerunScenario: (scenarioId, reconfigurationWeekIndex = null) => {
-      launchSimulationJob(scenarioId, reconfigurationWeekIndex);
+      const pendingId = genId("run");
+      set((s) => ({ pendingRuns: [...s.pendingRuns, { id: pendingId, scenarioId, startedAt: Date.now() }] }));
+
+      void enqueue(async () => {
+        const result = await send<{ result: ScenarioResult }>("POST", `/api/escenarios/${scenarioId}/corridas`, {
+          reconfigurationWeekIndex,
+        });
+        set((s) => ({
+          pendingRuns: s.pendingRuns.filter((r) => r.id !== pendingId),
+          ...(result.ok && { results: [...s.results, result.data.result] }),
+        }));
+        if (!result.ok) toast.error(result.error);
+      });
     },
   };
 });

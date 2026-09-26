@@ -18,6 +18,8 @@ export interface AppSnapshot {
   organizationName: string;
   /** Puede crear y editar cadenas (permiso `chain:write`). */
   canWrite: boolean;
+  /** Puede correr simulaciones (permiso `scenario:run`). */
+  canRun: boolean;
   chains: Chain[];
   nodes: SupplyChainNode[];
   edges: SupplyChainEdge[];

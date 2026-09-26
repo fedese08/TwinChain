@@ -42,6 +42,7 @@ export const ScenarioForm = forwardRef<ScenarioFormHandle, ScenarioFormProps>(fu
 ) {
   const router = useRouter();
   const createScenario = useAppStore((s) => s.createScenario);
+  const canRun = useAppStore((s) => s.canRun);
 
   const {
     register,
@@ -223,7 +224,16 @@ export const ScenarioForm = forwardRef<ScenarioFormHandle, ScenarioFormProps>(fu
           La duración de la disrupción no se carga: es la incógnita que el sistema resuelve al correr la simulación.
         </div>
 
-        <Button type="submit" disabled={isSubmitting} className="bg-foreground text-background hover:bg-foreground/85">
+        {!canRun && (
+          <p className="rounded-lg bg-muted px-2.5 py-2 text-[11px] leading-relaxed text-muted-foreground">
+            Tu rol no puede correr simulaciones.
+          </p>
+        )}
+        <Button
+          type="submit"
+          disabled={isSubmitting || !canRun}
+          className="bg-foreground text-background hover:bg-foreground/85"
+        >
           ▶ Correr simulación
         </Button>
       </div>
