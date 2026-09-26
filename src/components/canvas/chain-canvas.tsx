@@ -20,7 +20,7 @@ import { NodeInspector } from "@/components/canvas/node-inspector";
 import { EdgeInspector } from "@/components/canvas/edge-inspector";
 import { SupplyChainNodeView, type SupplyChainNodeData } from "@/components/canvas/supply-chain-node";
 import { TransitEdge } from "@/components/canvas/transit-edge";
-import { useMockDbStore } from "@/stores/mock-db-store";
+import { useAppStore } from "@/stores/app-store";
 import type { Severity } from "@/lib/mock/simulate";
 import type { NodeType, SupplyChainNode } from "@/lib/mock/types";
 
@@ -60,12 +60,12 @@ function CanvasInner({ chainId, mode, selectedNodeIds, onNodeSelect, severityByN
   const isSelect = mode === "select";
   const isDisplay = mode === "display";
 
-  const allNodes = useMockDbStore((s) => s.nodes);
-  const allEdges = useMockDbStore((s) => s.edges);
-  const weeklyPerformance = useMockDbStore((s) => s.weeklyPerformance);
-  const updateNodePosition = useMockDbStore((s) => s.updateNodePosition);
-  const addEdgeToStore = useMockDbStore((s) => s.addEdge);
-  const addNodeToStore = useMockDbStore((s) => s.addNode);
+  const allNodes = useAppStore((s) => s.nodes);
+  const allEdges = useAppStore((s) => s.edges);
+  const weeklyPerformance = useAppStore((s) => s.weeklyPerformance);
+  const updateNodePosition = useAppStore((s) => s.updateNodePosition);
+  const addEdgeToStore = useAppStore((s) => s.addEdge);
+  const addNodeToStore = useAppStore((s) => s.addNode);
 
   const chainNodes = useMemo(() => allNodes.filter((n) => n.chainId === chainId), [allNodes, chainId]);
   const chainNodeIds = useMemo(() => new Set(chainNodes.map((n) => n.id)), [chainNodes]);

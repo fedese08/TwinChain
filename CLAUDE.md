@@ -69,18 +69,32 @@ cambió en nada, solo la implementación.
      posición de nodo, nombre de escenario, tabla `invitaciones`), migraciones en `drizzle/`, cliente en
      `src/lib/db/index.ts` (`getDb()`, lazy, `prepare:false` por el pooler de Neon), `scripts/seed.ts` (data demo
      idempotente). Scripts: `db:generate`, `db:migrate`, `db:seed`, `db:studio`.
-  2. **Auth + organizaciones — hecho, pendiente de verificar contra la DB real.** Auth.js v5, solo credentials
+  2. **Auth + organizaciones — hecho y verificado contra Neon.** Auth.js v5, solo credentials
      (Google se suma después), JWT. Registro como `organizacion` (crea org + Administrador) o `empleado` (sin org
      hasta aceptar una invitación). Invitaciones por link con token (solo se guarda su SHA-256) y sin proveedor de
      email todavía: el admin copia el link.
-  3. Cadenas/nodos/aristas, 4. desempeño semanal, 5. escenarios + simulación, 6. comparar y retirar el mock —
-     **pendientes**. Mientras tanto las pantallas de cadenas/escenarios/comparar siguen leyendo `mock-db-store`
-     (los contadores del sidebar también).
+  3. **Cadenas, nodos y aristas — hecho y verificado (37 checks de API + UI).** El layout `(app)` arma un
+     **snapshot** de la organización con `loadSnapshot()` (`src/lib/data/snapshot.ts`: cadenas visibles, nodos, aristas,
+     desempeño semanal, escenarios, eventos y corridas — **todas las lecturas ya salen de la base**) y `StoreSync`
+     lo vuelca en `src/stores/app-store.ts` (zustand). El store es una **copia de trabajo**, no la fuente de verdad:
+     cada acción cambia lo local al instante y persiste por API (`/api/cadenas`, `/api/cadenas/[id]/nodos`,
+     `/api/nodos/[id]`, `/api/aristas[/id]`) por **una única cola ordenada**, con **rollback + toast** si el
+     servidor rechaza. Los cambios que se tipean (label, capacidades, tránsito) se agrupan con debounce de 450 ms.
+     Los ids de nodo/arista los genera el cliente (`crypto.randomUUID()`) para que el optimista coincida con la base.
+  4. **Desempeño semanal** — la lectura ya sale de la base (viene en el snapshot); no hay escritura todavía
+     (datos de demo por seed; la ingesta real es de una fase posterior).
+  5. **Escenarios + simulación** y 6. **comparar y retirar el mock** — **pendientes**. Hoy las corridas se leen de
+     la base pero `createScenario`/`rerunScenario` siguen siendo locales (`launchSimulationJob` en el store): lo
+     que se crea ahí **se pierde al recargar**. `stabilityChecks` (C24) sigue siendo simulación de runtime y solo
+     aparece en cadenas creadas en la sesión; `lib/mock/types.ts` y `lib/mock/*` siguen siendo los tipos de la UI.
   - **Reglas del backend (no romper):** (a) la sesión JWT guarda **solo la identidad**; organización y rol se leen
     de la base en cada request (`getCurrentUser` en `src/lib/auth/session.ts`). (b) toda query de negocio filtra por
     el `organizacionId` que devuelve `requireApiMember()` / `requirePageMember()` — **nunca** por uno que venga en
-    el body o la URL; ese es todo el aislamiento multi-tenant (no se usa RLS). (c) lecturas en Server Components,
-    escrituras en API Routes bajo `src/app/api/`. (d) un usuario es miembro de **una** organización con un rol, o de
+    el body o la URL; ese es todo el aislamiento multi-tenant (no se usa RLS). (c) lecturas en Server Components
+    (el snapshot del layout), escrituras en API Routes bajo `src/app/api/`. Toda ruta de cadenas/nodos/aristas
+    resuelve el acceso con `findVisibleChain/Node/Edge` (`src/lib/data/access.ts`): organización de la sesión +
+    cadena compartida o privada propia; lo ajeno responde 404, no 403. Escribir exige el permiso `chain:write` (el
+    Visualizador ve el canvas en modo solo lectura). Un nodo usado por una simulación no se puede borrar. (d) un usuario es miembro de **una** organización con un rol, o de
     ninguna (CHECK en `usuarios`). (e) aceptar una invitación exige token **y** que el email de la cuenta coincida,
     porque todavía no se verifica el email al registrarse. (f) contraseñas: bcryptjs, máx. 72 caracteres.
   - **Variables de entorno** (`.env.local`, ver `.env.example`): `DATABASE_URL` (pooler de Neon, runtime),
@@ -89,7 +103,7 @@ cambió en nada, solo la implementación.
     migrar `simulate.ts` al servidor: se mueve tal cual.
 - **Frontend con datos mock (esta iteración): completo para el recorrido principal, incluida edición de atributos y
   propagación por el grafo.** Sin backend — todo vive en `src/lib/mock/` (tipos + seed + motor de simulación
-  placeholder) y `src/stores/mock-db-store.ts` (zustand, estado en memoria de sesión). Pantallas:
+  placeholder) y `src/stores/app-store.ts` (zustand; ver el paso 3 del backend arriba). Pantallas:
   - `/cadenas` — listado + `/cadenas/nueva` (nombre, visibilidad, plantilla lineal/bifurcada/compleja).
   - `/cadenas/[id]` — canvas React Flow (5 tipos de nodo, aristas con `tiempo_transito`), modo "Diseño y monitoreo"
     (paleta, inspector de nodo con desempeño semanal + edición de label/capacidad, inspector de arista con

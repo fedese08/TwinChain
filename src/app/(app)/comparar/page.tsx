@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { ScenarioComparisonChart } from "@/components/charts/scenario-comparison-chart";
 import { runScenarioSimulation } from "@/lib/mock/simulate";
 import { EVENT_TYPE_LABELS } from "@/lib/validators/scenario";
-import { useMockDbStore } from "@/stores/mock-db-store";
+import { useAppStore } from "@/stores/app-store";
 import { cn } from "@/lib/utils";
 
 /** Colores de serie — mismos que usa el resto de la app para gráficos. */
@@ -19,13 +19,13 @@ function classifyImpact(badWeeks: number, horizonWeeks: number) {
 }
 
 export default function CompareScenariosPage() {
-  const scenarios = useMockDbStore((s) => s.scenarios);
-  const chains = useMockDbStore((s) => s.chains);
-  const results = useMockDbStore((s) => s.results);
-  const events = useMockDbStore((s) => s.events);
-  const nodes = useMockDbStore((s) => s.nodes);
-  const edges = useMockDbStore((s) => s.edges);
-  const weeklyPerformance = useMockDbStore((s) => s.weeklyPerformance);
+  const scenarios = useAppStore((s) => s.scenarios);
+  const chains = useAppStore((s) => s.chains);
+  const results = useAppStore((s) => s.results);
+  const events = useAppStore((s) => s.events);
+  const nodes = useAppStore((s) => s.nodes);
+  const edges = useAppStore((s) => s.edges);
+  const weeklyPerformance = useAppStore((s) => s.weeklyPerformance);
 
   const [selected, setSelected] = useState<string[]>(scenarios.slice(0, 2).map((s) => s.id));
 

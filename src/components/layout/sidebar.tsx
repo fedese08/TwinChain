@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { Boxes, GitCompare, LibraryBig, Users } from "lucide-react";
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import { cn } from "@/lib/utils";
-import { useMockDbStore } from "@/stores/mock-db-store";
+import { useAppStore } from "@/stores/app-store";
 
 export interface SidebarAccount {
   userName: string;
@@ -33,8 +33,8 @@ const initialsOf = (text: string, max: number) =>
 export function Sidebar({ account }: { account: SidebarAccount }) {
   const pathname = usePathname();
   // Los contadores siguen saliendo del mock hasta migrar cadenas y escenarios a la base.
-  const chainCount = useMockDbStore((s) => s.chains.length);
-  const scenarioCount = useMockDbStore((s) => s.scenarios.length);
+  const chainCount = useAppStore((s) => s.chains.length);
+  const scenarioCount = useAppStore((s) => s.scenarios.length);
 
   const roleName = account.roleName;
   const initials = initialsOf(account.organizationName, 2);

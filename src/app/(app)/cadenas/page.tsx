@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMockDbStore } from "@/stores/mock-db-store";
+import { useAppStore } from "@/stores/app-store";
 import { NODE_TYPE_COLOR } from "@/lib/mock/node-visuals";
 import type { StabilityCheck } from "@/lib/mock/types";
 
@@ -35,13 +35,13 @@ function StabilityBadge({ check }: { check?: StabilityCheck }) {
 }
 
 export default function ChainsPage() {
-  const organization = useMockDbStore((s) => s.organization);
-  const chains = useMockDbStore((s) => s.chains);
-  const nodes = useMockDbStore((s) => s.nodes);
-  const edges = useMockDbStore((s) => s.edges);
-  const scenarios = useMockDbStore((s) => s.scenarios);
-  const weeklyPerformance = useMockDbStore((s) => s.weeklyPerformance);
-  const stabilityChecks = useMockDbStore((s) => s.stabilityChecks);
+  const organizationName = useAppStore((s) => s.organizationName);
+  const chains = useAppStore((s) => s.chains);
+  const nodes = useAppStore((s) => s.nodes);
+  const edges = useAppStore((s) => s.edges);
+  const scenarios = useAppStore((s) => s.scenarios);
+  const weeklyPerformance = useAppStore((s) => s.weeklyPerformance);
+  const stabilityChecks = useAppStore((s) => s.stabilityChecks);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-background">
@@ -49,7 +49,7 @@ export default function ChainsPage() {
         <div className="flex flex-col gap-1">
           <div className="text-[21px] font-semibold tracking-tight">Cadenas</div>
           <div className="text-[12.5px] text-muted-foreground">
-            {organization.name} · {chains.length} {chains.length === 1 ? "cadena" : "cadenas"}
+            {organizationName} · {chains.length} {chains.length === 1 ? "cadena" : "cadenas"}
           </div>
         </div>
         <div className="flex-1" />

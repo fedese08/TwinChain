@@ -4,20 +4,21 @@ import { Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useMockDbStore } from "@/stores/mock-db-store";
+import { useAppStore } from "@/stores/app-store";
 import type { SupplyChainEdge } from "@/lib/mock/types";
 
 export function EdgeInspector({ edge, onClose }: { edge: SupplyChainEdge; onClose: () => void }) {
-  const nodes = useMockDbStore((s) => s.nodes);
-  const removeEdge = useMockDbStore((s) => s.removeEdge);
-  const updateEdge = useMockDbStore((s) => s.updateEdge);
+  const nodes = useAppStore((s) => s.nodes);
+  const removeEdge = useAppStore((s) => s.removeEdge);
+  const updateEdge = useAppStore((s) => s.updateEdge);
 
   const source = nodes.find((n) => n.id === edge.sourceNodeId);
   const target = nodes.find((n) => n.id === edge.targetNodeId);
 
   function handleTransitTimeChange(value: string) {
     const parsed = Number(value);
-    if (value === "" || Number.isNaN(parsed) || parsed < 0) return;
+    // Debe ser > 0: la base rechaza un tránsito de 0 días.
+    if (value === "" || Number.isNaN(parsed) || parsed <= 0) return;
     updateEdge(edge.id, { transitTimeDays: parsed });
   }
 

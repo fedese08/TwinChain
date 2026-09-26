@@ -17,7 +17,7 @@ instalado hoy, qué falta, y las sugerencias propias marcadas como tales.
 | **@xyflow/react** (React Flow 12) | canvas de nodos/aristas |
 | **dagre** | auto-layout del grafo |
 | **Recharts v3** | gráficos (déficit semanal, tabla_k) |
-| **Zustand** | estado del canvas/simulación (hoy: `mock-db-store`) |
+| **Zustand** | estado del canvas/simulación (hoy: `app-store`, copia de trabajo sincronizada con la base) |
 | **react-hook-form + Zod + @hookform/resolvers** | formularios y validación (cliente y servidor) |
 | **sonner** | toasts |
 | **lucide-react** | iconos |

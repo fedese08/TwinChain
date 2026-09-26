@@ -15,7 +15,7 @@ import {
   scenarioFormSchema,
   type ScenarioFormValues,
 } from "@/lib/validators/scenario";
-import { useMockDbStore } from "@/stores/mock-db-store";
+import { useAppStore } from "@/stores/app-store";
 import type { SupplyChainNode } from "@/lib/mock/types";
 
 function todayIso(): string {
@@ -41,7 +41,7 @@ export const ScenarioForm = forwardRef<ScenarioFormHandle, ScenarioFormProps>(fu
   ref,
 ) {
   const router = useRouter();
-  const createScenario = useMockDbStore((s) => s.createScenario);
+  const createScenario = useAppStore((s) => s.createScenario);
 
   const {
     register,

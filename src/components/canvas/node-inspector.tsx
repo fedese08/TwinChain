@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { WeeklyPerformanceChart } from "@/components/charts/weekly-performance-chart";
 import { NODE_TYPE_CODE, NODE_TYPE_COLOR } from "@/lib/mock/node-visuals";
-import { useMockDbStore } from "@/stores/mock-db-store";
+import { useAppStore } from "@/stores/app-store";
 import type { SupplyChainNode } from "@/lib/mock/types";
 
 /** Campos numéricos editables de un Nodo — los atributos propios por tipo del modelo de datos. */
@@ -51,12 +51,12 @@ const TYPE_NOTE: Record<string, string> = {
 };
 
 export function NodeInspector({ node, onClose }: { node: SupplyChainNode; onClose: () => void }) {
-  const edges = useMockDbStore((s) => s.edges);
-  const nodes = useMockDbStore((s) => s.nodes);
-  const weeklyPerformance = useMockDbStore((s) => s.weeklyPerformance);
-  const removeNode = useMockDbStore((s) => s.removeNode);
-  const removeNodeWithEdges = useMockDbStore((s) => s.removeNodeWithEdges);
-  const updateNode = useMockDbStore((s) => s.updateNode);
+  const edges = useAppStore((s) => s.edges);
+  const nodes = useAppStore((s) => s.nodes);
+  const weeklyPerformance = useAppStore((s) => s.weeklyPerformance);
+  const removeNode = useAppStore((s) => s.removeNode);
+  const removeNodeWithEdges = useAppStore((s) => s.removeNodeWithEdges);
+  const updateNode = useAppStore((s) => s.updateNode);
 
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [label, setLabel] = useState(node.label);
@@ -117,7 +117,12 @@ export function NodeInspector({ node, onClose }: { node: SupplyChainNode; onClos
 
   function handleDeleteWithEdges() {
     const removed = connections.length;
-    removeNodeWithEdges(node.id);
+    const result = removeNodeWithEdges(node.id);
+    if (!result.ok) {
+      toast.error(result.reason);
+      setConfirmingDelete(false);
+      return;
+    }
     toast.success(
       `${node.label} eliminado junto con ${removed} ${removed === 1 ? "conexión" : "conexiones"}.`,
     );

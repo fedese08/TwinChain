@@ -5,7 +5,7 @@ import Link from "next/link";
 import { ChainCanvas } from "@/components/canvas/chain-canvas";
 import { ScenarioForm, type ScenarioFormHandle } from "@/components/scenario/scenario-form";
 import { cn } from "@/lib/utils";
-import { useMockDbStore } from "@/stores/mock-db-store";
+import { useAppStore } from "@/stores/app-store";
 
 type Mode = "design" | "simulate";
 
@@ -15,9 +15,10 @@ export default function ChainDetailPage({ params }: { params: Promise<{ chainId:
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const scenarioFormRef = useRef<ScenarioFormHandle>(null);
 
-  const chain = useMockDbStore((s) => s.chains.find((c) => c.id === chainId));
-  const stabilityCheck = useMockDbStore((s) => s.stabilityChecks[chainId]);
-  const nodes = useMockDbStore((s) => s.nodes);
+  const chain = useAppStore((s) => s.chains.find((c) => c.id === chainId));
+  const stabilityCheck = useAppStore((s) => s.stabilityChecks[chainId]);
+  const canWrite = useAppStore((s) => s.canWrite);
+  const nodes = useAppStore((s) => s.nodes);
   const chainNodes = useMemo(() => nodes.filter((n) => n.chainId === chainId), [nodes, chainId]);
 
   const handleNodeSelect = useCallback((nodeId: string) => {
@@ -99,7 +100,8 @@ export default function ChainDetailPage({ params }: { params: Promise<{ chainId:
       </div>
 
       {mode === "design" ? (
-        <ChainCanvas chainId={chainId} mode="edit" />
+        // Sin permiso de escritura el canvas se muestra tal cual, sin paleta ni edición.
+        <ChainCanvas chainId={chainId} mode={canWrite ? "edit" : "display"} />
       ) : (
         <div className="flex min-h-0 flex-1">
           <ScenarioForm

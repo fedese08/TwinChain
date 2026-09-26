@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Controller, useForm } from "react-hook-form";
@@ -10,12 +11,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { useMockDbStore } from "@/stores/mock-db-store";
+import { useAppStore } from "@/stores/app-store";
 
 export default function NewChainPage() {
   const router = useRouter();
-  const createChain = useMockDbStore((s) => s.createChain);
-  const organization = useMockDbStore((s) => s.organization);
+  const registerCreatedChain = useAppStore((s) => s.registerCreatedChain);
+  const organizationName = useAppStore((s) => s.organizationName);
+  const canWrite = useAppStore((s) => s.canWrite);
+  const [serverError, setServerError] = useState<string | null>(null);
 
   const {
     register,
@@ -30,9 +33,23 @@ export default function NewChainPage() {
 
   const name = watch("name");
 
-  function onSubmit(values: ChainFormValues) {
-    const chainId = createChain(values.name, values.visibility, values.template);
-    router.push(`/cadenas/${chainId}`);
+  async function onSubmit(values: ChainFormValues) {
+    setServerError(null);
+    const response = await fetch("/api/cadenas", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(values),
+    });
+    if (!response.ok) {
+      const body = (await response.json().catch(() => null)) as { error?: string } | null;
+      setServerError(body?.error ?? "No pudimos crear la cadena. Probá de nuevo.");
+      return;
+    }
+    // La cadena ya está en la base: se suma al store para que la pantalla la encuentre al instante
+    // (el layout no se vuelve a renderizar en una navegación del cliente).
+    const created = await response.json();
+    registerCreatedChain(created);
+    router.push(`/cadenas/${created.chain.id}`);
   }
 
   return (
@@ -44,7 +61,7 @@ export default function NewChainPage() {
         <div className="h-5 w-px bg-border" />
         <div className="text-[14.5px] font-medium text-muted-foreground">{name || "Cadena sin título"}</div>
         <div className="flex-1" />
-        <div className="font-mono text-[11px] text-muted-foreground">{organization.name}</div>
+        <div className="font-mono text-[11px] text-muted-foreground">{organizationName}</div>
       </div>
 
       <form
@@ -139,6 +156,13 @@ export default function NewChainPage() {
           />
         </div>
 
+        {serverError && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-[12.5px] text-destructive">{serverError}</p>}
+        {!canWrite && (
+          <p className="rounded-lg bg-muted px-3 py-2 text-[12.5px] text-muted-foreground">
+            Tu rol es de solo lectura: pedile a un administrador que cree la cadena.
+          </p>
+        )}
+
         <div className="flex gap-2.5">
           <Link
             href="/cadenas"
@@ -146,7 +170,11 @@ export default function NewChainPage() {
           >
             Cancelar
           </Link>
-          <Button type="submit" disabled={isSubmitting} className="flex-1 bg-foreground text-background hover:bg-foreground/85">
+          <Button
+            type="submit"
+            disabled={isSubmitting || !canWrite}
+            className="flex-1 bg-foreground text-background hover:bg-foreground/85"
+          >
             Crear y abrir canvas
           </Button>
         </div>

@@ -2,17 +2,17 @@
 
 import { use, useMemo } from "react";
 import Link from "next/link";
-import { useMockDbStore } from "@/stores/mock-db-store";
+import { useAppStore } from "@/stores/app-store";
 
 export default function ScenarioListPage({ params }: { params: Promise<{ chainId: string }> }) {
   const { chainId } = use(params);
-  const chain = useMockDbStore((s) => s.chains.find((c) => c.id === chainId));
-  const allScenarios = useMockDbStore((s) => s.scenarios);
+  const chain = useAppStore((s) => s.chains.find((c) => c.id === chainId));
+  const allScenarios = useAppStore((s) => s.scenarios);
   const scenarios = useMemo(() => allScenarios.filter((sc) => sc.chainId === chainId), [allScenarios, chainId]);
-  const events = useMockDbStore((s) => s.events);
-  const results = useMockDbStore((s) => s.results);
-  const pendingRuns = useMockDbStore((s) => s.pendingRuns);
-  const nodes = useMockDbStore((s) => s.nodes);
+  const events = useAppStore((s) => s.events);
+  const results = useAppStore((s) => s.results);
+  const pendingRuns = useAppStore((s) => s.pendingRuns);
+  const nodes = useAppStore((s) => s.nodes);
 
   if (!chain) {
     return (

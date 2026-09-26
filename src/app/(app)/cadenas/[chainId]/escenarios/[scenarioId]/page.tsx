@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { classifySeverity, runScenarioSimulation, type ProjectedWeek, type Severity } from "@/lib/mock/simulate";
 import { formatWeekLabel } from "@/lib/mock/dates";
 import { hashSeed } from "@/lib/mock/rng";
-import { useMockDbStore } from "@/stores/mock-db-store";
+import { useAppStore } from "@/stores/app-store";
 import { cn } from "@/lib/utils";
 
 type View = "answer" | "detail";
@@ -32,16 +32,16 @@ export default function ScenarioResultPage({
   params: Promise<{ chainId: string; scenarioId: string }>;
 }) {
   const { chainId, scenarioId } = use(params);
-  const chain = useMockDbStore((s) => s.chains.find((c) => c.id === chainId));
-  const scenario = useMockDbStore((s) => s.scenarios.find((sc) => sc.id === scenarioId));
-  const allEvents = useMockDbStore((s) => s.events);
+  const chain = useAppStore((s) => s.chains.find((c) => c.id === chainId));
+  const scenario = useAppStore((s) => s.scenarios.find((sc) => sc.id === scenarioId));
+  const allEvents = useAppStore((s) => s.events);
   const events = useMemo(() => allEvents.filter((e) => e.scenarioId === scenarioId), [allEvents, scenarioId]);
-  const allResults = useMockDbStore((s) => s.results);
-  const allNodes = useMockDbStore((s) => s.nodes);
-  const allEdges = useMockDbStore((s) => s.edges);
-  const weeklyPerformance = useMockDbStore((s) => s.weeklyPerformance);
-  const pendingRuns = useMockDbStore((s) => s.pendingRuns);
-  const rerunScenario = useMockDbStore((s) => s.rerunScenario);
+  const allResults = useAppStore((s) => s.results);
+  const allNodes = useAppStore((s) => s.nodes);
+  const allEdges = useAppStore((s) => s.edges);
+  const weeklyPerformance = useAppStore((s) => s.weeklyPerformance);
+  const pendingRuns = useAppStore((s) => s.pendingRuns);
+  const rerunScenario = useAppStore((s) => s.rerunScenario);
 
   const [view, setView] = useState<View>("answer");
 
