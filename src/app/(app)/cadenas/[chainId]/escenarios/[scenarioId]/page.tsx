@@ -2,7 +2,9 @@
 
 import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { Check, X } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Check, Trash2, X } from "lucide-react";
+import { DeleteScenarioDialog } from "@/components/scenario/delete-scenario-dialog";
 import { WeeklyPerformanceChart } from "@/components/charts/weekly-performance-chart";
 import { CrisisTimelineChart } from "@/components/charts/crisis-timeline-chart";
 import { WeekPlayer } from "@/components/scenario/week-player";
@@ -44,7 +46,9 @@ export default function ScenarioResultPage({
   const rerunScenario = useAppStore((s) => s.rerunScenario);
   const canRun = useAppStore((s) => s.canRun);
 
+  const router = useRouter();
   const [view, setView] = useState<View>("answer");
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   // Cada corrida se conserva por separado y no se pisa (RF030). Se muestran de la más nueva a
   // la más vieja — el orden del array es el orden en que las escribió el job.
@@ -313,7 +317,24 @@ export default function ScenarioResultPage({
             Detalle técnico
           </button>
         </div>
+        {canRun && (
+          <button
+            type="button"
+            onClick={() => setConfirmingDelete(true)}
+            className="flex flex-none items-center gap-1.5 whitespace-nowrap rounded-lg border border-border px-3 py-1.5 text-[12.5px] text-muted-foreground hover:border-destructive/40 hover:text-destructive"
+            title="Eliminar simulación"
+          >
+            <Trash2 size={13} />
+            Eliminar
+          </button>
+        )}
       </div>
+
+      <DeleteScenarioDialog
+        scenario={confirmingDelete ? { id: scenario.id, name: scenario.name } : null}
+        onClose={() => setConfirmingDelete(false)}
+        onDeleted={() => router.push(`/cadenas/${chainId}/escenarios`)}
+      />
 
       {view === "answer" ? (
         <div className="flex min-h-0 flex-1 justify-center overflow-auto px-5 pb-10">

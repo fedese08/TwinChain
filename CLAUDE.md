@@ -61,6 +61,13 @@ cambió en nada, solo la implementación.
   dashboard/resumen ejecutivo/comparación asumían costo/servicio/TTR/duración-configurable, que el modelo de datos
   real contradice. Ver tabla de reconciliación al final de `docs/modelo-datos.md`.
 
+## Pendientes y mejoras futuras
+
+**Leer `docs/pendientes.md` al retomar trabajo** y **agregarle** cualquier corrección o mejora que se detecte y no se
+resuelva en el momento (con contexto para retomarla en frío). Ahí están, entre otros, los dos bugs metodológicos del
+motor que NO se parchean por cuenta propia y el hallazgo de que las curvas del resultado se recalculan con la cadena
+actual y no con la de la corrida.
+
 ## Estado de avance
 
 - **Backend real (rama `feat/backend`, en curso).** Mongoose/Mongo ya se eliminó. Estado por paso:
@@ -92,7 +99,9 @@ cambió en nada, solo la implementación.
      la pantalla de resultado al reconstruir las curvas. Es **síncrono** (30 réplicas tardan milisegundos): cuando
      el motor pase a 200-300 réplicas hay que mover la corrida a un job real (`after()` / cola) — ver C36. El cliente
      genera los ids del escenario y de sus eventos para mostrarlo al instante y que la pantalla de resultado siga
-     con su animación de espera mientras el servidor corre. Exige el permiso `scenario:run`.
+     con su animación de espera mientras el servidor corre. Exige el permiso `scenario:run`. `DELETE /api/escenarios/[id]`
+     elimina la simulación con sus eventos y TODAS sus corridas (cascade); la UI pide confirmación (listado y resultado).
+     Borrar una cadena también se lleva sus simulaciones (`DELETE /api/cadenas/[id]`).
   6. **Retirar el mock — hecho.** No queda ningún dato de mentira en la app: `src/lib/mock/` pasó a `src/lib/domain/`
      (tipos de la UI, motor, fechas, plantillas) y el generador de datos demo vive en `scripts/seed-data.ts` (solo lo
      usa `db:seed`). La única simulación de runtime que queda es `stabilityChecks` (C24, validación CUSUM del

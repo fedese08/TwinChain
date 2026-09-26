@@ -143,6 +143,12 @@ interface AppState {
    * irreversible) y recién si confirma la saca del store. Devuelve el error si no se pudo.
    */
   deleteChain: (chainId: string) => Promise<{ ok: true } | { ok: false; error: string }>;
+  /** Elimina el escenario con sus eventos y todas sus corridas. No es optimista: es irreversible. */
+  deleteScenario: (
+    scenarioId: string,
+    /** Corre apenas el servidor confirma y ANTES de sacarlo del store (para navegar sin parpadeo). */
+    onServerConfirmed?: () => void,
+  ) => Promise<{ ok: true } | { ok: false; error: string }>;
   addNode: (chainId: string, nodeType: NodeType, label: string, position: { x: number; y: number }) => string;
   updateNodePosition: (nodeId: string, position: { x: number; y: number }) => void;
   updateNode: (nodeId: string, patch: Omit<NodePatch, "position">) => void;
@@ -313,6 +319,20 @@ export const useAppStore = create<AppState>()((set, get) => {
           stabilityChecks,
         };
       });
+      return { ok: true };
+    },
+
+    deleteScenario: async (scenarioId, onServerConfirmed) => {
+      const result = await enqueue(() => send("DELETE", `/api/escenarios/${scenarioId}`));
+      if (!result.ok) return result;
+      onServerConfirmed?.();
+
+      set((s) => ({
+        scenarios: s.scenarios.filter((sc) => sc.id !== scenarioId),
+        events: s.events.filter((e) => e.scenarioId !== scenarioId),
+        results: s.results.filter((r) => r.scenarioId !== scenarioId),
+        pendingRuns: s.pendingRuns.filter((r) => r.scenarioId !== scenarioId),
+      }));
       return { ok: true };
     },
 

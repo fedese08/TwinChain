@@ -1,7 +1,9 @@
 "use client";
 
-import { use, useMemo } from "react";
+import { use, useMemo, useState } from "react";
 import Link from "next/link";
+import { Trash2 } from "lucide-react";
+import { DeleteScenarioDialog } from "@/components/scenario/delete-scenario-dialog";
 import { useAppStore } from "@/stores/app-store";
 
 export default function ScenarioListPage({ params }: { params: Promise<{ chainId: string }> }) {
@@ -13,6 +15,8 @@ export default function ScenarioListPage({ params }: { params: Promise<{ chainId
   const results = useAppStore((s) => s.results);
   const pendingRuns = useAppStore((s) => s.pendingRuns);
   const nodes = useAppStore((s) => s.nodes);
+  const canRun = useAppStore((s) => s.canRun);
+  const [toDelete, setToDelete] = useState<{ id: string; name: string } | null>(null);
 
   if (!chain) {
     return (
@@ -60,10 +64,10 @@ export default function ScenarioListPage({ params }: { params: Promise<{ chainId
             const running = pendingRuns.some((r) => r.scenarioId === scenario.id);
 
             return (
+              <div key={scenario.id} className="relative border-b border-border last:border-b-0">
               <Link
-                key={scenario.id}
                 href={`/cadenas/${chainId}/escenarios/${scenario.id}`}
-                className="grid grid-cols-[1.6fr_1.4fr_0.7fr_1.1fr_0.9fr_0.8fr] items-center border-b border-border px-4 py-3 last:border-b-0 hover:bg-muted/30"
+                className="grid grid-cols-[1.6fr_1.4fr_0.7fr_1.1fr_0.9fr_0.8fr] items-center px-4 py-3 pr-12 hover:bg-muted/30"
               >
                 <div className="min-w-0">
                   <div className="truncate text-[13px] font-medium">{scenario.name}</div>
@@ -105,6 +109,18 @@ export default function ScenarioListPage({ params }: { params: Promise<{ chainId
                   )}
                 </div>
               </Link>
+              {canRun && (
+                <button
+                  type="button"
+                  onClick={() => setToDelete({ id: scenario.id, name: scenario.name })}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-destructive"
+                  aria-label={`Eliminar simulación ${scenario.name}`}
+                  title="Eliminar simulación"
+                >
+                  <Trash2 size={14} />
+                </button>
+              )}
+              </div>
             );
           })}
           {scenarios.length === 0 && (
@@ -114,6 +130,8 @@ export default function ScenarioListPage({ params }: { params: Promise<{ chainId
           )}
         </div>
       </div>
+
+      <DeleteScenarioDialog scenario={toDelete} onClose={() => setToDelete(null)} />
     </div>
   );
 }
