@@ -135,6 +135,11 @@ interface AppState {
   hydrate: (snapshot: AppSnapshot) => void;
   /** Suma al store una cadena que el servidor acaba de crear (y arranca su validación de ingesta). */
   registerCreatedChain: (data: { chain: Chain; nodes: SupplyChainNode[]; edges: SupplyChainEdge[] }) => void;
+  /**
+   * Elimina la cadena y todo lo que cuelga de ella. NO es optimista: espera al servidor (es
+   * irreversible) y recién si confirma la saca del store. Devuelve el error si no se pudo.
+   */
+  deleteChain: (chainId: string) => Promise<{ ok: true } | { ok: false; error: string }>;
   addNode: (chainId: string, nodeType: NodeType, label: string, position: { x: number; y: number }) => string;
   updateNodePosition: (nodeId: string, position: { x: number; y: number }) => void;
   updateNode: (nodeId: string, patch: Omit<NodePatch, "position">) => void;
@@ -325,6 +330,36 @@ export const useAppStore = create<AppState>()((set, get) => {
         edges: [...s.edges, ...edges.filter((e) => !s.edges.some((x) => x.id === e.id))],
       }));
       launchIngestionCheck(chain.id);
+    },
+
+    deleteChain: async (chainId) => {
+      // Los guardados pendientes de sus nodos ya no tienen a dónde ir.
+      const nodeIds = new Set(get().nodes.filter((n) => n.chainId === chainId).map((n) => n.id));
+      for (const [id, entry] of pendingNodePatches) {
+        if (nodeIds.has(id)) {
+          clearTimeout(entry.timer);
+          pendingNodePatches.delete(id);
+        }
+      }
+
+      const result = await enqueue(() => send("DELETE", `/api/cadenas/${chainId}`));
+      if (!result.ok) return result;
+
+      set((s) => {
+        const scenarioIds = new Set(s.scenarios.filter((sc) => sc.chainId === chainId).map((sc) => sc.id));
+        const { [chainId]: _removed, ...stabilityChecks } = s.stabilityChecks;
+        void _removed;
+        return {
+          chains: s.chains.filter((c) => c.id !== chainId),
+          nodes: s.nodes.filter((n) => n.chainId !== chainId),
+          edges: s.edges.filter((e) => !nodeIds.has(e.sourceNodeId) && !nodeIds.has(e.targetNodeId)),
+          scenarios: s.scenarios.filter((sc) => sc.chainId !== chainId),
+          events: s.events.filter((e) => !scenarioIds.has(e.scenarioId)),
+          results: s.results.filter((r) => !scenarioIds.has(r.scenarioId)),
+          stabilityChecks,
+        };
+      });
+      return { ok: true };
     },
 
     addNode: (chainId, nodeType, label, position) => {

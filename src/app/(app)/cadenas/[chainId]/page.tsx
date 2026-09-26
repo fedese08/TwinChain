@@ -3,6 +3,7 @@
 import { use, useCallback, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { ChainCanvas } from "@/components/canvas/chain-canvas";
+import { DeleteChainButton } from "@/components/canvas/delete-chain-dialog";
 import { ScenarioForm, type ScenarioFormHandle } from "@/components/scenario/scenario-form";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/stores/app-store";
@@ -97,6 +98,8 @@ export default function ChainDetailPage({ params }: { params: Promise<{ chainId:
             Ver simulaciones
           </Link>
         )}
+
+        {canWrite && <DeleteChainButton chainId={chainId} chainName={chain.name} />}
       </div>
 
       {mode === "design" ? (
