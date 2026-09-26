@@ -4,10 +4,7 @@ Referencia de qué se usa (o se va a usar) en el proyecto, y en qué estado est�
 del stack obligatorio: `docs/TwinChain-DEV.md` (sección 3). Este documento es el detalle operativo — qué está
 instalado hoy, qué falta, y las sugerencias propias marcadas como tales.
 
-> **Pendiente de confirmar:** la base cambió de MongoDB a PostgreSQL por pedido tuyo, pero todavía no elegiste ORM
-> ni proveedor de hosting. Dejé **Drizzle ORM** (no choca con el Prisma descartado) y **Neon** (integra con Vercel)
-> como default provisorio en la tabla de abajo — avisame si preferís otra cosa antes de que empecemos a escribir
-> el schema en la Fase 1.
+> **Confirmado:** PostgreSQL con **Drizzle ORM** y **Neon** como hosting (decisión tomada al empezar el backend real).
 
 ## Frontend — ya instalado
 
@@ -31,8 +28,8 @@ instalado hoy, qué falta, y las sugerencias propias marcadas como tales.
 | Pieza | Para qué | Fase |
 |---|---|---|
 | **TanStack Query v5** | estado de servidor / cache de fetch | cuando haya backend real (Fase 1+) |
-| **NextAuth.js (Auth.js) v5** | login Google + credentials | Fase 1 |
-| **PostgreSQL (Neon) + Drizzle ORM** | base de datos y capa de acceso — reemplaza a MongoDB + Mongoose por decisión del usuario (ver `docs/modelo-datos.md`, sección "Migración de motor"). Nada de esto está instalado todavía: `src/lib/db/connect.ts` y `src/lib/db/models/` siguen en Mongoose, quedan obsoletos y se reescriben enteros en la Fase 1 | Fase 1 |
+| **NextAuth.js (Auth.js) v5** | login Google + credentials — **credentials ya implementado** (bcryptjs, sesión JWT solo con identidad); Google se suma después | Fase 1 (Google pendiente) |
+| **PostgreSQL (Neon) + Drizzle ORM** | base de datos y capa de acceso — ✅ **instalado y confirmado** (`drizzle-orm`, `postgres`, `drizzle-kit`). Reemplaza a MongoDB + Mongoose por decisión del usuario (ver `docs/modelo-datos.md`, sección "Migración de motor"). Hosting: **Neon** (se evaluó Supabase y se descartó: la app no usa su Auth, RLS, Storage ni Realtime, y su free tier se pausa por inactividad, un riesgo para las demos) | Fase 1 |
 | **Python 3.12+ / FastAPI / Uvicorn** | microservicio ML, separado del monolito | Fase 5 |
 | **scikit-learn, XGBoost, pandas, joblib** | entrenamiento e inferencia del modelo | Fase 5 |
 | **Vitest** | tests del motor de simulación — el script `npm run test` ya existe en `package.json` pero el paquete todavía no está instalado | cuando arranque el motor real (Fase 4) |

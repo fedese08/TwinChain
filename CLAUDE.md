@@ -48,8 +48,8 @@ el modelo de datos los define como el discriminador literal de la tabla `nodos`.
 ## Base de datos: PostgreSQL, no MongoDB
 
 Cambio de decisión del usuario — el modelo de datos se pensó originalmente para MongoDB, pero la base real es
-**PostgreSQL** (ORM: Drizzle, hosting: Neon — ambos default provisorio, no confirmados todavía, ver
-`docs/stack-tecnologico.md`). `docs/modelo-datos.md` ya tiene los tipos traducidos (UUID en vez de ObjectId, FK
+**PostgreSQL** (ORM: Drizzle, hosting: **Neon** — confirmado; Supabase se evaluó y se descartó porque la app no
+usa nada de lo que Supabase suma sobre Postgres: Auth, RLS, Storage, Realtime). `docs/modelo-datos.md` ya tiene los tipos traducidos (UUID en vez de ObjectId, FK
 reales, Nodo como herencia de tabla única en vez de patrón de discriminadores de Mongo, `tabla_k` como JSONB) — ver
 su sección "Migración de motor: MongoDB → PostgreSQL". El modelo conceptual (entidades, atributos, relaciones) no
 cambió en nada, solo la implementación.
@@ -63,14 +63,30 @@ cambió en nada, solo la implementación.
 
 ## Estado de avance
 
-- **Fase 0 — Setup base (backend real): completa pero doblemente desactualizada — modelo de datos viejo Y motor de
-  base de datos viejo.** Next.js 15 + TS strict + Tailwind v4 + shadcn/ui, tokens visuales del diseño
-  (`src/app/globals.css`) siguen vigentes. Pero `src/lib/db/connect.ts` y los modelos en `src/lib/db/models/`
-  (`User`, `Organization`, `SupplyChain`) están en **Mongoose/MongoDB** — con 4 tipos de nodo y arista con
-  costo/capacidad/modo (ya obsoleto frente a `docs/modelo-datos.md`) y además sobre el motor equivocado (ahora es
-  PostgreSQL). Hay que tirar ese código y reescribirlo entero contra Drizzle + Postgres cuando se retome el backend.
-  No tocar todavía: es trabajo de la próxima fase de backend, no de esta iteración de frontend mock. `mongoose`
-  sigue en `package.json` como dependencia — se puede sacar recién cuando se instale Drizzle.
+- **Backend real (rama `feat/backend`, en curso).** Mongoose/Mongo ya se eliminó. Estado por paso:
+  1. **Fundación — hecho.** `src/lib/db/schema.ts` (Drizzle, 11 tablas, derivado de `docs/modelo-datos.md`; las
+     columnas que el modelo formal no tiene están marcadas `app:` — visibilidad/creador de cadena, etiqueta y
+     posición de nodo, nombre de escenario, tabla `invitaciones`), migraciones en `drizzle/`, cliente en
+     `src/lib/db/index.ts` (`getDb()`, lazy, `prepare:false` por el pooler de Neon), `scripts/seed.ts` (data demo
+     idempotente). Scripts: `db:generate`, `db:migrate`, `db:seed`, `db:studio`.
+  2. **Auth + organizaciones — hecho, pendiente de verificar contra la DB real.** Auth.js v5, solo credentials
+     (Google se suma después), JWT. Registro como `organizacion` (crea org + Administrador) o `empleado` (sin org
+     hasta aceptar una invitación). Invitaciones por link con token (solo se guarda su SHA-256) y sin proveedor de
+     email todavía: el admin copia el link.
+  3. Cadenas/nodos/aristas, 4. desempeño semanal, 5. escenarios + simulación, 6. comparar y retirar el mock —
+     **pendientes**. Mientras tanto las pantallas de cadenas/escenarios/comparar siguen leyendo `mock-db-store`
+     (los contadores del sidebar también).
+  - **Reglas del backend (no romper):** (a) la sesión JWT guarda **solo la identidad**; organización y rol se leen
+    de la base en cada request (`getCurrentUser` en `src/lib/auth/session.ts`). (b) toda query de negocio filtra por
+    el `organizacionId` que devuelve `requireApiMember()` / `requirePageMember()` — **nunca** por uno que venga en
+    el body o la URL; ese es todo el aislamiento multi-tenant (no se usa RLS). (c) lecturas en Server Components,
+    escrituras en API Routes bajo `src/app/api/`. (d) un usuario es miembro de **una** organización con un rol, o de
+    ninguna (CHECK en `usuarios`). (e) aceptar una invitación exige token **y** que el email de la cuenta coincida,
+    porque todavía no se verifica el email al registrarse. (f) contraseñas: bcryptjs, máx. 72 caracteres.
+  - **Variables de entorno** (`.env.local`, ver `.env.example`): `DATABASE_URL` (pooler de Neon, runtime),
+    `DIRECT_URL` (conexión directa, migraciones y seed), `AUTH_SECRET`.
+  - Las decisiones metodológicas del motor (`tabla_k` invertida, `MIN_PROPAGATED_MAGNITUDE`) **no** se tocan al
+    migrar `simulate.ts` al servidor: se mueve tal cual.
 - **Frontend con datos mock (esta iteración): completo para el recorrido principal, incluida edición de atributos y
   propagación por el grafo.** Sin backend — todo vive en `src/lib/mock/` (tipos + seed + motor de simulación
   placeholder) y `src/stores/mock-db-store.ts` (zustand, estado en memoria de sesión). Pantallas:
@@ -136,5 +152,4 @@ cambió en nada, solo la implementación.
   browser real la primera vez que se toque este código. **Los gráficos de Recharts sufren lo mismo**: los `path`
   se generan con geometría correcta en el DOM pero el pane no los pinta, así que una captura del pane muestra ejes
   sin curvas. No es un bug de la app — verificar en un browser real.
-- Próxima fase: reescribir el backend (Drizzle + PostgreSQL + Server Actions) contra `docs/modelo-datos.md`, y
-  reemplazar `mock-db-store` por llamadas reales, manteniendo las pantallas ya construidas.
+- Próximo paso del backend: el 3 (cadenas, nodos y aristas contra la DB), manteniendo las pantallas ya construidas.

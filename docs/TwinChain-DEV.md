@@ -55,7 +55,7 @@ Es un Trabajo Final de Ingeniería. La prioridad no es "feature completo", es **
 ### DevOps
 - Deploy app: **Vercel**
 - Deploy microservicio ML: **Railway** o **Render**
-- DB: **PostgreSQL en Neon** (free tier, serverless, integra directo con Vercel) — provisorio, a confirmar
+- DB: **PostgreSQL en Neon** (free tier, serverless, integra directo con Vercel) — **confirmado** (se descartó Supabase)
 - CI: **GitHub Actions** (lint + type-check)
 - Tests del motor de simulación: **Vitest**
 

@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Activity, Check, GitCompare, Waypoints } from "lucide-react";
+import { auth } from "@/auth";
 import { buttonVariants } from "@/components/ui/button";
 import { NetworkIllustration } from "@/components/landing/network-illustration";
 
@@ -66,7 +67,11 @@ const PLANS = [
   },
 ] as const;
 
-export default function LandingPage() {
+export default async function LandingPage() {
+  // Solo se decodifica el JWT de la cookie (sin tocar la base): alcanza para saber si hay sesión.
+  const session = await auth();
+  const signedIn = Boolean(session?.user);
+
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground">
       <header className="mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-6">
@@ -78,12 +83,20 @@ export default function LandingPage() {
           </span>
         </div>
         <div className="flex items-center gap-2">
-          <Link href="/cadenas" className={buttonVariants({ variant: "ghost" })}>
-            Iniciar sesión
-          </Link>
-          <Link href="/cadenas" className={buttonVariants({})}>
-            Crear cuenta
-          </Link>
+          {signedIn ? (
+            <Link href="/cadenas" className={buttonVariants({})}>
+              Ir a mis cadenas
+            </Link>
+          ) : (
+            <>
+              <Link href="/login" className={buttonVariants({ variant: "ghost" })}>
+                Iniciar sesión
+              </Link>
+              <Link href="/registro" className={buttonVariants({})}>
+                Crear cuenta
+              </Link>
+            </>
+          )}
         </div>
       </header>
 
@@ -104,20 +117,20 @@ export default function LandingPage() {
           </div>
           <div className="flex flex-wrap items-center justify-center gap-3">
             <Link
-              href="/cadenas"
+              href={signedIn ? "/cadenas" : "/registro"}
               className={buttonVariants({ size: "lg", className: "h-11 px-6 text-[14.5px]" })}
             >
-              Crear cuenta gratis
+              {signedIn ? "Ir a mis cadenas" : "Crear cuenta gratis"}
             </Link>
             <Link
-              href="/cadenas"
+              href={signedIn ? "/organizacion" : "/login"}
               className={buttonVariants({
                 variant: "outline",
                 size: "lg",
                 className: "h-11 px-6 text-[14.5px]",
               })}
             >
-              Iniciar sesión
+              {signedIn ? "Mi organización" : "Iniciar sesión"}
             </Link>
           </div>
 
@@ -193,7 +206,7 @@ export default function LandingPage() {
                   </ul>
 
                   <Link
-                    href="/cadenas"
+                    href={signedIn ? "/cadenas" : "/registro"}
                     className={buttonVariants({
                       variant: plan.highlighted ? "default" : "outline",
                       className: "mt-auto h-9 w-full",

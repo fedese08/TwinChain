@@ -18,3 +18,5 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm run typecheck
+      # Verifica que las migraciones de drizzle/ sean consistentes entre sí (no necesita base de datos).
+      - run: npx drizzle-kit check
