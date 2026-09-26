@@ -1,8 +1,8 @@
 import { create } from "zustand";
 import { toast } from "sonner";
 import type { AppSnapshot } from "@/lib/data/snapshot-types";
-import { addWeeks, startOfWeek, toIsoDate } from "@/lib/mock/dates";
-import { hashSeed } from "@/lib/mock/rng";
+import { addWeeks, startOfWeek, toIsoDate } from "@/lib/domain/dates";
+import { hashSeed } from "@/lib/domain/rng";
 import type {
   Chain,
   DisruptionEvent,
@@ -14,7 +14,7 @@ import type {
   SupplyChainEdge,
   SupplyChainNode,
   WeeklyPerformance,
-} from "@/lib/mock/types";
+} from "@/lib/domain/types";
 
 function genId(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;

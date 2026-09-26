@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { ScenarioComparisonChart } from "@/components/charts/scenario-comparison-chart";
-import { runScenarioSimulation } from "@/lib/mock/simulate";
+import { runScenarioSimulation } from "@/lib/domain/simulate";
 import { EVENT_TYPE_LABELS } from "@/lib/validators/scenario";
 import { useAppStore } from "@/stores/app-store";
 import { cn } from "@/lib/utils";

@@ -1,4 +1,4 @@
-import type { NodeType, SupplyChainEdge, SupplyChainNode } from "@/lib/mock/types";
+import type { NodeType, SupplyChainEdge, SupplyChainNode } from "@/lib/domain/types";
 
 export const CHAIN_TEMPLATES = ["blank", "linear", "forked", "complex"] as const;
 export type ChainTemplateId = (typeof CHAIN_TEMPLATES)[number];

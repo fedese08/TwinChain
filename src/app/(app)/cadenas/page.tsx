@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { useAppStore } from "@/stores/app-store";
-import { NODE_TYPE_COLOR } from "@/lib/mock/node-visuals";
-import type { StabilityCheck } from "@/lib/mock/types";
+import { NODE_TYPE_COLOR } from "@/lib/domain/node-visuals";
+import type { StabilityCheck } from "@/lib/domain/types";
 
 /**
  * Veredicto del pipeline de ingesta sobre el historial de la cadena (C24). Corre por cada cadena

@@ -7,9 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { WeeklyPerformanceChart } from "@/components/charts/weekly-performance-chart";
-import { NODE_TYPE_CODE, NODE_TYPE_COLOR } from "@/lib/mock/node-visuals";
+import { NODE_TYPE_CODE, NODE_TYPE_COLOR } from "@/lib/domain/node-visuals";
 import { useAppStore } from "@/stores/app-store";
-import type { SupplyChainNode } from "@/lib/mock/types";
+import type { SupplyChainNode } from "@/lib/domain/types";
 
 /** Campos numéricos editables de un Nodo — los atributos propios por tipo del modelo de datos. */
 type NumericField = "supplyCapacity" | "productionCapacity" | "storageCapacity" | "currentStockLevel";

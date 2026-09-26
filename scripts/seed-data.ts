@@ -1,6 +1,6 @@
-import { addWeeks, startOfWeek, toIsoDate } from "@/lib/mock/dates";
-import { createRng, hashSeed } from "@/lib/mock/rng";
-import { runScenarioSimulation } from "@/lib/mock/simulate";
+import { addWeeks, startOfWeek, toIsoDate } from "@/lib/domain/dates";
+import { createRng, hashSeed } from "@/lib/domain/rng";
+import { runScenarioSimulation } from "@/lib/domain/simulate";
 import type {
   Chain,
   DisruptionEvent,
@@ -13,7 +13,7 @@ import type {
   User,
   UserRole,
   WeeklyPerformance,
-} from "@/lib/mock/types";
+} from "@/lib/domain/types";
 
 const WEEKS_OF_HISTORY = 16;
 

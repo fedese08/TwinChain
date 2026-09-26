@@ -1,6 +1,6 @@
 // Tipos derivados de docs/modelo-datos.md (especificación completa del modelo de datos).
 // Los valores de `nodeType` se mantienen en español porque la especificación los define
-// como el discriminador literal de Mongo ("Proveedor", "Fabrica", "Almacen", "Vendedor", "Cliente").
+// como el discriminador literal de la tabla `nodos` ("Proveedor", "Fabrica", "Almacen", "Vendedor", "Cliente").
 
 export const NODE_TYPES = ["Proveedor", "Fabrica", "Almacen", "Vendedor", "Cliente"] as const;
 export type NodeType = (typeof NODE_TYPES)[number];

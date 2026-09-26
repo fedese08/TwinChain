@@ -1,4 +1,4 @@
-// Filas de la base (español, columnas nullable) → los tipos que usa la UI (`lib/mock/types.ts`).
+// Filas de la base (español, columnas nullable) → los tipos que usa la UI (`lib/domain/types.ts`).
 import type {
   AristaRow,
   CadenaRow,
@@ -18,7 +18,7 @@ import type {
   SupplyChainEdge,
   SupplyChainNode,
   WeeklyPerformance,
-} from "@/lib/mock/types";
+} from "@/lib/domain/types";
 
 export const toChain = (r: CadenaRow): Chain => ({
   id: r.id,

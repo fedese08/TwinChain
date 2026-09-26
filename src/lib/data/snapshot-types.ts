@@ -6,7 +6,7 @@ import type {
   SupplyChainEdge,
   SupplyChainNode,
   WeeklyPerformance,
-} from "@/lib/mock/types";
+} from "@/lib/domain/types";
 
 /**
  * Todo lo que el cliente necesita de la organización para trabajar, ya filtrado por lo que el

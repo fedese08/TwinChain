@@ -1,13 +1,13 @@
 // Ejecuta el motor de simulación en el servidor y arma la fila de `resultados`.
-// El motor (`lib/mock/simulate.ts`) se usa TAL CUAL: acá solo se le arman las entradas y se
+// El motor (`lib/domain/simulate.ts`) se usa TAL CUAL: acá solo se le arman las entradas y se
 // guarda lo que devuelve. Sus decisiones metodológicas pendientes (tabla_k, piso de propagación)
 // no se tocan al moverlo de lugar.
 import { asc, eq, inArray } from "drizzle-orm";
 import { toEdge, toKTableRows, toNode, toWeeklyPerformance } from "@/lib/data/mappers";
 import { aristas, desempenoSemanal, nodos, type Database, type ResultadoRow } from "@/lib/db";
-import { hashSeed } from "@/lib/mock/rng";
-import { runScenarioSimulation } from "@/lib/mock/simulate";
-import type { DisruptionEvent } from "@/lib/mock/types";
+import { hashSeed } from "@/lib/domain/rng";
+import { runScenarioSimulation } from "@/lib/domain/simulate";
+import type { DisruptionEvent } from "@/lib/domain/types";
 
 type NewResult = Pick<
   ResultadoRow,

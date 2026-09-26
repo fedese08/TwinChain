@@ -1,4 +1,4 @@
-import type { NodeType } from "@/lib/mock/types";
+import type { NodeType } from "@/lib/domain/types";
 
 export const NODE_TYPE_COLOR: Record<NodeType, string> = {
   Proveedor: "#3b82f6",

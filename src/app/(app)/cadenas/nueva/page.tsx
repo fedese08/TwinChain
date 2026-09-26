@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { chainFormSchema, type ChainFormValues } from "@/lib/validators/chain";
-import { CHAIN_TEMPLATES, CHAIN_TEMPLATE_LABELS } from "@/lib/mock/templates";
+import { CHAIN_TEMPLATES, CHAIN_TEMPLATE_LABELS } from "@/lib/domain/templates";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";

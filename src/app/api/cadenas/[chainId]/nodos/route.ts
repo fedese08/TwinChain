@@ -6,7 +6,7 @@ import { findVisibleChain } from "@/lib/data/access";
 import { toNode } from "@/lib/data/mappers";
 import { getDb, nodos } from "@/lib/db";
 import { isUniqueViolation } from "@/lib/db/errors";
-import { MAX_NODES_PER_CHAIN } from "@/lib/mock/types";
+import { MAX_NODES_PER_CHAIN } from "@/lib/domain/types";
 import { createNodeSchema } from "@/lib/validators/chain-api";
 
 export async function POST(request: Request, { params }: { params: Promise<{ chainId: string }> }) {

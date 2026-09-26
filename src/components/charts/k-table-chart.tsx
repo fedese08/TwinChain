@@ -1,7 +1,7 @@
 "use client";
 
 import { Bar, BarChart, CartesianGrid, Cell, ErrorBar, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import type { KTableRow } from "@/lib/mock/types";
+import type { KTableRow } from "@/lib/domain/types";
 
 export function KTableChart({ rows }: { rows: KTableRow[] }) {
   const data = rows.map((r) => ({

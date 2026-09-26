@@ -93,8 +93,10 @@ cambió en nada, solo la implementación.
      el motor pase a 200-300 réplicas hay que mover la corrida a un job real (`after()` / cola) — ver C36. El cliente
      genera los ids del escenario y de sus eventos para mostrarlo al instante y que la pantalla de resultado siga
      con su animación de espera mientras el servidor corre. Exige el permiso `scenario:run`.
-  6. **Retirar el mock — parcial.** Comparar y biblioteca ya leen de la base (vía snapshot). Queda `stabilityChecks`
-     (C24), que sigue siendo simulación de runtime y solo aparece en cadenas creadas en la sesión.
+  6. **Retirar el mock — hecho.** No queda ningún dato de mentira en la app: `src/lib/mock/` pasó a `src/lib/domain/`
+     (tipos de la UI, motor, fechas, plantillas) y el generador de datos demo vive en `scripts/seed-data.ts` (solo lo
+     usa `db:seed`). La única simulación de runtime que queda es `stabilityChecks` (C24, validación CUSUM del
+     pipeline de ingesta): no es una entidad del modelo y solo aparece en cadenas creadas en la sesión.
   - **Reglas del backend (no romper):** (a) la sesión JWT guarda **solo la identidad**; organización y rol se leen
     de la base en cada request (`getCurrentUser` en `src/lib/auth/session.ts`). (b) toda query de negocio filtra por
     el `organizacionId` que devuelve `requireApiMember()` / `requirePageMember()` — **nunca** por uno que venga en
@@ -109,9 +111,9 @@ cambió en nada, solo la implementación.
     `DIRECT_URL` (conexión directa, migraciones y seed), `AUTH_SECRET`.
   - Las decisiones metodológicas del motor (`tabla_k` invertida, `MIN_PROPAGATED_MAGNITUDE`) **no** se tocan al
     migrar `simulate.ts` al servidor: se mueve tal cual.
-- **Frontend con datos mock (esta iteración): completo para el recorrido principal, incluida edición de atributos y
-  propagación por el grafo.** Sin backend — todo vive en `src/lib/mock/` (tipos + seed + motor de simulación
-  placeholder) y `src/stores/app-store.ts` (zustand; ver el paso 3 del backend arriba). Pantallas:
+- **Frontend: completo para el recorrido principal, incluida edición de atributos y propagación por el grafo.** Se
+  construyó primero con datos mock y hoy corre contra la base (ver los pasos del backend arriba): `src/lib/domain/`
+  (tipos + motor de simulación placeholder) y `src/stores/app-store.ts` (zustand). Pantallas:
   - `/cadenas` — listado + `/cadenas/nueva` (nombre, visibilidad, plantilla lineal/bifurcada/compleja).
   - `/cadenas/[id]` — canvas React Flow (5 tipos de nodo, aristas con `tiempo_transito`), modo "Diseño y monitoreo"
     (paleta, inspector de nodo con desempeño semanal + edición de label/capacidad, inspector de arista con
@@ -137,7 +139,7 @@ cambió en nada, solo la implementación.
     dispersaba); mientras no se recalibre, usar magnitudes de al menos ~15–20% para que la propagación se vea.
   - `/comparar` — comparación de 2+ escenarios (tabla_k lado a lado, mediana + rango, última corrida de cada uno).
   - `/biblioteca` — referencia de tipos de nodo/arista/plantillas.
-  - `src/lib/mock/simulate.ts` es **explícitamente un placeholder** (comentado como MOCK) — no es la propuesta
+  - `src/lib/domain/simulate.ts` es **explícitamente un placeholder** (comentado como MOCK) — no es la propuesta
     metodológica de la tesis. Su API es `runScenarioSimulation(...)`: corre N réplicas (default 30) y devuelve
     `projectionByNode` (mediana + rango por semana), `totalDeficit` y `kTable`. Internamente hace BFS aguas abajo
     por las Aristas trasladando una fracción del déficit por salto y retrasando el onset según `tiempo_transito`.

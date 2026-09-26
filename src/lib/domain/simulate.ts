@@ -11,9 +11,9 @@
 //   - RF027: el déficit se traslada por arista como una fracción evaluada sobre un RANGO
 //     de valores, con el retraso del tiempo_transito, sin inventario ni unidades físicas.
 //   - RF029: el resultado se reporta como mediana y rango, nunca como valor único.
-import { addDaysIso, addWeeks, startOfWeek, toIsoDate } from "@/lib/mock/dates";
-import { createRng } from "@/lib/mock/rng";
-import type { DisruptionEvent, KTableRow, SupplyChainEdge, SupplyChainNode, WeeklyPerformance } from "@/lib/mock/types";
+import { addDaysIso, addWeeks, startOfWeek, toIsoDate } from "@/lib/domain/dates";
+import { createRng } from "@/lib/domain/rng";
+import type { DisruptionEvent, KTableRow, SupplyChainEdge, SupplyChainNode, WeeklyPerformance } from "@/lib/domain/types";
 
 /** Semana proyectada, ya agregada sobre las réplicas: valor central (mediana) + rango observado. */
 export interface ProjectedWeek {

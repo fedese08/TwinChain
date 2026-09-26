@@ -5,7 +5,7 @@ hacerlo volver solo a la línea base, y por qué el comportamiento anterior esta
 
 ## Qué hacía antes
 
-El motor mock (`src/lib/mock/simulate.ts`) tenía una constante `RECOVERY_SPAN_WEEKS = 6` y aplicaba una rampa de
+El motor mock (`src/lib/domain/simulate.ts`) tenía una constante `RECOVERY_SPAN_WEEKS = 6` y aplicaba una rampa de
 recuperación lineal a cada evento:
 
 ```ts
@@ -74,7 +74,7 @@ caída en el tiempo dentro de un nodo ya alcanzado.
 
 ## Nota de alcance
 
-`src/lib/mock/simulate.ts` sigue siendo un placeholder: el cálculo del déficit y del umbral no es la propuesta
+`src/lib/domain/simulate.ts` sigue siendo un placeholder: el cálculo del déficit y del umbral no es la propuesta
 metodológica de la tesis. Pero esta decisión no es del mock — **el motor real (Fase 4) tiene que respetarla igual**.
 Si en algún momento aparece evidencia de que ciertos tipos de disrupción sí se resuelven sin intervención, eso no se
 implementa como una constante global: sería un resultado del modelo, con su respaldo, y habría que registrarlo como

@@ -21,8 +21,8 @@ import { EdgeInspector } from "@/components/canvas/edge-inspector";
 import { SupplyChainNodeView, type SupplyChainNodeData } from "@/components/canvas/supply-chain-node";
 import { TransitEdge } from "@/components/canvas/transit-edge";
 import { useAppStore } from "@/stores/app-store";
-import type { Severity } from "@/lib/mock/simulate";
-import type { NodeType, SupplyChainNode } from "@/lib/mock/types";
+import type { Severity } from "@/lib/domain/simulate";
+import type { NodeType, SupplyChainNode } from "@/lib/domain/types";
 
 const NODE_TYPES = { supplyChainNode: SupplyChainNodeView };
 const EDGE_TYPES = { transitEdge: TransitEdge };

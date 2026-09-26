@@ -4,7 +4,7 @@ import { requireApiMember } from "@/lib/auth/session";
 import { readJson } from "@/lib/api/http";
 import { toChain, toEdge, toNode } from "@/lib/data/mappers";
 import { aristas, cadenas, getDb, nodos } from "@/lib/db";
-import { instantiateTemplate } from "@/lib/mock/templates";
+import { instantiateTemplate } from "@/lib/domain/templates";
 import { chainFormSchema } from "@/lib/validators/chain";
 
 /** Crea una cadena (en blanco o desde plantilla) con sus nodos y aristas, todo en una transacción. */

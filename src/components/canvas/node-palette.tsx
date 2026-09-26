@@ -1,9 +1,9 @@
 "use client";
 
-import { NODE_TYPES } from "@/lib/mock/types";
-import { NODE_TYPE_CODE, NODE_TYPE_COLOR } from "@/lib/mock/node-visuals";
-import { MAX_NODES_PER_CHAIN } from "@/lib/mock/types";
-import type { NodeType } from "@/lib/mock/types";
+import { NODE_TYPES } from "@/lib/domain/types";
+import { NODE_TYPE_CODE, NODE_TYPE_COLOR } from "@/lib/domain/node-visuals";
+import { MAX_NODES_PER_CHAIN } from "@/lib/domain/types";
+import type { NodeType } from "@/lib/domain/types";
 
 export function NodePalette({
   nodeCount,

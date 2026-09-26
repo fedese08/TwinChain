@@ -1,6 +1,6 @@
-import { NODE_TYPES } from "@/lib/mock/types";
-import { NODE_TYPE_CODE, NODE_TYPE_COLOR } from "@/lib/mock/node-visuals";
-import { CHAIN_TEMPLATES, CHAIN_TEMPLATE_LABELS } from "@/lib/mock/templates";
+import { NODE_TYPES } from "@/lib/domain/types";
+import { NODE_TYPE_CODE, NODE_TYPE_COLOR } from "@/lib/domain/node-visuals";
+import { CHAIN_TEMPLATES, CHAIN_TEMPLATE_LABELS } from "@/lib/domain/templates";
 
 const NODE_TYPE_FIELDS: Record<string, { k: string; v: string }[]> = {
   Proveedor: [{ k: "atributos propios", v: "ninguno todavía" }],

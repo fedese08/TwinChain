@@ -2,9 +2,9 @@
 
 import { memo } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
-import { NODE_TYPE_CODE, NODE_TYPE_COLOR, SEVERITY_COLOR } from "@/lib/mock/node-visuals";
-import type { Severity } from "@/lib/mock/simulate";
-import type { NodeType } from "@/lib/mock/types";
+import { NODE_TYPE_CODE, NODE_TYPE_COLOR, SEVERITY_COLOR } from "@/lib/domain/node-visuals";
+import type { Severity } from "@/lib/domain/simulate";
+import type { NodeType } from "@/lib/domain/types";
 
 export interface SupplyChainNodeData extends Record<string, unknown> {
   label: string;

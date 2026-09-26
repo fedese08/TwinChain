@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { NODE_TYPE_COLOR, SEVERITY_COLOR } from "@/lib/mock/node-visuals";
+import { NODE_TYPE_COLOR, SEVERITY_COLOR } from "@/lib/domain/node-visuals";
 
 type NodeType = "Proveedor" | "Fabrica" | "Almacen" | "Vendedor" | "Cliente";
 type Severity = keyof typeof SEVERITY_COLOR;

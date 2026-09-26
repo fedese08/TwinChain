@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { NODE_TYPES } from "@/lib/mock/types";
+import { NODE_TYPES } from "@/lib/domain/types";
 
 const finite = z.number().finite();
 const capacity = finite.min(0).max(1e12).nullable();

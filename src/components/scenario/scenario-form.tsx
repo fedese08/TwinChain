@@ -16,7 +16,7 @@ import {
   type ScenarioFormValues,
 } from "@/lib/validators/scenario";
 import { useAppStore } from "@/stores/app-store";
-import type { SupplyChainNode } from "@/lib/mock/types";
+import type { SupplyChainNode } from "@/lib/domain/types";
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);

@@ -11,7 +11,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { formatWeekLabel } from "@/lib/mock/dates";
+import { formatWeekLabel } from "@/lib/domain/dates";
 
 export interface WeeklyChartPoint {
   weekStart: string;

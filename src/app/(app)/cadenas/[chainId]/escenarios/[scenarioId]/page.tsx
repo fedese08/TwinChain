@@ -10,9 +10,9 @@ import { SimulationIntro } from "@/components/scenario/simulation-intro";
 import { KTableChart } from "@/components/charts/k-table-chart";
 import { ChainCanvas } from "@/components/canvas/chain-canvas";
 import { Button } from "@/components/ui/button";
-import { classifySeverity, runScenarioSimulation, type ProjectedWeek, type Severity } from "@/lib/mock/simulate";
-import { formatWeekLabel } from "@/lib/mock/dates";
-import { hashSeed } from "@/lib/mock/rng";
+import { classifySeverity, runScenarioSimulation, type ProjectedWeek, type Severity } from "@/lib/domain/simulate";
+import { formatWeekLabel } from "@/lib/domain/dates";
+import { hashSeed } from "@/lib/domain/rng";
 import { useAppStore } from "@/stores/app-store";
 import { cn } from "@/lib/utils";
 

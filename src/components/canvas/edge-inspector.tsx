@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAppStore } from "@/stores/app-store";
-import type { SupplyChainEdge } from "@/lib/mock/types";
+import type { SupplyChainEdge } from "@/lib/domain/types";
 
 export function EdgeInspector({ edge, onClose }: { edge: SupplyChainEdge; onClose: () => void }) {
   const nodes = useAppStore((s) => s.nodes);

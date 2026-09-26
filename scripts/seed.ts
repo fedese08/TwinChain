@@ -27,7 +27,7 @@ import {
   seedResults,
   seedScenarios,
   seedWeeklyPerformance,
-} from "../src/lib/mock/seed";
+} from "./seed-data";
 
 const DEMO_EMAIL = "demo@twinchain.dev";
 

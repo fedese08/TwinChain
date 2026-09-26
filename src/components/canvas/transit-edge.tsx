@@ -1,8 +1,8 @@
 "use client";
 
 import { BaseEdge, EdgeLabelRenderer, getBezierPath, type EdgeProps } from "@xyflow/react";
-import { SEVERITY_COLOR } from "@/lib/mock/node-visuals";
-import type { Severity } from "@/lib/mock/simulate";
+import { SEVERITY_COLOR } from "@/lib/domain/node-visuals";
+import type { Severity } from "@/lib/domain/simulate";
 
 export function TransitEdge({
   id,
