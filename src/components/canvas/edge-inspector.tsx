@@ -4,20 +4,21 @@ import { Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useMockDbStore } from "@/stores/mock-db-store";
-import type { SupplyChainEdge } from "@/lib/mock/types";
+import { useAppStore } from "@/stores/app-store";
+import type { SupplyChainEdge } from "@/lib/domain/types";
 
 export function EdgeInspector({ edge, onClose }: { edge: SupplyChainEdge; onClose: () => void }) {
-  const nodes = useMockDbStore((s) => s.nodes);
-  const removeEdge = useMockDbStore((s) => s.removeEdge);
-  const updateEdge = useMockDbStore((s) => s.updateEdge);
+  const nodes = useAppStore((s) => s.nodes);
+  const removeEdge = useAppStore((s) => s.removeEdge);
+  const updateEdge = useAppStore((s) => s.updateEdge);
 
   const source = nodes.find((n) => n.id === edge.sourceNodeId);
   const target = nodes.find((n) => n.id === edge.targetNodeId);
 
   function handleTransitTimeChange(value: string) {
     const parsed = Number(value);
-    if (value === "" || Number.isNaN(parsed) || parsed < 0) return;
+    // Debe ser > 0: la base rechaza un tránsito de 0 días.
+    if (value === "" || Number.isNaN(parsed) || parsed <= 0) return;
     updateEdge(edge.id, { transitTimeDays: parsed });
   }
 
@@ -43,7 +44,7 @@ export function EdgeInspector({ edge, onClose }: { edge: SupplyChainEdge; onClos
             className="font-mono"
           />
         </div>
-        <div className="rounded-lg border border-border bg-secondary/30 p-2.5 text-[11.5px] leading-relaxed text-muted-foreground">
+        <div className="rounded-lg border border-border bg-muted/30 p-2.5 text-[11.5px] leading-relaxed text-muted-foreground">
           El tránsito vive en la arista, no en un nodo — sin costo asociado: el modelo no registra magnitudes
           monetarias en ningún punto del sistema.
         </div>

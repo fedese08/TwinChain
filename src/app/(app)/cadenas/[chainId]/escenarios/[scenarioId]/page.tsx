@@ -2,7 +2,9 @@
 
 import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { Check, X } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Check, Trash2, X } from "lucide-react";
+import { DeleteScenarioDialog } from "@/components/scenario/delete-scenario-dialog";
 import { WeeklyPerformanceChart } from "@/components/charts/weekly-performance-chart";
 import { CrisisTimelineChart } from "@/components/charts/crisis-timeline-chart";
 import { WeekPlayer } from "@/components/scenario/week-player";
@@ -10,10 +12,10 @@ import { SimulationIntro } from "@/components/scenario/simulation-intro";
 import { KTableChart } from "@/components/charts/k-table-chart";
 import { ChainCanvas } from "@/components/canvas/chain-canvas";
 import { Button } from "@/components/ui/button";
-import { classifySeverity, runScenarioSimulation, type ProjectedWeek, type Severity } from "@/lib/mock/simulate";
-import { formatWeekLabel } from "@/lib/mock/dates";
-import { hashSeed } from "@/lib/mock/rng";
-import { useMockDbStore } from "@/stores/mock-db-store";
+import { classifySeverity, runScenarioSimulation, type ProjectedWeek, type Severity } from "@/lib/domain/simulate";
+import { formatWeekLabel } from "@/lib/domain/dates";
+import { hashSeed } from "@/lib/domain/rng";
+import { useAppStore } from "@/stores/app-store";
 import { cn } from "@/lib/utils";
 
 type View = "answer" | "detail";
@@ -21,7 +23,7 @@ type View = "answer" | "detail";
 /** Franjas de impacto sobre el horizonte proyectado — para traducir el déficit a algo legible. */
 function classifyImpact(badWeeks: number, horizonWeeks: number) {
   const share = horizonWeeks > 0 ? badWeeks / horizonWeeks : 0;
-  if (share >= 0.25) return { label: "Impacto alto", tone: "#c23a24", bg: "#fdeeeb", border: "#f0c4ba" };
+  if (share >= 0.25) return { label: "Impacto alto", tone: "#c2571f", bg: "#fdece0", border: "#f5c9a8" };
   if (share >= 0.1) return { label: "Impacto moderado", tone: "#a8761f", bg: "#fdf5e7", border: "#eddbb4" };
   return { label: "Impacto bajo", tone: "#0a7d6a", bg: "#e8f6f3", border: "#b9e2d8" };
 }
@@ -32,18 +34,21 @@ export default function ScenarioResultPage({
   params: Promise<{ chainId: string; scenarioId: string }>;
 }) {
   const { chainId, scenarioId } = use(params);
-  const chain = useMockDbStore((s) => s.chains.find((c) => c.id === chainId));
-  const scenario = useMockDbStore((s) => s.scenarios.find((sc) => sc.id === scenarioId));
-  const allEvents = useMockDbStore((s) => s.events);
+  const chain = useAppStore((s) => s.chains.find((c) => c.id === chainId));
+  const scenario = useAppStore((s) => s.scenarios.find((sc) => sc.id === scenarioId));
+  const allEvents = useAppStore((s) => s.events);
   const events = useMemo(() => allEvents.filter((e) => e.scenarioId === scenarioId), [allEvents, scenarioId]);
-  const allResults = useMockDbStore((s) => s.results);
-  const allNodes = useMockDbStore((s) => s.nodes);
-  const allEdges = useMockDbStore((s) => s.edges);
-  const weeklyPerformance = useMockDbStore((s) => s.weeklyPerformance);
-  const pendingRuns = useMockDbStore((s) => s.pendingRuns);
-  const rerunScenario = useMockDbStore((s) => s.rerunScenario);
+  const allResults = useAppStore((s) => s.results);
+  const allNodes = useAppStore((s) => s.nodes);
+  const allEdges = useAppStore((s) => s.edges);
+  const weeklyPerformance = useAppStore((s) => s.weeklyPerformance);
+  const pendingRuns = useAppStore((s) => s.pendingRuns);
+  const rerunScenario = useAppStore((s) => s.rerunScenario);
+  const canRun = useAppStore((s) => s.canRun);
 
+  const router = useRouter();
   const [view, setView] = useState<View>("answer");
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   // Cada corrida se conserva por separado y no se pisa (RF030). Se muestran de la más nueva a
   // la más vieja — el orden del array es el orden en que las escribió el job.
@@ -298,7 +303,7 @@ export default function ScenarioResultPage({
         <div className="flex items-center gap-px overflow-hidden rounded-lg border border-border">
           <button
             onClick={() => setView("answer")}
-            className={cn("px-3 py-1.5 text-[12.5px]", view === "answer" ? "bg-secondary font-medium" : "text-muted-foreground")}
+            className={cn("px-3 py-1.5 text-[12.5px]", view === "answer" ? "bg-muted font-medium" : "text-muted-foreground")}
           >
             Respuesta
           </button>
@@ -306,13 +311,30 @@ export default function ScenarioResultPage({
             onClick={() => setView("detail")}
             className={cn(
               "border-l border-border px-3 py-1.5 text-[12.5px]",
-              view === "detail" ? "bg-secondary font-medium" : "text-muted-foreground",
+              view === "detail" ? "bg-muted font-medium" : "text-muted-foreground",
             )}
           >
             Detalle técnico
           </button>
         </div>
+        {canRun && (
+          <button
+            type="button"
+            onClick={() => setConfirmingDelete(true)}
+            className="flex flex-none items-center gap-1.5 whitespace-nowrap rounded-lg border border-border px-3 py-1.5 text-[12.5px] text-muted-foreground hover:border-destructive/40 hover:text-destructive"
+            title="Eliminar simulación"
+          >
+            <Trash2 size={13} />
+            Eliminar
+          </button>
+        )}
       </div>
+
+      <DeleteScenarioDialog
+        scenario={confirmingDelete ? { id: scenario.id, name: scenario.name } : null}
+        onClose={() => setConfirmingDelete(false)}
+        onDeleted={() => router.push(`/cadenas/${chainId}/escenarios`)}
+      />
 
       {view === "answer" ? (
         <div className="flex min-h-0 flex-1 justify-center overflow-auto px-5 pb-10">
@@ -423,13 +445,13 @@ export default function ScenarioResultPage({
               <div className="mt-4 flex items-start gap-3 rounded-xl border p-4"
                 style={
                   worthReconfiguring
-                    ? { borderColor: "#c3d0f5", background: "#eef2fe" }
-                    : { borderColor: "#dbe1ea", background: "#f4f6f9" }
+                    ? { borderColor: "rgba(59, 130, 246, 0.35)", background: "rgba(59, 130, 246, 0.1)" }
+                    : { borderColor: "var(--border)", background: "var(--muted)" }
                 }
               >
                 <span
                   className="mt-0.5 flex h-6 w-6 flex-none items-center justify-center rounded-full text-white"
-                  style={{ background: worthReconfiguring ? "#0060ff" : "#8c96a6" }}
+                  style={{ background: worthReconfiguring ? "#3b82f6" : "#8c96a6" }}
                 >
                   {worthReconfiguring ? <Check size={14} /> : <X size={14} />}
                 </span>
@@ -471,7 +493,7 @@ export default function ScenarioResultPage({
                         className="h-full rounded-full transition-all"
                         style={{
                           width: `${costShareOfAvoidable * 100}%`,
-                          background: worthReconfiguring ? "#0060ff" : "#8c96a6",
+                          background: worthReconfiguring ? "#3b82f6" : "#8c96a6",
                         }}
                       />
                     </div>
@@ -485,13 +507,13 @@ export default function ScenarioResultPage({
 
               <div className="mt-3 flex flex-wrap items-center gap-2.5">
                 {reconfigured ? (
-                  <Button variant="outline" size="sm" disabled={isRunning} onClick={() => rerunScenario(scenarioId, null)}>
+                  <Button variant="outline" size="sm" disabled={isRunning || !canRun} onClick={() => rerunScenario(scenarioId, null)}>
                     Ver qué pasa si no reconfiguro
                   </Button>
                 ) : (
                   <Button
                     size="sm"
-                    disabled={isRunning || !worthReconfiguring}
+                    disabled={isRunning || !canRun || !worthReconfiguring}
                     className="bg-foreground text-background hover:bg-foreground/85"
                     onClick={() => rerunScenario(scenarioId, 0)}
                   >
@@ -539,7 +561,7 @@ export default function ScenarioResultPage({
                     note: reconfigured ? "hasta la reconfiguración" : "no se corrige solo",
                   },
                 ].map((stat) => (
-                  <div key={stat.label} className="rounded-xl bg-secondary/40 px-3 py-2">
+                  <div key={stat.label} className="rounded-xl bg-muted/40 px-3 py-2">
                     <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">
                       {stat.label}
                     </div>
@@ -589,7 +611,7 @@ export default function ScenarioResultPage({
                     v: result.reconfigurationWeekIndex !== null ? `sem. ${result.reconfigurationWeekIndex + 1}` : "no",
                   },
                 ].map((item) => (
-                  <div key={item.k} className="rounded-lg bg-secondary/40 px-2.5 py-2">
+                  <div key={item.k} className="rounded-lg bg-muted/40 px-2.5 py-2">
                     <div className="text-[9px] uppercase tracking-wider text-muted-foreground">{item.k}</div>
                     <div className="mt-0.5 truncate font-medium">{item.v}</div>
                   </div>
@@ -611,7 +633,7 @@ export default function ScenarioResultPage({
                         "rounded border px-2 py-0.5 font-mono text-[10px]",
                         run.id === result.id
                           ? "border-primary/50 bg-accent text-accent-foreground"
-                          : "border-border text-muted-foreground hover:bg-secondary",
+                          : "border-border text-muted-foreground hover:bg-muted",
                       )}
                     >
                       #{runs.length - i} · {run.runDate}
@@ -653,7 +675,7 @@ export default function ScenarioResultPage({
                     key={row.k}
                     className={cn(
                       "flex flex-col items-center gap-0.5 rounded-md py-1.5",
-                      row.k === effectiveK ? "bg-accent" : "bg-secondary/40",
+                      row.k === effectiveK ? "bg-accent" : "bg-muted/40",
                     )}
                   >
                     <span className="text-muted-foreground">k={row.k}</span>

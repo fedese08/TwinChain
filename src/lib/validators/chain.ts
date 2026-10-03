@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { CHAIN_TEMPLATES } from "@/lib/mock/templates";
+import { CHAIN_TEMPLATES } from "@/lib/domain/templates";
 
 export const chainFormSchema = z.object({
   name: z.string().min(1, "Ponele un nombre a la cadena").max(120),

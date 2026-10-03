@@ -3,36 +3,42 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Boxes, GitCompare, LibraryBig } from "lucide-react";
+import { Boxes, GitCompare, LibraryBig, Users } from "lucide-react";
+import { SignOutButton } from "@/components/auth/sign-out-button";
 import { cn } from "@/lib/utils";
-import { useMockDbStore } from "@/stores/mock-db-store";
+import { useAppStore } from "@/stores/app-store";
+
+export interface SidebarAccount {
+  userName: string;
+  organizationName: string;
+  roleName: string;
+}
 
 const NAV_ITEMS = [
   { href: "/cadenas", label: "Cadenas", icon: Boxes },
   { href: "/comparar", label: "Comparar escenarios", icon: GitCompare },
   { href: "/biblioteca", label: "Plantillas y nodos", icon: LibraryBig },
+  { href: "/organizacion", label: "Organización", icon: Users },
 ] as const;
 
-export function Sidebar() {
-  const pathname = usePathname();
-  const organization = useMockDbStore((s) => s.organization);
-  const user = useMockDbStore((s) => s.user);
-  const roles = useMockDbStore((s) => s.roles);
-  const chainCount = useMockDbStore((s) => s.chains.length);
-  const scenarioCount = useMockDbStore((s) => s.scenarios.length);
+const initialsOf = (text: string, max: number) =>
+  text
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, max)
+    .map((w) => w[0])
+    .join("")
+    .toUpperCase();
 
-  const roleName = roles.find((r) => r.id === user.roleId)?.name ?? "";
-  const initials = organization.name
-    .split(" ")
-    .slice(0, 2)
-    .map((w) => w[0])
-    .join("")
-    .toUpperCase();
-  const userInitials = user.name
-    .split(" ")
-    .map((w) => w[0])
-    .join("")
-    .toUpperCase();
+export function Sidebar({ account }: { account: SidebarAccount }) {
+  const pathname = usePathname();
+  // Los contadores siguen saliendo del mock hasta migrar cadenas y escenarios a la base.
+  const chainCount = useAppStore((s) => s.chains.length);
+  const scenarioCount = useAppStore((s) => s.scenarios.length);
+
+  const roleName = account.roleName;
+  const initials = initialsOf(account.organizationName, 2);
+  const userInitials = initialsOf(account.userName, 2);
 
   return (
     <div className="flex w-[236px] flex-none flex-col gap-4 border-r border-sidebar-border bg-sidebar p-3 text-sidebar-foreground">
@@ -58,7 +64,7 @@ export function Sidebar() {
           {initials}
         </span>
         <div className="flex min-w-0 flex-col leading-tight">
-          <span className="truncate text-[12.5px] font-medium">{organization.name}</span>
+          <span className="truncate text-[12.5px] font-medium">{account.organizationName}</span>
           <span className="font-mono text-[9.5px] text-sidebar-foreground/60">organización</span>
         </div>
       </div>
@@ -96,11 +102,12 @@ export function Sidebar() {
           <span className="flex h-[26px] w-[26px] items-center justify-center rounded-full border border-sidebar-border bg-sidebar-accent font-mono text-[10px] text-sidebar-foreground/80">
             {userInitials}
           </span>
-          <div className="flex flex-col leading-tight">
-            <span className="text-[12.5px]">{user.name}</span>
+          <div className="flex min-w-0 flex-col leading-tight">
+            <span className="truncate text-[12.5px]">{account.userName}</span>
             <span className="text-[10.5px] text-sidebar-foreground/60">{roleName}</span>
           </div>
         </div>
+        <SignOutButton className="px-2 py-1.5 text-sidebar-foreground/60 hover:text-sidebar-foreground" />
       </div>
     </div>
   );

@@ -48,8 +48,8 @@ el modelo de datos los define como el discriminador literal de la tabla `nodos`.
 ## Base de datos: PostgreSQL, no MongoDB
 
 Cambio de decisión del usuario — el modelo de datos se pensó originalmente para MongoDB, pero la base real es
-**PostgreSQL** (ORM: Drizzle, hosting: Neon — ambos default provisorio, no confirmados todavía, ver
-`docs/stack-tecnologico.md`). `docs/modelo-datos.md` ya tiene los tipos traducidos (UUID en vez de ObjectId, FK
+**PostgreSQL** (ORM: Drizzle, hosting: **Neon** — confirmado; Supabase se evaluó y se descartó porque la app no
+usa nada de lo que Supabase suma sobre Postgres: Auth, RLS, Storage, Realtime). `docs/modelo-datos.md` ya tiene los tipos traducidos (UUID en vez de ObjectId, FK
 reales, Nodo como herencia de tabla única en vez de patrón de discriminadores de Mongo, `tabla_k` como JSONB) — ver
 su sección "Migración de motor: MongoDB → PostgreSQL". El modelo conceptual (entidades, atributos, relaciones) no
 cambió en nada, solo la implementación.
@@ -61,19 +61,68 @@ cambió en nada, solo la implementación.
   dashboard/resumen ejecutivo/comparación asumían costo/servicio/TTR/duración-configurable, que el modelo de datos
   real contradice. Ver tabla de reconciliación al final de `docs/modelo-datos.md`.
 
+## Pendientes y mejoras futuras
+
+**Leer `docs/pendientes.md` al retomar trabajo** y **agregarle** cualquier corrección o mejora que se detecte y no se
+resuelva en el momento (con contexto para retomarla en frío). Ahí están, entre otros, los dos bugs metodológicos del
+motor que NO se parchean por cuenta propia y el hallazgo de que las curvas del resultado se recalculan con la cadena
+actual y no con la de la corrida.
+
 ## Estado de avance
 
-- **Fase 0 — Setup base (backend real): completa pero doblemente desactualizada — modelo de datos viejo Y motor de
-  base de datos viejo.** Next.js 15 + TS strict + Tailwind v4 + shadcn/ui, tokens visuales del diseño
-  (`src/app/globals.css`) siguen vigentes. Pero `src/lib/db/connect.ts` y los modelos en `src/lib/db/models/`
-  (`User`, `Organization`, `SupplyChain`) están en **Mongoose/MongoDB** — con 4 tipos de nodo y arista con
-  costo/capacidad/modo (ya obsoleto frente a `docs/modelo-datos.md`) y además sobre el motor equivocado (ahora es
-  PostgreSQL). Hay que tirar ese código y reescribirlo entero contra Drizzle + Postgres cuando se retome el backend.
-  No tocar todavía: es trabajo de la próxima fase de backend, no de esta iteración de frontend mock. `mongoose`
-  sigue en `package.json` como dependencia — se puede sacar recién cuando se instale Drizzle.
-- **Frontend con datos mock (esta iteración): completo para el recorrido principal, incluida edición de atributos y
-  propagación por el grafo.** Sin backend — todo vive en `src/lib/mock/` (tipos + seed + motor de simulación
-  placeholder) y `src/stores/mock-db-store.ts` (zustand, estado en memoria de sesión). Pantallas:
+- **Backend real (rama `feat/backend`, en curso).** Mongoose/Mongo ya se eliminó. Estado por paso:
+  1. **Fundación — hecho.** `src/lib/db/schema.ts` (Drizzle, 11 tablas, derivado de `docs/modelo-datos.md`; las
+     columnas que el modelo formal no tiene están marcadas `app:` — visibilidad/creador de cadena, etiqueta y
+     posición de nodo, nombre de escenario, tabla `invitaciones`), migraciones en `drizzle/`, cliente en
+     `src/lib/db/index.ts` (`getDb()`, lazy, `prepare:false` por el pooler de Neon), `scripts/seed.ts` (data demo
+     idempotente). Scripts: `db:generate`, `db:migrate`, `db:seed`, `db:studio`.
+  2. **Auth + organizaciones — hecho y verificado contra Neon.** Auth.js v5, solo credentials
+     (Google se suma después), JWT. Registro como `organizacion` (crea org + Administrador) o `empleado` (sin org
+     hasta aceptar una invitación). Invitaciones por link con token (solo se guarda su SHA-256) y sin proveedor de
+     email todavía: el admin copia el link.
+  3. **Cadenas, nodos y aristas — hecho y verificado (37 checks de API + UI).** El layout `(app)` arma un
+     **snapshot** de la organización con `loadSnapshot()` (`src/lib/data/snapshot.ts`: cadenas visibles, nodos, aristas,
+     desempeño semanal, escenarios, eventos y corridas — **todas las lecturas ya salen de la base**) y `StoreSync`
+     lo vuelca en `src/stores/app-store.ts` (zustand). El store es una **copia de trabajo**, no la fuente de verdad:
+     cada acción cambia lo local al instante y persiste por API (`/api/cadenas`, `/api/cadenas/[id]/nodos`,
+     `/api/nodos/[id]`, `/api/aristas[/id]`) por **una única cola ordenada**, con **rollback + toast** si el
+     servidor rechaza. Los cambios que se tipean (label, capacidades, tránsito) se agrupan con debounce de 450 ms.
+     Los ids de nodo/arista los genera el cliente (`crypto.randomUUID()`) para que el optimista coincida con la base.
+  4. **Desempeño semanal** — la lectura ya sale de la base (viene en el snapshot); no hay escritura todavía
+     (datos de demo por seed; la ingesta real es de una fase posterior).
+  5. **Escenarios + simulación — hecho y verificado (29 checks de API + UI).** `POST /api/escenarios` crea el
+     escenario con sus eventos y **corre la simulación en el servidor** (`src/lib/simulation/run-scenario.ts` arma las
+     entradas desde la base y llama a `runScenarioSimulation` **tal cual**), todo en una transacción: o quedan
+     escenario, eventos y primera corrida, o nada. `POST /api/escenarios/[id]/corridas` agrega una corrida nueva
+     (con o sin escalón de reconfiguración) **sin pisar las anteriores** (RF030). La `semilla` de cada corrida sale
+     del id de la propia corrida (`hashSeed`), así que se reproduce **exacta** con semilla + réplicas: es lo que hace
+     la pantalla de resultado al reconstruir las curvas. Es **síncrono** (30 réplicas tardan milisegundos): cuando
+     el motor pase a 200-300 réplicas hay que mover la corrida a un job real (`after()` / cola) — ver C36. El cliente
+     genera los ids del escenario y de sus eventos para mostrarlo al instante y que la pantalla de resultado siga
+     con su animación de espera mientras el servidor corre. Exige el permiso `scenario:run`. `DELETE /api/escenarios/[id]`
+     elimina la simulación con sus eventos y TODAS sus corridas (cascade); la UI pide confirmación (listado y resultado).
+     Borrar una cadena también se lleva sus simulaciones (`DELETE /api/cadenas/[id]`).
+  6. **Retirar el mock — hecho.** No queda ningún dato de mentira en la app: `src/lib/mock/` pasó a `src/lib/domain/`
+     (tipos de la UI, motor, fechas, plantillas) y el generador de datos demo vive en `scripts/seed-data.ts` (solo lo
+     usa `db:seed`). La única simulación de runtime que queda es `stabilityChecks` (C24, validación CUSUM del
+     pipeline de ingesta): no es una entidad del modelo y solo aparece en cadenas creadas en la sesión.
+  - **Reglas del backend (no romper):** (a) la sesión JWT guarda **solo la identidad**; organización y rol se leen
+    de la base en cada request (`getCurrentUser` en `src/lib/auth/session.ts`). (b) toda query de negocio filtra por
+    el `organizacionId` que devuelve `requireApiMember()` / `requirePageMember()` — **nunca** por uno que venga en
+    el body o la URL; ese es todo el aislamiento multi-tenant (no se usa RLS). (c) lecturas en Server Components
+    (el snapshot del layout), escrituras en API Routes bajo `src/app/api/`. Toda ruta de cadenas/nodos/aristas
+    resuelve el acceso con `findVisibleChain/Node/Edge` (`src/lib/data/access.ts`): organización de la sesión +
+    cadena compartida o privada propia; lo ajeno responde 404, no 403. Escribir exige el permiso `chain:write` (el
+    Visualizador ve el canvas en modo solo lectura). Un nodo usado por una simulación no se puede borrar. (d) un usuario es miembro de **una** organización con un rol, o de
+    ninguna (CHECK en `usuarios`). (e) aceptar una invitación exige token **y** que el email de la cuenta coincida,
+    porque todavía no se verifica el email al registrarse. (f) contraseñas: bcryptjs, máx. 72 caracteres.
+  - **Variables de entorno** (`.env.local`, ver `.env.example`): `DATABASE_URL` (pooler de Neon, runtime),
+    `DIRECT_URL` (conexión directa, migraciones y seed), `AUTH_SECRET`.
+  - Las decisiones metodológicas del motor (`tabla_k` invertida, `MIN_PROPAGATED_MAGNITUDE`) **no** se tocan al
+    migrar `simulate.ts` al servidor: se mueve tal cual.
+- **Frontend: completo para el recorrido principal, incluida edición de atributos y propagación por el grafo.** Se
+  construyó primero con datos mock y hoy corre contra la base (ver los pasos del backend arriba): `src/lib/domain/`
+  (tipos + motor de simulación placeholder) y `src/stores/app-store.ts` (zustand). Pantallas:
   - `/cadenas` — listado + `/cadenas/nueva` (nombre, visibilidad, plantilla lineal/bifurcada/compleja).
   - `/cadenas/[id]` — canvas React Flow (5 tipos de nodo, aristas con `tiempo_transito`), modo "Diseño y monitoreo"
     (paleta, inspector de nodo con desempeño semanal + edición de label/capacidad, inspector de arista con
@@ -99,7 +148,7 @@ cambió en nada, solo la implementación.
     dispersaba); mientras no se recalibre, usar magnitudes de al menos ~15–20% para que la propagación se vea.
   - `/comparar` — comparación de 2+ escenarios (tabla_k lado a lado, mediana + rango, última corrida de cada uno).
   - `/biblioteca` — referencia de tipos de nodo/arista/plantillas.
-  - `src/lib/mock/simulate.ts` es **explícitamente un placeholder** (comentado como MOCK) — no es la propuesta
+  - `src/lib/domain/simulate.ts` es **explícitamente un placeholder** (comentado como MOCK) — no es la propuesta
     metodológica de la tesis. Su API es `runScenarioSimulation(...)`: corre N réplicas (default 30) y devuelve
     `projectionByNode` (mediana + rango por semana), `totalDeficit` y `kTable`. Internamente hace BFS aguas abajo
     por las Aristas trasladando una fracción del déficit por salto y retrasando el onset según `tiempo_transito`.
@@ -136,5 +185,4 @@ cambió en nada, solo la implementación.
   browser real la primera vez que se toque este código. **Los gráficos de Recharts sufren lo mismo**: los `path`
   se generan con geometría correcta en el DOM pero el pane no los pinta, así que una captura del pane muestra ejes
   sin curvas. No es un bug de la app — verificar en un browser real.
-- Próxima fase: reescribir el backend (Drizzle + PostgreSQL + Server Actions) contra `docs/modelo-datos.md`, y
-  reemplazar `mock-db-store` por llamadas reales, manteniendo las pantallas ya construidas.
+- Próximo paso del backend: el 3 (cadenas, nodos y aristas contra la DB), manteniendo las pantallas ya construidas.

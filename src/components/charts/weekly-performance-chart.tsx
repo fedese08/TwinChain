@@ -11,7 +11,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { formatWeekLabel } from "@/lib/mock/dates";
+import { formatWeekLabel } from "@/lib/domain/dates";
 
 export interface WeeklyChartPoint {
   weekStart: string;
@@ -55,11 +55,11 @@ export function WeeklyPerformanceChart({
       : null;
 
   const legend = [
-    { name: "valor real", color: "#002860", kind: "line" as const },
+    { name: "valor real", color: "#171922", kind: "line" as const },
     { name: "línea base", color: "#0a7d6a", kind: "dashed" as const },
     { name: "banda esperada", color: "#0d9c84", kind: "area" as const },
-    { name: "déficit", color: "#d33f28", kind: "area" as const },
-    ...(hasReplicaRange ? [{ name: "rango simulado", color: "#0060ff", kind: "area" as const }] : []),
+    { name: "déficit", color: "#f2703c", kind: "area" as const },
+    ...(hasReplicaRange ? [{ name: "rango simulado", color: "#3b82f6", kind: "area" as const }] : []),
   ];
 
   return (
@@ -78,7 +78,7 @@ export function WeeklyPerformanceChart({
           }
         />
         {/* Rellenos con borde propio y opacidad: sobre el fondo blanco de la tarjeta los tonos
-            planos muy claros (#d9f2ec / #fdeeeb) se perdían y la banda y el déficit no se leían. */}
+            planos muy claros se perdían y la banda y el déficit no se leían. */}
         <Area
           type="monotone"
           dataKey="bandaLineaBase"
@@ -94,9 +94,9 @@ export function WeeklyPerformanceChart({
             type="monotone"
             dataKey="rangoReplicas"
             name="rango entre réplicas"
-            fill="#0060ff"
+            fill="#3b82f6"
             fillOpacity={0.14}
-            stroke="#0060ff"
+            stroke="#3b82f6"
             strokeOpacity={0.3}
             strokeWidth={1}
           />
@@ -105,20 +105,20 @@ export function WeeklyPerformanceChart({
           type="monotone"
           dataKey="deficit"
           name="déficit"
-          fill="#d33f28"
+          fill="#f2703c"
           fillOpacity={0.22}
-          stroke="#d33f28"
+          stroke="#f2703c"
           strokeOpacity={0.5}
           strokeWidth={1}
         />
         <Line type="monotone" dataKey="baseline" name="línea base" stroke="#0a7d6a" strokeWidth={1.8} strokeDasharray="4 3" dot={false} />
-        <Line type="monotone" dataKey="actualValue" name="valor real" stroke="#002860" strokeWidth={2.2} dot={false} />
+        <Line type="monotone" dataKey="actualValue" name="valor real" stroke="#171922" strokeWidth={2.2} dot={false} />
         {reconfigurationLabel && (
           <ReferenceLine
             x={reconfigurationLabel}
-            stroke="#c23a24"
+            stroke="#f2703c"
             strokeDasharray="3 3"
-            label={{ value: "reconfiguración", fontSize: 9, fill: "#c23a24", position: "insideTopRight" }}
+            label={{ value: "reconfiguración", fontSize: 9, fill: "#f2703c", position: "insideTopRight" }}
           />
         )}
       </ComposedChart>

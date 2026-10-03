@@ -7,9 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { WeeklyPerformanceChart } from "@/components/charts/weekly-performance-chart";
-import { NODE_TYPE_CODE, NODE_TYPE_COLOR } from "@/lib/mock/node-visuals";
-import { useMockDbStore } from "@/stores/mock-db-store";
-import type { SupplyChainNode } from "@/lib/mock/types";
+import { NODE_TYPE_CODE, NODE_TYPE_COLOR } from "@/lib/domain/node-visuals";
+import { useAppStore } from "@/stores/app-store";
+import type { SupplyChainNode } from "@/lib/domain/types";
 
 /** Campos numéricos editables de un Nodo — los atributos propios por tipo del modelo de datos. */
 type NumericField = "supplyCapacity" | "productionCapacity" | "storageCapacity" | "currentStockLevel";
@@ -51,12 +51,12 @@ const TYPE_NOTE: Record<string, string> = {
 };
 
 export function NodeInspector({ node, onClose }: { node: SupplyChainNode; onClose: () => void }) {
-  const edges = useMockDbStore((s) => s.edges);
-  const nodes = useMockDbStore((s) => s.nodes);
-  const weeklyPerformance = useMockDbStore((s) => s.weeklyPerformance);
-  const removeNode = useMockDbStore((s) => s.removeNode);
-  const removeNodeWithEdges = useMockDbStore((s) => s.removeNodeWithEdges);
-  const updateNode = useMockDbStore((s) => s.updateNode);
+  const edges = useAppStore((s) => s.edges);
+  const nodes = useAppStore((s) => s.nodes);
+  const weeklyPerformance = useAppStore((s) => s.weeklyPerformance);
+  const removeNode = useAppStore((s) => s.removeNode);
+  const removeNodeWithEdges = useAppStore((s) => s.removeNodeWithEdges);
+  const updateNode = useAppStore((s) => s.updateNode);
 
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [label, setLabel] = useState(node.label);
@@ -117,7 +117,12 @@ export function NodeInspector({ node, onClose }: { node: SupplyChainNode; onClos
 
   function handleDeleteWithEdges() {
     const removed = connections.length;
-    removeNodeWithEdges(node.id);
+    const result = removeNodeWithEdges(node.id);
+    if (!result.ok) {
+      toast.error(result.reason);
+      setConfirmingDelete(false);
+      return;
+    }
     toast.success(
       `${node.label} eliminado junto con ${removed} ${removed === 1 ? "conexión" : "conexiones"}.`,
     );
@@ -142,12 +147,12 @@ export function NodeInspector({ node, onClose }: { node: SupplyChainNode; onClos
 
       <div className="flex flex-col gap-3.5 p-3.5">
         <div className="grid grid-cols-2 gap-2">
-          <div className="rounded-lg border border-border bg-secondary/40 p-2.5">
+          <div className="rounded-lg border border-border bg-muted/40 p-2.5">
             <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">Tipo</div>
             <div className="mt-0.5 font-mono text-[15px]">{node.nodeType}</div>
           </div>
           {(ATTRIBUTES_BY_TYPE[node.nodeType] ?? []).map((attr) => (
-            <div key={attr.field} className="rounded-lg border border-border bg-secondary/40 p-2.5">
+            <div key={attr.field} className="rounded-lg border border-border bg-muted/40 p-2.5">
               <Label className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">
                 {attr.label}
               </Label>
@@ -173,7 +178,7 @@ export function NodeInspector({ node, onClose }: { node: SupplyChainNode; onClos
             Desempeño semanal
           </div>
           {history.length > 0 ? (
-            <div className="rounded-lg border border-border bg-secondary/20 p-1">
+            <div className="rounded-lg border border-border bg-muted/20 p-1">
               <WeeklyPerformanceChart data={history} />
             </div>
           ) : (

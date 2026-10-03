@@ -1,7 +1,7 @@
 "use client";
 
 import { Bar, BarChart, CartesianGrid, Cell, ErrorBar, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import type { KTableRow } from "@/lib/mock/types";
+import type { KTableRow } from "@/lib/domain/types";
 
 export function KTableChart({ rows }: { rows: KTableRow[] }) {
   const data = rows.map((r) => ({
@@ -36,9 +36,9 @@ export function KTableChart({ rows }: { rows: KTableRow[] }) {
         />
         <Bar dataKey="umbral" radius={[3, 3, 0, 0]}>
           {data.map((d, i) => (
-            <Cell key={i} fill={d.existe ? "#0060ff" : "#e4e8ef"} />
+            <Cell key={i} fill={d.existe ? "#3b82f6" : "#e4e8ef"} />
           ))}
-          <ErrorBar dataKey="rango" width={4} strokeWidth={1.2} stroke="#1f2a44" />
+          <ErrorBar dataKey="rango" width={4} strokeWidth={1.2} stroke="#616b7c" />
         </Bar>
       </BarChart>
     </ResponsiveContainer>

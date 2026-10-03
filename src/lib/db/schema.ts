@@ -1,0 +1,271 @@
+// Schema de Drizzle derivado de docs/modelo-datos.md — ese documento manda en lo estructural.
+// Nombres de tablas y columnas en español (como el modelo); identificadores de TypeScript en inglés.
+//
+// Columnas que NO están en el modelo formal y se agregaron por necesidad de la app (todas
+// marcadas abajo con "app:"): visibilidad y creador de la cadena, etiqueta y posición del nodo en
+// el canvas, nombre del escenario, timestamps y la tabla de invitaciones.
+import { sql } from "drizzle-orm";
+import {
+  bigint,
+  check,
+  date,
+  doublePrecision,
+  index,
+  integer,
+  jsonb,
+  pgEnum,
+  pgTable,
+  text,
+  timestamp,
+  uniqueIndex,
+  uuid,
+} from "drizzle-orm/pg-core";
+
+export const NODE_TYPE_VALUES = ["Proveedor", "Fabrica", "Almacen", "Vendedor", "Cliente"] as const;
+export const tipoNodoEnum = pgEnum("tipo_nodo", NODE_TYPE_VALUES);
+
+export const visibilidadCadenaEnum = pgEnum("visibilidad_cadena", ["shared", "private"]);
+
+/** Forma de cada fila de `resultados.tabla_k` (RF029): mediana y rango, nunca un valor puntual. */
+export interface TablaKRow {
+  k: number;
+  umbral_mediana: number | null;
+  umbral_min: number | null;
+  umbral_max: number | null;
+}
+
+const pk = () => uuid("id").primaryKey().defaultRandom();
+const creadoEn = () => timestamp("creado_en", { withTimezone: true }).notNull().defaultNow();
+
+export const organizaciones = pgTable("organizaciones", {
+  id: pk(),
+  nombre: text("nombre").notNull(),
+  creadoEn: creadoEn(),
+});
+
+export const rolesUsuario = pgTable("roles_usuario", {
+  id: pk(),
+  nombre: text("nombre").notNull().unique(),
+  // Lista abierta de acciones permitidas; qué significa cada permiso lo define la aplicación.
+  permisos: text("permisos").array().notNull().default(sql`'{}'::text[]`),
+});
+
+export const usuarios = pgTable(
+  "usuarios",
+  {
+    id: pk(),
+    nombre: text("nombre").notNull(),
+    email: text("email").notNull(),
+    // Hash bcrypt. Nullable para poder sumar login con Google (sin contraseña) más adelante.
+    contrasena: text("contrasena"),
+    // app: un empleado se registra sin organización y queda "pendiente" hasta aceptar una invitación.
+    rolId: uuid("rol_id").references(() => rolesUsuario.id, { onDelete: "restrict" }),
+    organizacionId: uuid("organizacion_id").references(() => organizaciones.id, { onDelete: "restrict" }),
+    creadoEn: creadoEn(),
+  },
+  (t) => [
+    // Los emails se guardan en minúsculas; el índice sobre lower() protege igual ante datos externos.
+    uniqueIndex("usuarios_email_lower_uq").on(sql`lower(${t.email})`),
+    index("usuarios_organizacion_idx").on(t.organizacionId),
+    // O pertenece a una organización con un rol, o a ninguna y sin rol. Nunca a medias.
+    check("usuarios_rol_org_juntos", sql`(${t.rolId} IS NULL) = (${t.organizacionId} IS NULL)`),
+  ],
+);
+
+// app: el modelo formal no cubre invitaciones; hace falta para "invitar usuarios a la organización".
+export const invitaciones = pgTable(
+  "invitaciones",
+  {
+    id: pk(),
+    organizacionId: uuid("organizacion_id")
+      .notNull()
+      .references(() => organizaciones.id, { onDelete: "cascade" }),
+    email: text("email").notNull(),
+    rolId: uuid("rol_id")
+      .notNull()
+      .references(() => rolesUsuario.id, { onDelete: "restrict" }),
+    invitadaPor: uuid("invitada_por")
+      .notNull()
+      .references(() => usuarios.id, { onDelete: "cascade" }),
+    // Solo se guarda el hash SHA-256 del token: el token en claro viaja una vez en el link.
+    tokenHash: text("token_hash").notNull().unique(),
+    expiraEn: timestamp("expira_en", { withTimezone: true }).notNull(),
+    aceptadaEn: timestamp("aceptada_en", { withTimezone: true }),
+    creadoEn: creadoEn(),
+  },
+  (t) => [
+    // Una sola invitación pendiente por email y organización.
+    uniqueIndex("invitaciones_pendiente_uq")
+      .on(t.organizacionId, sql`lower(${t.email})`)
+      .where(sql`${t.aceptadaEn} IS NULL`),
+    index("invitaciones_email_idx").on(sql`lower(${t.email})`),
+  ],
+);
+
+export const cadenas = pgTable(
+  "cadenas",
+  {
+    id: pk(),
+    nombre: text("nombre").notNull(),
+    organizacionId: uuid("organizacion_id")
+      .notNull()
+      .references(() => organizaciones.id, { onDelete: "cascade" }),
+    // app: "compartida" con toda la organización o "privada" de quien la creó.
+    visibilidad: visibilidadCadenaEnum("visibilidad").notNull().default("shared"),
+    creadaPor: uuid("creada_por")
+      .notNull()
+      .references(() => usuarios.id, { onDelete: "restrict" }),
+    creadoEn: creadoEn(),
+  },
+  (t) => [index("cadenas_organizacion_idx").on(t.organizacionId)],
+);
+
+// Herencia de tabla única (nota de implementación del modelo): una sola tabla `nodos` con las
+// columnas propias de cada tipo, todas nullable. Qué campo corresponde a qué tipo se valida en la app.
+export const nodos = pgTable(
+  "nodos",
+  {
+    id: pk(),
+    tipo: tipoNodoEnum("tipo").notNull(),
+    cadenaId: uuid("cadena_id")
+      .notNull()
+      .references(() => cadenas.id, { onDelete: "cascade" }),
+    // app: código visible en canvas y tablas (ej. "FAB-02") y posición en el canvas.
+    etiqueta: text("etiqueta").notNull(),
+    posX: doublePrecision("pos_x").notNull().default(0),
+    posY: doublePrecision("pos_y").notNull().default(0),
+    capacidadSuministro: doublePrecision("capacidad_suministro"),
+    capacidadProduccion: doublePrecision("capacidad_produccion"),
+    capacidadAlmacenamiento: doublePrecision("capacidad_almacenamiento"),
+    // Dato descriptivo: NO entra en ninguna fórmula del motor (RF027).
+    nivelStockActual: doublePrecision("nivel_stock_actual"),
+  },
+  (t) => [
+    index("nodos_cadena_idx").on(t.cadenaId),
+    check(
+      "nodos_capacidades_no_negativas",
+      sql`coalesce(${t.capacidadSuministro}, 0) >= 0 AND coalesce(${t.capacidadProduccion}, 0) >= 0 AND coalesce(${t.capacidadAlmacenamiento}, 0) >= 0 AND coalesce(${t.nivelStockActual}, 0) >= 0`,
+    ),
+  ],
+);
+
+// Sin costo, capacidad ni modo de transporte: decisión explícita del modelo (nada monetario).
+export const aristas = pgTable(
+  "aristas",
+  {
+    id: pk(),
+    nodoOrigenId: uuid("nodo_origen_id")
+      .notNull()
+      .references(() => nodos.id, { onDelete: "cascade" }),
+    nodoDestinoId: uuid("nodo_destino_id")
+      .notNull()
+      .references(() => nodos.id, { onDelete: "cascade" }),
+    tiempoTransito: doublePrecision("tiempo_transito").notNull(),
+  },
+  (t) => [
+    uniqueIndex("aristas_origen_destino_uq").on(t.nodoOrigenId, t.nodoDestinoId),
+    index("aristas_destino_idx").on(t.nodoDestinoId),
+    check("aristas_sin_lazos", sql`${t.nodoOrigenId} <> ${t.nodoDestinoId}`),
+    check("aristas_transito_positivo", sql`${t.tiempoTransito} > 0`),
+  ],
+);
+
+export const desempenoSemanal = pgTable(
+  "desempeno_semanal",
+  {
+    id: pk(),
+    nodoId: uuid("nodo_id")
+      .notNull()
+      .references(() => nodos.id, { onDelete: "cascade" }),
+    semana: date("semana", { mode: "string" }).notNull(),
+    valorReal: doublePrecision("valor_real").notNull(),
+    // Congelada al momento de la decisión: no se recalcula con el tiempo.
+    lineaBase: doublePrecision("linea_base").notNull(),
+    bandaInferior: doublePrecision("banda_inferior").notNull(),
+    bandaSuperior: doublePrecision("banda_superior").notNull(),
+    // linea_base − valor_real, nunca negativo: las semanas buenas no compensan a las malas.
+    deficit: doublePrecision("deficit").notNull(),
+  },
+  (t) => [
+    uniqueIndex("desempeno_nodo_semana_uq").on(t.nodoId, t.semana),
+    check("desempeno_deficit_no_negativo", sql`${t.deficit} >= 0`),
+  ],
+);
+
+export const escenarios = pgTable(
+  "escenarios",
+  {
+    id: pk(),
+    // app: identificador legible en listados.
+    nombre: text("nombre").notNull(),
+    // Horizonte H, en semanas: la única magnitud temporal que carga el usuario.
+    horizonteProyeccion: doublePrecision("horizonte_proyeccion").notNull(),
+    usuarioId: uuid("usuario_id")
+      .notNull()
+      .references(() => usuarios.id, { onDelete: "restrict" }),
+    cadenaId: uuid("cadena_id")
+      .notNull()
+      .references(() => cadenas.id, { onDelete: "cascade" }),
+    creadoEn: creadoEn(),
+  },
+  (t) => [
+    index("escenarios_cadena_idx").on(t.cadenaId),
+    check("escenarios_horizonte_positivo", sql`${t.horizonteProyeccion} > 0`),
+  ],
+);
+
+// Nunca lleva duración: es la incógnita que resuelve el sistema. Un escenario afecta un único nodo
+// (se valida en la app), pero `nodo_id` vive acá para no cerrar la puerta a C29.
+export const eventos = pgTable(
+  "eventos",
+  {
+    id: pk(),
+    tipo: text("tipo").notNull(),
+    fechaInicio: date("fecha_inicio", { mode: "string" }).notNull(),
+    magnitud: doublePrecision("magnitud").notNull(),
+    nodoId: uuid("nodo_id")
+      .notNull()
+      .references(() => nodos.id, { onDelete: "cascade" }),
+    escenarioId: uuid("escenario_id")
+      .notNull()
+      .references(() => escenarios.id, { onDelete: "cascade" }),
+  },
+  (t) => [
+    index("eventos_escenario_idx").on(t.escenarioId),
+    index("eventos_nodo_idx").on(t.nodoId),
+    check("eventos_magnitud_rango", sql`${t.magnitud} > 0 AND ${t.magnitud} <= 100`),
+  ],
+);
+
+// Cada corrida se conserva por separado y nunca se pisa (RF030).
+export const resultados = pgTable(
+  "resultados",
+  {
+    id: pk(),
+    escenarioId: uuid("escenario_id")
+      .notNull()
+      .references(() => escenarios.id, { onDelete: "cascade" }),
+    fechaCorrida: date("fecha_corrida", { mode: "string" }).notNull(),
+    tablaK: jsonb("tabla_k").$type<TablaKRow[]>().notNull(),
+    replicas: integer("replicas").notNull(),
+    // Semilla del PRNG: junto con `replicas` permite reproducir la corrida exacta (RF030).
+    semilla: bigint("semilla", { mode: "number" }).notNull(),
+    // Semana del horizonte en que se reconfiguró (escalón, RF022); null = no se reconfiguró.
+    semanaReconfiguracion: integer("semana_reconfiguracion"),
+    // app: `fecha_corrida` es solo una fecha; este timestamp ordena varias corridas del mismo día.
+    creadoEn: creadoEn(),
+  },
+  (t) => [index("resultados_escenario_idx").on(t.escenarioId)],
+);
+
+export type Organizacion = typeof organizaciones.$inferSelect;
+export type RolUsuarioRow = typeof rolesUsuario.$inferSelect;
+export type UsuarioRow = typeof usuarios.$inferSelect;
+export type InvitacionRow = typeof invitaciones.$inferSelect;
+export type CadenaRow = typeof cadenas.$inferSelect;
+export type NodoRow = typeof nodos.$inferSelect;
+export type AristaRow = typeof aristas.$inferSelect;
+export type DesempenoSemanalRow = typeof desempenoSemanal.$inferSelect;
+export type EscenarioRow = typeof escenarios.$inferSelect;
+export type EventoRow = typeof eventos.$inferSelect;
+export type ResultadoRow = typeof resultados.$inferSelect;

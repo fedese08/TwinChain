@@ -1,6 +1,6 @@
-import { NODE_TYPES } from "@/lib/mock/types";
-import { NODE_TYPE_CODE, NODE_TYPE_COLOR } from "@/lib/mock/node-visuals";
-import { CHAIN_TEMPLATES, CHAIN_TEMPLATE_LABELS } from "@/lib/mock/templates";
+import { NODE_TYPES } from "@/lib/domain/types";
+import { NODE_TYPE_CODE, NODE_TYPE_COLOR } from "@/lib/domain/node-visuals";
+import { CHAIN_TEMPLATES, CHAIN_TEMPLATE_LABELS } from "@/lib/domain/templates";
 
 const NODE_TYPE_FIELDS: Record<string, { k: string; v: string }[]> = {
   Proveedor: [{ k: "atributos propios", v: "ninguno todavía" }],
@@ -30,7 +30,7 @@ export default function LibraryPage() {
                   <span className="text-[14px] font-medium">{type}</span>
                   <span className="ml-auto font-mono text-[10px] text-muted-foreground">{NODE_TYPE_CODE[type]}</span>
                 </div>
-                <div className="flex flex-col gap-1 rounded-lg border border-border bg-secondary/30 p-2">
+                <div className="flex flex-col gap-1 rounded-lg border border-border bg-muted/30 p-2">
                   {NODE_TYPE_FIELDS[type].map((f) => (
                     <div key={f.k} className="flex justify-between font-mono text-[10.5px]">
                       <span className="text-muted-foreground">{f.k}</span>
@@ -46,7 +46,7 @@ export default function LibraryPage() {
                 <span className="text-[14px] font-medium">Arista</span>
                 <span className="ml-auto font-mono text-[10px] text-muted-foreground">edge</span>
               </div>
-              <div className="flex flex-col gap-1 rounded-lg border border-border bg-secondary/30 p-2">
+              <div className="flex flex-col gap-1 rounded-lg border border-border bg-muted/30 p-2">
                 <div className="flex justify-between font-mono text-[10.5px]">
                   <span className="text-muted-foreground">tiempo_transito</span>
                   <span>float (días)</span>

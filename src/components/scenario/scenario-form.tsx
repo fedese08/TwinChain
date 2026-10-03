@@ -15,8 +15,8 @@ import {
   scenarioFormSchema,
   type ScenarioFormValues,
 } from "@/lib/validators/scenario";
-import { useMockDbStore } from "@/stores/mock-db-store";
-import type { SupplyChainNode } from "@/lib/mock/types";
+import { useAppStore } from "@/stores/app-store";
+import type { SupplyChainNode } from "@/lib/domain/types";
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
@@ -41,7 +41,8 @@ export const ScenarioForm = forwardRef<ScenarioFormHandle, ScenarioFormProps>(fu
   ref,
 ) {
   const router = useRouter();
-  const createScenario = useMockDbStore((s) => s.createScenario);
+  const createScenario = useAppStore((s) => s.createScenario);
+  const canRun = useAppStore((s) => s.canRun);
 
   const {
     register,
@@ -219,11 +220,20 @@ export const ScenarioForm = forwardRef<ScenarioFormHandle, ScenarioFormProps>(fu
           {errors.events?.root && <span className="text-[10.5px] text-destructive">{errors.events.root.message}</span>}
         </div>
 
-        <div className="rounded-lg border border-border bg-secondary/30 p-2.5 text-[11px] leading-relaxed text-muted-foreground">
+        <div className="rounded-lg border border-border bg-muted/30 p-2.5 text-[11px] leading-relaxed text-muted-foreground">
           La duración de la disrupción no se carga: es la incógnita que el sistema resuelve al correr la simulación.
         </div>
 
-        <Button type="submit" disabled={isSubmitting} className="bg-foreground text-background hover:bg-foreground/85">
+        {!canRun && (
+          <p className="rounded-lg bg-muted px-2.5 py-2 text-[11px] leading-relaxed text-muted-foreground">
+            Tu rol no puede correr simulaciones.
+          </p>
+        )}
+        <Button
+          type="submit"
+          disabled={isSubmitting || !canRun}
+          className="bg-foreground text-background hover:bg-foreground/85"
+        >
           ▶ Correr simulación
         </Button>
       </div>

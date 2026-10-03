@@ -2,8 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { ChainCanvas } from "@/components/canvas/chain-canvas";
-import { classifySeverity, type ProjectedWeek, type Severity } from "@/lib/mock/simulate";
-import type { SupplyChainEdge, SupplyChainNode } from "@/lib/mock/types";
+import { classifySeverity, type ProjectedWeek, type Severity } from "@/lib/domain/simulate";
+import type { SupplyChainEdge, SupplyChainNode } from "@/lib/domain/types";
 
 /** Antes de arrancar la animación — un mini loading que estira la transición entre el form y la red. */
 const INITIAL_LOADING_MS = 850;

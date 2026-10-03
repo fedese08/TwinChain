@@ -3,9 +3,10 @@
 import { use, useCallback, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { ChainCanvas } from "@/components/canvas/chain-canvas";
+import { DeleteChainButton } from "@/components/canvas/delete-chain-dialog";
 import { ScenarioForm, type ScenarioFormHandle } from "@/components/scenario/scenario-form";
 import { cn } from "@/lib/utils";
-import { useMockDbStore } from "@/stores/mock-db-store";
+import { useAppStore } from "@/stores/app-store";
 
 type Mode = "design" | "simulate";
 
@@ -15,9 +16,10 @@ export default function ChainDetailPage({ params }: { params: Promise<{ chainId:
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const scenarioFormRef = useRef<ScenarioFormHandle>(null);
 
-  const chain = useMockDbStore((s) => s.chains.find((c) => c.id === chainId));
-  const stabilityCheck = useMockDbStore((s) => s.stabilityChecks[chainId]);
-  const nodes = useMockDbStore((s) => s.nodes);
+  const chain = useAppStore((s) => s.chains.find((c) => c.id === chainId));
+  const stabilityCheck = useAppStore((s) => s.stabilityChecks[chainId]);
+  const canWrite = useAppStore((s) => s.canWrite);
+  const nodes = useAppStore((s) => s.nodes);
   const chainNodes = useMemo(() => nodes.filter((n) => n.chainId === chainId), [nodes, chainId]);
 
   const handleNodeSelect = useCallback((nodeId: string) => {
@@ -56,7 +58,7 @@ export default function ChainDetailPage({ params }: { params: Promise<{ chainId:
                 className="rounded border px-1 py-0.5"
                 style={
                   stabilityCheck.status === "alerta"
-                    ? { borderColor: "#e9b8ad", color: "#c23a24" }
+                    ? { borderColor: "#f5c9a8", color: "#c2571f" }
                     : { borderColor: "#b9e2d8", color: "#0a7d6a" }
                 }
               >
@@ -72,7 +74,7 @@ export default function ChainDetailPage({ params }: { params: Promise<{ chainId:
             onClick={() => setMode("design")}
             className={cn(
               "px-3.5 py-1.5 text-[12.5px] whitespace-nowrap",
-              mode === "design" ? "bg-secondary font-medium" : "text-muted-foreground",
+              mode === "design" ? "bg-muted font-medium" : "text-muted-foreground",
             )}
           >
             Diseño y monitoreo
@@ -81,7 +83,7 @@ export default function ChainDetailPage({ params }: { params: Promise<{ chainId:
             onClick={() => setMode("simulate")}
             className={cn(
               "border-l border-border px-3.5 py-1.5 text-[12.5px] whitespace-nowrap",
-              mode === "simulate" ? "bg-secondary font-medium" : "text-muted-foreground",
+              mode === "simulate" ? "bg-muted font-medium" : "text-muted-foreground",
             )}
           >
             Simulación
@@ -91,15 +93,18 @@ export default function ChainDetailPage({ params }: { params: Promise<{ chainId:
         {mode === "simulate" && (
           <Link
             href={`/cadenas/${chainId}/escenarios`}
-            className="flex-none whitespace-nowrap rounded-lg border border-border px-3.5 py-1.5 text-[12.5px] hover:bg-secondary"
+            className="flex-none whitespace-nowrap rounded-lg border border-border px-3.5 py-1.5 text-[12.5px] hover:bg-muted"
           >
             Ver simulaciones
           </Link>
         )}
+
+        {canWrite && <DeleteChainButton chainId={chainId} chainName={chain.name} />}
       </div>
 
       {mode === "design" ? (
-        <ChainCanvas chainId={chainId} mode="edit" />
+        // Sin permiso de escritura el canvas se muestra tal cual, sin paleta ni edición.
+        <ChainCanvas chainId={chainId} mode={canWrite ? "edit" : "display"} />
       ) : (
         <div className="flex min-h-0 flex-1">
           <ScenarioForm
