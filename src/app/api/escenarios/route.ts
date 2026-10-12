@@ -9,10 +9,10 @@ import { isUniqueViolation } from "@/lib/db/errors";
 import { runScenarioOnChain, SimulationTooLargeError, simulationTooLargeBody } from "@/lib/simulation/run-scenario";
 import { createScenarioSchema } from "@/lib/validators/scenario-api";
 
-// El motor corre dentro de este request. 800 s es el máximo de una función en el plan Pro de
-// Vercel; si el proyecto queda en un plan con un máximo menor, hay que bajar este valor.
+// El motor corre dentro de este request. 300 s es el máximo de una función en el plan Hobby de
+// Vercel (en Pro llega a 800; un valor mayor al del plan hace FALLAR el build).
 // La salvaguarda real es `MAX_SIMULATION_WORK`, calibrada para usar menos de la mitad.
-export const maxDuration = 800;
+export const maxDuration = 300;
 
 /**
  * Crea el escenario con sus eventos y corre la primera simulación, todo o nada: si el motor

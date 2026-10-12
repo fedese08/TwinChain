@@ -12,14 +12,14 @@ import type { DisruptionEvent } from "@/lib/domain/types";
 /**
  * Tope de trabajo de una corrida, en las unidades de `estimateSimulationWork`.
  *
- * Calibrado en docs/rendimiento-motor.md: localmente cada unidad cuesta entre 190 y 730 ns según
- * la topología. 100 M unidades son ≤ ~75 s en esa máquina y, suponiendo una CPU de Vercel hasta 3
- * veces más lenta, ≤ ~220 s: por debajo de la mitad de `maxDuration` (800 s), que es el margen que
- * pide el criterio del tope de Max. Con los límites actuales (50 nodos, 20 eventos, 52 semanas,
- * 30 réplicas) el peor caso posible ronda los 4 M: este tope no se dispara hoy, protege para cuando
- * suban los nodos por plan o las réplicas (200-300, C36).
+ * Calibrado en docs/rendimiento-motor.md: localmente cada unidad cuesta entre 74 y 730 ns según
+ * la topología. 50 M unidades son ≤ ~37 s en esa máquina y, suponiendo una CPU de Vercel hasta 3
+ * veces más lenta, ≤ ~110 s: por debajo de la mitad de `maxDuration` (300 s, plan Hobby), que es el
+ * margen que pide el criterio del tope de Max. Con los límites actuales (50 nodos, 20 eventos, 52
+ * semanas, 30 réplicas) el peor caso posible ronda los 3 M: este tope no se dispara hoy, protege
+ * para cuando suban los nodos por plan o las réplicas (200-300, C36).
  */
-export const MAX_SIMULATION_WORK = 100_000_000;
+export const MAX_SIMULATION_WORK = 50_000_000;
 
 /** La corrida se rechaza ANTES de ejecutarla porque costaría más de lo que admite el servidor. */
 export class SimulationTooLargeError extends Error {

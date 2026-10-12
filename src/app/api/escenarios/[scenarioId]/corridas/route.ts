@@ -9,7 +9,7 @@ import { runScenarioOnChain, SimulationTooLargeError, simulationTooLargeBody } f
 import { rerunScenarioSchema } from "@/lib/validators/scenario-api";
 
 // Mismo criterio que POST /api/escenarios: ver el comentario de `maxDuration` ahí.
-export const maxDuration = 800;
+export const maxDuration = 300;
 
 /**
  * Vuelve a correr un escenario y AGREGA una corrida nueva: nunca pisa las anteriores (RF030).
