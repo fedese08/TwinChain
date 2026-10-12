@@ -152,6 +152,12 @@ actual y no con la de la corrida.
     metodológica de la tesis. Su API es `runScenarioSimulation(...)`: corre N réplicas (default 30) y devuelve
     `projectionByNode` (mediana + rango por semana), `totalDeficit` y `kTable`. Internamente hace BFS aguas abajo
     por las Aristas trasladando una fracción del déficit por salto y retrasando el onset según `tiempo_transito`.
+    El BFS **poda las llegadas dominadas** (mismo nodo y evento, llegada más tardía, magnitud menor o igual, saltos
+    mayores o iguales). Sin eso el costo crecía con la cantidad de caminos y una red de 26 nodos muy conectados
+    colgaba el motor. **No reemplazarla por un "visitados" plano: cambia resultados** (se probó, 135/600 casos).
+    Cualquier cambio de rendimiento del motor se valida con `npx tsx scripts/verify-engine-equivalence.ts` (compara
+    bit a bit contra una versión de git) y se mide con `scripts/bench-engine.ts` — ver `docs/rendimiento-motor.md`.
+    Las rutas de simulación rechazan con 422 una corrida cuyo trabajo estimado supere `MAX_SIMULATION_WORK`.
   - `ChainCanvas` tiene tres modos (`edit`/`select`/`display`) en vez de un `readOnly` booleano — ver
     `src/components/canvas/chain-canvas.tsx`.
 - **RF corregidos de la bitácora, ya implementados en el mock** (no son "placeholder libre": el cálculo es de

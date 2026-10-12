@@ -5,8 +5,11 @@ import { requireApiMember } from "@/lib/auth/session";
 import { findVisibleScenario } from "@/lib/data/access";
 import { toEvent, toResult } from "@/lib/data/mappers";
 import { eventos, getDb, resultados } from "@/lib/db";
-import { runScenarioOnChain } from "@/lib/simulation/run-scenario";
+import { runScenarioOnChain, SimulationTooLargeError, simulationTooLargeBody } from "@/lib/simulation/run-scenario";
 import { rerunScenarioSchema } from "@/lib/validators/scenario-api";
+
+// Mismo criterio que POST /api/escenarios: ver el comentario de `maxDuration` ahí.
+export const maxDuration = 800;
 
 /**
  * Vuelve a correr un escenario y AGREGA una corrida nueva: nunca pisa las anteriores (RF030).
@@ -33,13 +36,20 @@ export async function POST(request: Request, { params }: { params: Promise<{ sce
 
   const eventRows = await db.select().from(eventos).where(eq(eventos.escenarioId, scenarioId));
 
-  const run = await runScenarioOnChain(db, {
-    scenarioId,
-    chainId: escenario.cadenaId,
-    horizonWeeks: escenario.horizonteProyeccion,
-    events: eventRows.map(toEvent),
-    reconfigurationWeekIndex,
-  });
+  let run: Awaited<ReturnType<typeof runScenarioOnChain>>;
+  try {
+    run = await runScenarioOnChain(db, {
+      scenarioId,
+      chainId: escenario.cadenaId,
+      horizonWeeks: escenario.horizonteProyeccion,
+      events: eventRows.map(toEvent),
+      reconfigurationWeekIndex,
+    });
+  } catch (error) {
+    // Puede pasar si la cadena creció desde la primera corrida (más nodos o aristas).
+    if (error instanceof SimulationTooLargeError) return NextResponse.json(simulationTooLargeBody(error), { status: 422 });
+    throw error;
+  }
 
   const [result] = await db.insert(resultados).values(run).returning();
   return NextResponse.json({ result: toResult(result) }, { status: 201 });

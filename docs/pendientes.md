@@ -39,6 +39,16 @@ funcionalidad que todavía no existe.
   `handleAddNode` en `src/components/canvas/chain-canvas.tsx`.
 - **[deuda] Sin restricción de duplicados de etiqueta** dentro de una cadena (la base no la exige).
 
+## Rendimiento del motor (ver `docs/rendimiento-motor.md`)
+
+- **[falta] El tope de nodos por cadena es fijo (50)** y no depende del plan. Si Max va a ser 150 o 300, hace falta
+  una entidad de plan o suscripción que hoy no existe en el modelo. Desde el motor, 300 es holgado (0,36 s).
+- **[falta] Medición en Vercel.** `scripts/bench-engine.ts` mide solo el motor en una máquina local. CPU activa,
+  memoria y tiempo de instancia reales necesitan el despliegue.
+- **[deuda] `maxDuration = 800` asume el plan Pro de Vercel.** Si el proyecto se despliega en un plan con un máximo
+  menor, bajarlo en `src/app/api/escenarios/route.ts` y `.../corridas/route.ts`. Revisar `MAX_SIMULATION_WORK`
+  (`src/lib/simulation/run-scenario.ts`) cuando haya números de Vercel: hoy está calibrado con la CPU de un M4.
+
 ## Backend y arquitectura
 
 - **[deuda] Simulación síncrona.** `POST /api/escenarios` y `/corridas` corren el motor dentro del request. Con 30
@@ -56,6 +66,9 @@ funcionalidad que todavía no existe.
   que se hicieron a mano (aislamiento entre organizaciones, permisos, cadenas privadas, cascadas, reproducibilidad
   por semilla) se descartaron después de correrlas: convertirlas en una suite permanente y sumarla al CI (hoy el CI
   solo hace lint + typecheck + `drizzle-kit check`). Prioridad: aislamiento multi-tenant y determinismo del motor.
+- **[deuda] El `.env.local` de desarrollo apunta a la rama `production` de Neon.** Cualquier prueba local que
+  escriba (crear escenarios, correr simulaciones, el seed) toca la base real. Crear una rama `dev` en Neon y usarla
+  en `.env.local`; dejar `production` solo para el despliegue.
 - **[falta] Despliegue.** Nada está en Vercel todavía. Al desplegar: variables de entorno, `maxDuration` de las
   rutas de simulación, `AUTH_URL`, y confirmar que el pooler de Neon con `prepare: false` rinde bien.
 - **[deuda] `.gitattributes`.** Git avisa en cada commit que LF se reemplazará por CRLF (Windows). Fijar la

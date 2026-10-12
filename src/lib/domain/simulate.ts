@@ -164,11 +164,42 @@ interface PropagationSpread {
   eventsByNode: Map<string, DisruptionEvent[]>;
   /** Retraso mínimo (en semanas) desde el origen hasta cada nodo alcanzado. */
   delayWeeksByNode: Map<string, number>;
+  /** Aristas recorridas durante la propagación — solo para estimar el costo, no entra en ningún cálculo. */
+  relaxations: number;
+}
+
+/** Una llegada de la disrupción a un nodo, por algún camino. */
+interface Arrival {
+  magnitude: number;
+  delayDays: number;
+  hops: number;
+}
+
+/**
+ * `a` domina a `b` si llega al mismo nodo antes o a la vez, con magnitud mayor o igual y en
+ * los mismos saltos o menos. Una llegada dominada no cambia nada:
+ * - en el nodo, porque `projectReplica` se queda con la caída MÁXIMA de las llegadas cuyo onset
+ *   ya pasó, y la dominante ya está vigente desde antes con una caída igual o mayor;
+ * - aguas abajo, porque cada salto aplica lo mismo a las dos (mismo retraso sumado, misma
+ *   fracción multiplicada, un salto más), así que todo lo que propague la dominada queda a su vez
+ *   dominado — incluidos los cortes por piso de magnitud y por tope de saltos.
+ * - en `delayWeeksByNode`, porque la dominante tiene un retraso menor o igual.
+ */
+function dominates(a: Arrival, b: Arrival): boolean {
+  return a.delayDays <= b.delayDays && a.magnitude >= b.magnitude && a.hops <= b.hops;
 }
 
 /**
  * Propaga cada Evento aguas abajo por las Aristas (BFS en el sentido del tránsito): cada salto
  * traslada una fracción de la magnitud (RF027) y retrasa el onset según tiempo_transito.
+ *
+ * **Poda por dominancia.** El BFS no corta al llegar a un nodo ya alcanzado — no puede: procesa
+ * por saltos, no por fecha, y la primera llegada puede ser la más tardía o la más débil. Lo que sí
+ * hace es descartar las llegadas DOMINADAS (ver `dominates`). Sin esto, el BFS expandía cada camino
+ * por separado y el costo crecía con la cantidad de caminos, no de nodos: una red de 26 nodos muy
+ * conectados pasaba los 120 s (docs/rendimiento-motor.md, Hallazgo 1). El resultado es idéntico
+ * al de antes de la poda; la poda es por evento de origen para que tampoco cambie el retraso mínimo
+ * de cada nodo, que se mide contra la fecha de su propio evento.
  */
 function spreadEvents(
   edges: Pick<SupplyChainEdge, "sourceNodeId" | "targetNodeId" | "transitTimeDays">[],
@@ -184,13 +215,26 @@ function spreadEvents(
 
   const eventsByNode = new Map<string, DisruptionEvent[]>();
   const delayWeeksByNode = new Map<string, number>();
+  let relaxations = 0;
 
   for (const event of events) {
-    const queue: { nodeId: string; magnitude: number; delayDays: number; hops: number }[] = [
+    // Frente de llegadas no dominadas por nodo, para ESTE evento.
+    const frontierByNode = new Map<string, Arrival[]>();
+    const isDominated = (nodeId: string, arrival: Arrival) =>
+      (frontierByNode.get(nodeId) ?? []).some((known) => dominates(known, arrival));
+
+    const queue: (Arrival & { nodeId: string })[] = [
       { nodeId: event.nodeId, magnitude: event.magnitude, delayDays: 0, hops: 0 },
     ];
-    while (queue.length > 0) {
-      const current = queue.shift()!;
+    // Cola con índice de lectura: `shift()` es O(n) y la cola puede ser larga.
+    for (let head = 0; head < queue.length; head++) {
+      const current = queue[head];
+      // Se vuelve a chequear al sacarla: pudo quedar dominada por otra que se procesó después
+      // de encolarla.
+      if (isDominated(current.nodeId, current)) continue;
+      const frontier = (frontierByNode.get(current.nodeId) ?? []).filter((known) => !dominates(current, known));
+      frontier.push(current);
+      frontierByNode.set(current.nodeId, frontier);
 
       const list = eventsByNode.get(current.nodeId) ?? [];
       list.push({
@@ -211,20 +255,42 @@ function spreadEvents(
 
       if (current.hops >= MAX_PROPAGATION_HOPS) continue;
       for (const neighbor of adjacency.get(current.nodeId) ?? []) {
+        relaxations++;
         const propagatedMagnitude = current.magnitude * propagationFraction;
         if (propagatedMagnitude < MIN_PROPAGATED_MAGNITUDE) continue;
         const hopDelayDays = Math.max(7, Math.round(neighbor.transitTimeDays / 7) * 7);
-        queue.push({
+        const next = {
           nodeId: neighbor.targetNodeId,
           magnitude: propagatedMagnitude,
           delayDays: current.delayDays + hopDelayDays,
           hops: current.hops + 1,
-        });
+        };
+        if (!isDominated(next.nodeId, next)) queue.push(next);
       }
     }
   }
 
-  return { eventsByNode, delayWeeksByNode };
+  return { eventsByNode, delayWeeksByNode, relaxations };
+}
+
+/**
+ * Estima cuánto trabajo va a costar una corrida SIN correrla, para poder rechazarla antes
+ * (salvaguarda del Hallazgo 1 de docs/rendimiento-motor.md). Propaga una sola vez con la
+ * fracción MÁXIMA del rango — la que más lejos llega antes del piso de magnitud, y por lo tanto
+ * el peor caso entre réplicas — y lo escala por las réplicas:
+ *   unidades = réplicas × (aristas recorridas + llegadas por nodo × semanas del horizonte)
+ * Las dos partes son las que dominan el costo real: la propagación y `projectReplica`.
+ */
+export function estimateSimulationWork(
+  edges: Pick<SupplyChainEdge, "sourceNodeId" | "targetNodeId" | "transitTimeDays">[],
+  events: DisruptionEvent[],
+  horizonWeeks: number,
+  replications: number = DEFAULT_REPLICATIONS,
+): number {
+  const spread = spreadEvents(edges, events, PROPAGATION_FRACTION_MAX);
+  let arrivals = 0;
+  for (const list of spread.eventsByNode.values()) arrivals += list.length;
+  return replications * (spread.relaxations + arrivals * horizonWeeks);
 }
 
 /**

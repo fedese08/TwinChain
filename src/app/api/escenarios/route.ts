@@ -6,8 +6,13 @@ import { findVisibleChain } from "@/lib/data/access";
 import { toEvent, toResult, toScenario } from "@/lib/data/mappers";
 import { escenarios, eventos, getDb, nodos, resultados } from "@/lib/db";
 import { isUniqueViolation } from "@/lib/db/errors";
-import { runScenarioOnChain } from "@/lib/simulation/run-scenario";
+import { runScenarioOnChain, SimulationTooLargeError, simulationTooLargeBody } from "@/lib/simulation/run-scenario";
 import { createScenarioSchema } from "@/lib/validators/scenario-api";
+
+// El motor corre dentro de este request. 800 s es el máximo de una función en el plan Pro de
+// Vercel; si el proyecto queda en un plan con un máximo menor, hay que bajar este valor.
+// La salvaguarda real es `MAX_SIMULATION_WORK`, calibrada para usar menos de la mitad.
+export const maxDuration = 800;
 
 /**
  * Crea el escenario con sus eventos y corre la primera simulación, todo o nada: si el motor
@@ -42,13 +47,19 @@ export async function POST(request: Request) {
     magnitude: e.magnitude,
   }));
 
-  const run = await runScenarioOnChain(db, {
-    scenarioId: input.id,
-    chainId: input.chainId,
-    horizonWeeks: input.projectionHorizonWeeks,
-    events,
-    reconfigurationWeekIndex: null,
-  });
+  let run: Awaited<ReturnType<typeof runScenarioOnChain>>;
+  try {
+    run = await runScenarioOnChain(db, {
+      scenarioId: input.id,
+      chainId: input.chainId,
+      horizonWeeks: input.projectionHorizonWeeks,
+      events,
+      reconfigurationWeekIndex: null,
+    });
+  } catch (error) {
+    if (error instanceof SimulationTooLargeError) return NextResponse.json(simulationTooLargeBody(error), { status: 422 });
+    throw error;
+  }
 
   try {
     const created = await db.transaction(async (tx) => {
