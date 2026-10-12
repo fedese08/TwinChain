@@ -158,6 +158,10 @@ actual y no con la de la corrida.
     Cualquier cambio de rendimiento del motor se valida con `npx tsx scripts/verify-engine-equivalence.ts` (compara
     bit a bit contra una versión de git) y se mide con `scripts/bench-engine.ts` — ver `docs/rendimiento-motor.md`.
     Las rutas de simulación rechazan con 422 una corrida cuyo trabajo estimado supere `MAX_SIMULATION_WORK`.
+    **Despliegue (Vercel, plan Hobby):** `maxDuration = 300` (máximo de Hobby; con 800 el build falla) y las
+    funciones corren en `gru1` por `vercel.json`, junto a Neon (`sa-east-1`). No sacar el `vercel.json`: en `iad1`
+    cada simulación sumaba ~3,3 s de espera a la base. El motor en Vercel es ~3,3× más lento que en un M4. Mediciones
+    en `docs/rendimiento-motor-vercel.md`.
   - `ChainCanvas` tiene tres modos (`edit`/`select`/`display`) en vez de un `readOnly` booleano — ver
     `src/components/canvas/chain-canvas.tsx`.
 - **RF corregidos de la bitácora, ya implementados en el mock** (no son "placeholder libre": el cálculo es de

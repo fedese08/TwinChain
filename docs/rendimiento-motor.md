@@ -9,6 +9,11 @@ una ejecución, para fijar el tope de nodos de Max y el costo de cada tier.
 
 Se mide con `scripts/bench-engine.ts` (`npx tsx scripts/bench-engine.ts`).
 
+> **Actualización 12/10/2026:** la medición dentro de Vercel está en `docs/rendimiento-motor-vercel.md`. Dos
+> correcciones a lo que dice este documento: el plan es **Hobby**, así que `maxDuration` quedó en **300 s** (no 800),
+> y `MAX_SIMULATION_WORK` bajó a **50 M** unidades. Los números de este documento son de una Apple M4; en Vercel el
+> motor es ~3,3× más lento.
+
 ## Resumen
 
 1. **El arreglo del Hallazgo 1 está implementado y da el mismo resultado bit a bit.** Se verificó en 2000 redes

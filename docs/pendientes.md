@@ -43,11 +43,18 @@ funcionalidad que todavía no existe.
 
 - **[falta] El tope de nodos por cadena es fijo (50)** y no depende del plan. Si Max va a ser 150 o 300, hace falta
   una entidad de plan o suscripción que hoy no existe en el modelo. Desde el motor, 300 es holgado (0,36 s).
-- **[falta] Medición en Vercel.** `scripts/bench-engine.ts` mide solo el motor en una máquina local. CPU activa,
-  memoria y tiempo de instancia reales necesitan el despliegue.
-- **[deuda] `maxDuration = 800` asume el plan Pro de Vercel.** Si el proyecto se despliega en un plan con un máximo
-  menor, bajarlo en `src/app/api/escenarios/route.ts` y `.../corridas/route.ts`. Revisar `MAX_SIMULATION_WORK`
-  (`src/lib/simulation/run-scenario.ts`) cuando haya números de Vercel: hoy está calibrado con la CPU de un M4.
+- **[deuda] Contrastar la medición con el panel de Vercel y confirmar la memoria configurada.** La medición en
+  Vercel está hecha (`docs/rendimiento-motor-vercel.md`), pero con lo que mide la propia función. Falta mirar
+  *Observability → Functions* (CPU activa, memoria y duración facturadas) y *Settings → Functions* (memoria real,
+  que en Hobby sería 2 GB).
+- **[deuda] Medir la base con una cadena grande.** La carga de base se midió con la cadena demo (10 nodos); con
+  150–300 nodos las lecturas traen ~4.800 filas de desempeño y ese costo se estimó, no se midió.
+- **[deuda] El plan Hobby de Vercel es solo para uso no comercial.** Si se cobran tiers, el despliegue necesita
+  Pro; ahí `maxDuration` sube a 800 y se puede relajar `MAX_SIMULATION_WORK`. Hoy `maxDuration = 300` (máximo de
+  Hobby; un valor mayor hace fallar el build) y el tope está en 50 M unidades.
+- **[deuda] `estimateSimulationWork` es conservador:** no distingue redes baratas de caras por unidad (varía ~10×
+  entre topologías), así que rechazaría una red de 300 nodos todos con todos y 20 eventos que en la práctica tarda
+  16 s. Hoy no se dispara con el tope de 50 nodos; refinarlo con el grado de las aristas si llega a molestar.
 
 ## Backend y arquitectura
 
@@ -69,8 +76,10 @@ funcionalidad que todavía no existe.
 - **[deuda] El `.env.local` de desarrollo apunta a la rama `production` de Neon.** Cualquier prueba local que
   escriba (crear escenarios, correr simulaciones, el seed) toca la base real. Crear una rama `dev` en Neon y usarla
   en `.env.local`; dejar `production` solo para el despliegue.
-- **[falta] Despliegue.** Nada está en Vercel todavía. Al desplegar: variables de entorno, `maxDuration` de las
-  rutas de simulación, `AUTH_URL`, y confirmar que el pooler de Neon con `prepare: false` rinde bien.
+- **[hecho, a vigilar] Despliegue en Vercel** (`twinchain.vercel.app`, plan Hobby). Las funciones corren en `gru1`
+  (`vercel.json`), junto a la base de Neon (`sa-east-1`): en `iad1` cada consulta cruzaba el continente (~230 ms) y
+  una simulación sumaba 3,3 s de espera. **Si se cambia de región de Neon o de plan, revisar `vercel.json`.**
+  Pendiente de despliegue: `AUTH_URL` si se agrega un dominio propio.
 - **[deuda] `.gitattributes`.** Git avisa en cada commit que LF se reemplazará por CRLF (Windows). Fijar la
   normalización de fin de línea para no ensuciar diffs.
 - **[deuda] `npm audit`** reportó vulnerabilidades al instalar dependencias; revisar cuáles son de desarrollo.
