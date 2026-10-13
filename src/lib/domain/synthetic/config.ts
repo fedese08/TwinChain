@@ -22,6 +22,13 @@ export const BURN_IN_WEEKS = 8;
 /** Tope de semanas que se pueden avanzar en una sola llamada del monitoreo vivo. */
 export const MAX_ADVANCE_WEEKS = 8;
 
+/**
+ * Tope de semanas guardadas por nodo (historial + avance). Cada avance suma una fila por nodo y el
+ * snapshot las carga todas, así que sin tope la tabla crece sin límite. "Reiniciar" vuelve al historial
+ * original (y como la serie es determinista, repetir el avance da exactamente lo mismo).
+ */
+export const MAX_WEEKS_PER_NODE = 156;
+
 /** Tamaño del cambio de nivel que inyecta el interruptor "historial con cambio estructural", en σ del nodo. */
 export const LEVEL_SHIFT_SIGMAS = -4;
 

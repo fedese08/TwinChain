@@ -139,6 +139,14 @@ interface AppState {
     weeklyPerformance?: WeeklyPerformance[];
   }) => void;
   /**
+   * Monitoreo vivo: avanza `weeks` semanas simuladas el desempeño de todos los nodos de la cadena. Espera al
+   * servidor (el dato nuevo lo genera él) y suma las filas a la copia de trabajo. No muestra avisos: quien lo
+   * llama decide qué hacer con el error (p. ej. frenar el reproductor).
+   */
+  advanceChain: (chainId: string, weeks: number) => Promise<{ ok: true } | { ok: false; error: string; code?: string }>;
+  /** Vuelve la cadena a su historial original (borra las semanas avanzadas). */
+  resetMonitoring: (chainId: string) => Promise<{ ok: true } | { ok: false; error: string }>;
+  /**
    * Elimina la cadena y todo lo que cuelga de ella. NO es optimista: espera al servidor (es
    * irreversible) y recién si confirma la saca del store. Devuelve el error si no se pudo.
    */
@@ -270,6 +278,30 @@ export const useAppStore = create<AppState>()((set, get) => {
           weeklyPerformance: [...s.weeklyPerformance.filter((w) => !incoming.has(w.nodeId)), ...weeklyPerformance],
         };
       });
+    },
+
+    advanceChain: async (chainId, weeks) => {
+      const result = await enqueue(() =>
+        send<{ weeklyPerformance: WeeklyPerformance[] }>("POST", `/api/cadenas/${chainId}/avance`, { weeks }),
+      );
+      if (!result.ok) return result;
+      const incoming = result.data?.weeklyPerformance ?? [];
+      set((s) => {
+        const known = new Set(s.weeklyPerformance.map((w) => `${w.nodeId}|${w.weekStart}`));
+        return { weeklyPerformance: [...s.weeklyPerformance, ...incoming.filter((w) => !known.has(`${w.nodeId}|${w.weekStart}`))] };
+      });
+      return { ok: true };
+    },
+
+    resetMonitoring: async (chainId) => {
+      const result = await enqueue(() =>
+        send<{ weeklyPerformance: WeeklyPerformance[] }>("DELETE", `/api/cadenas/${chainId}/avance`),
+      );
+      if (!result.ok) return result;
+      const nodeIds = new Set(get().nodes.filter((n) => n.chainId === chainId).map((n) => n.id));
+      const kept = result.data?.weeklyPerformance ?? [];
+      set((s) => ({ weeklyPerformance: [...s.weeklyPerformance.filter((w) => !nodeIds.has(w.nodeId)), ...kept] }));
+      return { ok: true };
     },
 
     deleteChain: async (chainId) => {

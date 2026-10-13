@@ -4,7 +4,7 @@
 // La base solo entra acá: la generación, la línea base y el CUSUM son funciones puras de
 // `lib/domain/synthetic`. Quien llama pasa su propia transacción, así que o queda todo (cadena, nodos e
 // historial) o no queda nada.
-import { and, eq, notExists } from "drizzle-orm";
+import { and, eq, inArray, max, notExists } from "drizzle-orm";
 import { toWeeklyPerformance } from "@/lib/data/mappers";
 import { desempenoSemanal, nodos, type Database } from "@/lib/db";
 import type { NodeType, WeeklyPerformance } from "@/lib/domain/types";
@@ -41,6 +41,19 @@ async function insertRows(db: Executor, rows: NewWeeklyRow[]): Promise<WeeklyPer
   return inserted;
 }
 
+/**
+ * Última semana registrada en la cadena, si ya tiene datos. Los nodos que se cargan DESPUÉS tienen que
+ * terminar en esa misma semana: si la cadena ya avanzó en el tiempo (monitoreo vivo), un nodo nuevo con
+ * historial hasta la semana real quedaría desalineado del resto.
+ */
+async function chainLatestWeek(db: Executor, chainId: string): Promise<string | undefined> {
+  const [row] = await db
+    .select({ latest: max(desempenoSemanal.semana) })
+    .from(desempenoSemanal)
+    .where(inArray(desempenoSemanal.nodoId, db.select({ id: nodos.id }).from(nodos).where(eq(nodos.cadenaId, chainId))));
+  return row?.latest ?? undefined;
+}
+
 export interface IngestResult {
   weeklyPerformance: WeeklyPerformance[];
   /** `null` si no había nodos sin historial para evaluar. */
@@ -69,12 +82,17 @@ export async function ingestChainHistory(
 
   const history = buildChainHistory(
     pending.map((n) => ({ id: n.id, type: n.tipo as NodeType })),
-    { withLevelShift: options.withLevelShift },
+    { withLevelShift: options.withLevelShift, endWeek: await chainLatestWeek(db, chainId) },
   );
   return { weeklyPerformance: await insertRows(db, history.rows), stability: history.stability };
 }
 
 /** Carga el historial de un nodo suelto que se acaba de agregar a una cadena. */
-export async function ingestNodeHistory(db: Executor, node: { id: string; tipo: NodeType }): Promise<WeeklyPerformance[]> {
-  return insertRows(db, buildSingleNodeHistory({ id: node.id, type: node.tipo }));
+export async function ingestNodeHistory(
+  db: Executor,
+  node: { id: string; tipo: NodeType },
+  chainId: string,
+): Promise<WeeklyPerformance[]> {
+  const endWeek = await chainLatestWeek(db, chainId);
+  return insertRows(db, buildSingleNodeHistory({ id: node.id, type: node.tipo }, { endWeek }));
 }

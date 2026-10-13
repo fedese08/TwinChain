@@ -35,7 +35,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ cha
         .insert(nodos)
         .values({ id, tipo, cadenaId: chainId, etiqueta, posX: x, posY: y })
         .returning();
-      return { row, weeklyPerformance: await ingestNodeHistory(tx, { id: row.id, tipo }) };
+      return { row, weeklyPerformance: await ingestNodeHistory(tx, { id: row.id, tipo }, chainId) };
     });
     return NextResponse.json({ node: toNode(created.row), weeklyPerformance: created.weeklyPerformance }, { status: 201 });
   } catch (error) {

@@ -4,6 +4,7 @@ import { use, useCallback, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { ChainCanvas } from "@/components/canvas/chain-canvas";
 import { DeleteChainButton } from "@/components/canvas/delete-chain-dialog";
+import { LiveMonitorControl } from "@/components/canvas/live-monitor-control";
 import { ScenarioForm, type ScenarioFormHandle } from "@/components/scenario/scenario-form";
 import { useChainStatus } from "@/hooks/use-chain-status";
 import { cn } from "@/lib/utils";
@@ -70,6 +71,9 @@ export default function ChainDetailPage({ params }: { params: Promise<{ chainId:
           </div>
         )}
         <div className="flex-1" />
+
+        {/* Monitoreo vivo: escribe datos, así que solo lo ven quienes pueden editar la cadena. */}
+        {canWrite && mode === "design" && <LiveMonitorControl chainId={chainId} />}
 
         <div className="flex flex-none items-center gap-px overflow-hidden rounded-lg border border-border bg-card">
           <button

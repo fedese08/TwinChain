@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { NODE_TYPES } from "@/lib/domain/types";
+import { MAX_ADVANCE_WEEKS } from "@/lib/domain/synthetic/config";
 
 const finite = z.number().finite();
 const capacity = finite.min(0).max(1e12).nullable();
@@ -36,4 +37,9 @@ export const createEdgeSchema = z.object({
 
 export const patchEdgeSchema = z.object({
   transitTimeDays: finite.gt(0, "El tiempo de tránsito debe ser mayor a 0").max(3650),
+});
+
+export const advanceChainSchema = z.object({
+  /** Semanas simuladas a avanzar en esta llamada (1 semana = 1 "tick" del monitoreo vivo). */
+  weeks: z.number().int().min(1).max(MAX_ADVANCE_WEEKS),
 });

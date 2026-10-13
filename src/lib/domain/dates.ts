@@ -23,5 +23,7 @@ export function toIsoDate(date: Date): string {
 
 export function formatWeekLabel(isoDate: string): string {
   const d = new Date(isoDate);
-  return d.toLocaleDateString("es-AR", { day: "2-digit", month: "short" });
+  // `new Date("YYYY-MM-DD")` es medianoche UTC: formatearlo en hora local corre la fecha un día hacia
+  // atrás en zonas al oeste de UTC (en Argentina, un lunes se veía como domingo).
+  return d.toLocaleDateString("es-AR", { day: "2-digit", month: "short", timeZone: "UTC" });
 }
