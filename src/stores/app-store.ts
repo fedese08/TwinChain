@@ -1,8 +1,6 @@
 import { create } from "zustand";
 import { toast } from "sonner";
 import type { AppSnapshot } from "@/lib/data/snapshot-types";
-import { addWeeks, startOfWeek, toIsoDate } from "@/lib/domain/dates";
-import { hashSeed } from "@/lib/domain/rng";
 import type {
   Chain,
   DisruptionEvent,
@@ -10,7 +8,6 @@ import type {
   PendingRun,
   Scenario,
   ScenarioResult,
-  StabilityCheck,
   SupplyChainEdge,
   SupplyChainNode,
   WeeklyPerformance,
@@ -19,8 +16,6 @@ import type {
 function genId(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
 }
-
-const weeksAgoIso = (weeks: number) => toIsoDate(addWeeks(startOfWeek(new Date()), -weeks));
 
 /**
  * Un evento del formulario de simulación. No lleva `nodeId`: el escenario apunta a un único
@@ -41,7 +36,6 @@ type NodePatch = Partial<
   Pick<SupplyChainNode, "label" | "supplyCapacity" | "productionCapacity" | "storageCapacity" | "currentStockLevel">
 > & { position?: { x: number; y: number } };
 
-const INGESTION_CHECK_DELAY_MS = 1300;
 /** Cuánto se espera antes de mandar un cambio: agrupa lo que se tipea letra por letra en un solo guardado. */
 const PATCH_DEBOUNCE_MS = 450;
 
@@ -131,13 +125,19 @@ interface AppState {
   results: ScenarioResult[];
   /** Corridas en curso (job en background simulado) — ver PendingRun. */
   pendingRuns: PendingRun[];
-  /** Validación CUSUM por cadena, disparada por el pipeline de ingesta — ver StabilityCheck. */
-  stabilityChecks: Record<string, StabilityCheck>;
 
   /** Reemplaza la copia de trabajo con lo que el servidor leyó de la base. */
   hydrate: (snapshot: AppSnapshot) => void;
-  /** Suma al store una cadena que el servidor acaba de crear (y arranca su validación de ingesta). */
-  registerCreatedChain: (data: { chain: Chain; nodes: SupplyChainNode[]; edges: SupplyChainEdge[] }) => void;
+  /**
+   * Suma al store una cadena que el servidor acaba de crear, con el historial de desempeño que el
+   * pipeline de ingesta le cargó a cada nodo.
+   */
+  registerCreatedChain: (data: {
+    chain: Chain;
+    nodes: SupplyChainNode[];
+    edges: SupplyChainEdge[];
+    weeklyPerformance?: WeeklyPerformance[];
+  }) => void;
   /**
    * Elimina la cadena y todo lo que cuelga de ella. NO es optimista: espera al servidor (es
    * irreversible) y recién si confirma la saca del store. Devuelve el error si no se pudo.
@@ -178,28 +178,6 @@ interface AppState {
 }
 
 export const useAppStore = create<AppState>()((set, get) => {
-  /**
-   * Dispara la validación de estabilidad estructural del pipeline de ingesta (C24). Sigue siendo
-   * una simulación de runtime (no es una entidad del modelo): el veredicto es determinístico a
-   * partir del id de la cadena para que la demo sea reproducible.
-   */
-  function launchIngestionCheck(chainId: string) {
-    set((s) => ({ stabilityChecks: { ...s.stabilityChecks, [chainId]: { status: "corriendo" } } }));
-
-    setTimeout(() => {
-      const stable = hashSeed(chainId) % 4 !== 0;
-      const ranAt = new Date().toISOString().slice(0, 10);
-      set((s) => ({
-        stabilityChecks: {
-          ...s.stabilityChecks,
-          [chainId]: stable
-            ? { status: "estable", ranAt }
-            : { status: "alerta", ranAt, changePointWeek: weeksAgoIso(5) },
-        },
-      }));
-    }, INGESTION_CHECK_DELAY_MS);
-  }
-
   function flushNodePatch(nodeId: string) {
     const entry = pendingNodePatches.get(nodeId);
     if (!entry) return;
@@ -265,7 +243,6 @@ export const useAppStore = create<AppState>()((set, get) => {
     events: [],
     results: [],
     pendingRuns: [],
-    stabilityChecks: {},
 
     hydrate: (snapshot) => {
       set({
@@ -283,13 +260,16 @@ export const useAppStore = create<AppState>()((set, get) => {
       });
     },
 
-    registerCreatedChain: ({ chain, nodes, edges }) => {
-      set((s) => ({
-        chains: s.chains.some((c) => c.id === chain.id) ? s.chains : [...s.chains, chain],
-        nodes: [...s.nodes.filter((n) => n.chainId !== chain.id), ...nodes],
-        edges: [...s.edges, ...edges.filter((e) => !s.edges.some((x) => x.id === e.id))],
-      }));
-      launchIngestionCheck(chain.id);
+    registerCreatedChain: ({ chain, nodes, edges, weeklyPerformance = [] }) => {
+      set((s) => {
+        const incoming = new Set(nodes.map((n) => n.id));
+        return {
+          chains: s.chains.some((c) => c.id === chain.id) ? s.chains : [...s.chains, chain],
+          nodes: [...s.nodes.filter((n) => n.chainId !== chain.id), ...nodes],
+          edges: [...s.edges, ...edges.filter((e) => !s.edges.some((x) => x.id === e.id))],
+          weeklyPerformance: [...s.weeklyPerformance.filter((w) => !incoming.has(w.nodeId)), ...weeklyPerformance],
+        };
+      });
     },
 
     deleteChain: async (chainId) => {
@@ -307,16 +287,14 @@ export const useAppStore = create<AppState>()((set, get) => {
 
       set((s) => {
         const scenarioIds = new Set(s.scenarios.filter((sc) => sc.chainId === chainId).map((sc) => sc.id));
-        const { [chainId]: _removed, ...stabilityChecks } = s.stabilityChecks;
-        void _removed;
         return {
           chains: s.chains.filter((c) => c.id !== chainId),
           nodes: s.nodes.filter((n) => n.chainId !== chainId),
           edges: s.edges.filter((e) => !nodeIds.has(e.sourceNodeId) && !nodeIds.has(e.targetNodeId)),
+          weeklyPerformance: s.weeklyPerformance.filter((w) => !nodeIds.has(w.nodeId)),
           scenarios: s.scenarios.filter((sc) => sc.chainId !== chainId),
           events: s.events.filter((e) => !scenarioIds.has(e.scenarioId)),
           results: s.results.filter((r) => !scenarioIds.has(r.scenarioId)),
-          stabilityChecks,
         };
       });
       return { ok: true };
@@ -342,14 +320,19 @@ export const useAppStore = create<AppState>()((set, get) => {
         nodes: [...state.nodes, { id, chainId, nodeType, label, canvasPosition: position }],
       }));
       void enqueue(async () => {
-        const result = await send("POST", `/api/cadenas/${chainId}/nodos`, {
+        const result = await send<{ weeklyPerformance: WeeklyPerformance[] }>("POST", `/api/cadenas/${chainId}/nodos`, {
           id,
           tipo: nodeType,
           etiqueta: label,
           x: position.x,
           y: position.y,
         });
-        if (result.ok) return;
+        if (result.ok) {
+          // El servidor le cargó al nodo su historial de desempeño: se suma a la copia de trabajo.
+          const incoming = result.data?.weeklyPerformance ?? [];
+          set((s) => ({ weeklyPerformance: [...s.weeklyPerformance.filter((w) => w.nodeId !== id), ...incoming] }));
+          return;
+        }
         set((s) => ({ nodes: s.nodes.filter((n) => n.id !== id) }));
         toast.error(result.error);
       });

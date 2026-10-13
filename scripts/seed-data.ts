@@ -1,21 +1,19 @@
 import { addWeeks, startOfWeek, toIsoDate } from "@/lib/domain/dates";
-import { createRng, hashSeed } from "@/lib/domain/rng";
+import { hashSeed } from "@/lib/domain/rng";
 import { runScenarioSimulation } from "@/lib/domain/simulate";
+import { buildChainHistory } from "@/lib/domain/synthetic";
 import type {
   Chain,
   DisruptionEvent,
   Organization,
   Scenario,
   ScenarioResult,
-  StabilityCheck,
   SupplyChainEdge,
   SupplyChainNode,
   User,
   UserRole,
   WeeklyPerformance,
 } from "@/lib/domain/types";
-
-const WEEKS_OF_HISTORY = 16;
 
 export const seedOrganization: Organization = {
   id: "org-1",
@@ -76,78 +74,25 @@ export const seedEdges: SupplyChainEdge[] = [
   { id: "edge-s2-4", sourceNodeId: "node-s2-ven-01", targetNodeId: "node-s2-cli-01", transitTimeDays: 1 },
 ];
 
-function generateHistory(nodeId: string, seed: number, basePerformance: number, volatility: number): WeeklyPerformance[] {
-  const rng = createRng(seed);
-  const firstWeek = addWeeks(startOfWeek(new Date()), -WEEKS_OF_HISTORY);
+/**
+ * Historial de desempeño de la demo, generado por el mismo pipeline de ingesta que usa la app al
+ * crear una cadena (`lib/domain/synthetic`): la línea base se ESTIMA del historial de cada nodo y se
+ * congela (RF017), sin perfiles escritos a mano por id.
+ *
+ * "Cadena Sur" lleva un cambio de nivel a propósito: la demo tiene que poder mostrar los dos
+ * veredictos de la verificación de estabilidad (C24) — "Cadena Norte" sale estable.
+ */
+const CHAINS_WITH_LEVEL_SHIFT = new Set(["chain-sur"]);
 
-  // La línea base se estima UNA sola vez y queda congelada (Diseño B, Fase I / Fase II): el
-  // sistema no la recalcula con las semanas que va monitoreando, porque si la referencia se
-  // moviera junto con la caída que se quiere detectar, el déficit se encogería solo y la
-  // disrupción sostenida no se detectaría nunca. Por eso es un valor único por nodo, no uno
-  // por semana. Su banda de incertidumbre (RF012) es fija por la misma razón — más ancha
-  // cuanto más volátil es el nodo.
-  const baseline = basePerformance;
-  const bandHalfWidth = volatility * 0.35;
-  const baselineLowerBand = Math.max(0, baseline - bandHalfWidth);
-  const baselineUpperBand = Math.min(100, baseline + bandHalfWidth);
-
-  const history: WeeklyPerformance[] = [];
-  for (let i = 0; i < WEEKS_OF_HISTORY; i++) {
-    const weekStart = toIsoDate(addWeeks(firstWeek, i));
-    // Lo único que varía semana a semana es la medición real.
-    const noise = (rng() - 0.55) * volatility;
-    const actualValue = Math.min(100, Math.max(0, baseline + noise));
-    const deficit = Math.max(0, baseline - actualValue);
-    history.push({
-      id: `wp-${nodeId}-${i}`,
-      nodeId,
-      weekStart,
-      actualValue,
-      baseline,
-      baselineLowerBand,
-      baselineUpperBand,
-      deficit,
-    });
-  }
-  return history;
-}
-
-// desempeño base por tipo: Vendedor usa datos reales (Olist); el resto es conceptual (ver modelo de datos).
-const PERFORMANCE_PROFILE: Record<string, { base: number; volatility: number; seed: number }> = {
-  "node-sup-01": { base: 94, volatility: 6, seed: 1 },
-  "node-sup-02": { base: 90, volatility: 8, seed: 2 },
-  "node-fab-01": { base: 95, volatility: 5, seed: 3 },
-  "node-fab-02": { base: 91, volatility: 7, seed: 4 },
-  "node-alm-01": { base: 96, volatility: 4, seed: 5 },
-  "node-alm-02": { base: 93, volatility: 6, seed: 6 },
-  "node-ven-01": { base: 92, volatility: 9, seed: 7 },
-  "node-ven-02": { base: 88, volatility: 11, seed: 8 },
-  "node-cli-01": { base: 97, volatility: 3, seed: 9 },
-  "node-s2-sup-01": { base: 93, volatility: 6, seed: 10 },
-  "node-s2-fab-01": { base: 94, volatility: 5, seed: 11 },
-  "node-s2-alm-01": { base: 95, volatility: 5, seed: 12 },
-  "node-s2-ven-01": { base: 90, volatility: 8, seed: 13 },
-  "node-s2-cli-01": { base: 96, volatility: 4, seed: 14 },
-};
-
-export const seedWeeklyPerformance: WeeklyPerformance[] = seedNodes.flatMap((node) => {
-  const profile = PERFORMANCE_PROFILE[node.id];
-  return generateHistory(node.id, profile.seed, profile.base, profile.volatility);
+export const seedWeeklyPerformance: WeeklyPerformance[] = seedChains.flatMap((chain) => {
+  const chainNodes = seedNodes.filter((n) => n.chainId === chain.id).map((n) => ({ id: n.id, type: n.nodeType }));
+  const { rows } = buildChainHistory(chainNodes, { withLevelShift: CHAINS_WITH_LEVEL_SHIFT.has(chain.id) });
+  return rows.map((row) => ({ ...row, id: `wp-${row.nodeId}-${row.weekStart}` }));
 });
 
 export function weeksAgoIso(weeks: number): string {
   return toIsoDate(addWeeks(startOfWeek(new Date()), -weeks));
 }
-
-/**
- * Las cadenas del seed ya pasaron por el pipeline de ingesta, así que arrancan con su
- * validación CUSUM resuelta (C24). "Cadena Sur" queda con alerta a propósito: la demo tiene
- * que poder mostrar los dos veredictos.
- */
-export const seedStabilityChecks: Record<string, StabilityCheck> = {
-  "chain-norte": { status: "estable", ranAt: weeksAgoIso(4) },
-  "chain-sur": { status: "alerta", ranAt: weeksAgoIso(4), changePointWeek: weeksAgoIso(9) },
-};
 
 export const seedScenarios: Scenario[] = [
   {

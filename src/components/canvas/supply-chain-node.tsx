@@ -4,24 +4,29 @@ import { memo } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { NODE_TYPE_CODE, NODE_TYPE_COLOR, SEVERITY_COLOR } from "@/lib/domain/node-visuals";
 import type { Severity } from "@/lib/domain/simulate";
+import type { NodeHealthLevel } from "@/lib/domain/monitoring";
 import type { NodeType } from "@/lib/domain/types";
 
 export interface SupplyChainNodeData extends Record<string, unknown> {
   label: string;
   nodeType: NodeType;
   detail: string;
-  latestDeficit: number;
+  /** Déficit medio de las últimas semanas, en puntos porcentuales. */
+  recentDeficit: number;
+  /** Estado del nodo respecto de su propia variabilidad (ver `domain/monitoring.ts`). */
+  health: NodeHealthLevel;
   highlighted?: boolean;
   severity?: Severity;
 }
 
 function SupplyChainNodeComponent({ data }: NodeProps) {
-  const { label, nodeType, detail, latestDeficit, highlighted, severity } = data as unknown as SupplyChainNodeData;
+  const { label, nodeType, detail, recentDeficit, health, highlighted, severity } = data as unknown as SupplyChainNodeData;
   const color = NODE_TYPE_COLOR[nodeType];
-  const deficitRatio = Math.min(1, latestDeficit / 20);
+  const deficitRatio = Math.min(1, recentDeficit / 20);
+  const healthColor = health === "critico" ? "#d33f28" : health === "atencion" ? "#f2703c" : null;
 
   const severityColors = severity ? SEVERITY_COLOR[severity] : null;
-  const borderColor = severityColors ? severityColors.border : deficitRatio > 0.5 ? "#f2703c" : "var(--border)";
+  const borderColor = severityColors ? severityColors.border : (healthColor ?? "var(--border)");
   const background = severityColors ? severityColors.fill : "var(--card)";
 
   return (
@@ -45,15 +50,16 @@ function SupplyChainNodeComponent({ data }: NodeProps) {
             ✓
           </span>
         )}
-        {!highlighted && !severityColors && latestDeficit > 2 && (
-          // No es un valor negativo: es el déficit de la última semana (línea_base − valor_real,
-          // nunca negativo por definición del modelo). El "−" es solo una marca visual de
-          // pérdida — antes iba sin ninguna etiqueta y se leía como un número negativo suelto.
+        {!highlighted && !severityColors && healthColor && (
+          // No es un valor negativo: es el déficit reciente (línea_base − valor_real, nunca negativo por
+          // definición del modelo). Solo aparece cuando es raro PARA ESTE NODO (ver `assessNode`): con una
+          // línea base estimada, una semana floja por ruido da 2–3 puntos en cualquier nodo volátil.
           <span
-            className="ml-auto flex-none rounded-sm bg-destructive/10 px-1 py-[1px] font-mono text-[8.5px] font-medium whitespace-nowrap text-destructive"
-            title={`Déficit de la última semana: ${latestDeficit.toFixed(1)}% por debajo de la línea base esperada`}
+            className="ml-auto flex-none rounded-sm px-1 py-[1px] font-mono text-[8.5px] font-medium whitespace-nowrap"
+            style={{ color: healthColor, background: `${healthColor}1a` }}
+            title={`Déficit promedio de las últimas semanas: ${recentDeficit.toFixed(1)}% por debajo de la línea base esperada`}
           >
-            déf. −{latestDeficit.toFixed(0)}%
+            déf. −{recentDeficit.toFixed(0)}%
           </span>
         )}
       </div>
@@ -63,7 +69,7 @@ function SupplyChainNodeComponent({ data }: NodeProps) {
         {!severityColors && (
           <div
             className="h-[3px] rounded-sm"
-            style={{ width: `${Math.round((1 - deficitRatio) * 100)}%`, background: deficitRatio > 0.5 ? "#f2703c" : color }}
+            style={{ width: `${Math.round((1 - deficitRatio) * 100)}%`, background: healthColor ?? color }}
           />
         )}
       </div>

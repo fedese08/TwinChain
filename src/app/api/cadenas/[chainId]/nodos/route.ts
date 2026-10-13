@@ -7,6 +7,7 @@ import { toNode } from "@/lib/data/mappers";
 import { getDb, nodos } from "@/lib/db";
 import { isUniqueViolation } from "@/lib/db/errors";
 import { MAX_NODES_PER_CHAIN } from "@/lib/domain/types";
+import { ingestNodeHistory } from "@/lib/ingestion/ingest-history";
 import { createNodeSchema } from "@/lib/validators/chain-api";
 
 export async function POST(request: Request, { params }: { params: Promise<{ chainId: string }> }) {
@@ -28,11 +29,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ cha
   }
 
   try {
-    const [row] = await db
-      .insert(nodos)
-      .values({ id, tipo, cadenaId: chainId, etiqueta, posX: x, posY: y })
-      .returning();
-    return NextResponse.json({ node: toNode(row) }, { status: 201 });
+    // El nodo y su historial se guardan juntos: un nodo nunca queda sin datos de desempeño.
+    const created = await db.transaction(async (tx) => {
+      const [row] = await tx
+        .insert(nodos)
+        .values({ id, tipo, cadenaId: chainId, etiqueta, posX: x, posY: y })
+        .returning();
+      return { row, weeklyPerformance: await ingestNodeHistory(tx, { id: row.id, tipo }) };
+    });
+    return NextResponse.json({ node: toNode(created.row), weeklyPerformance: created.weeklyPerformance }, { status: 201 });
   } catch (error) {
     if (isUniqueViolation(error)) return NextResponse.json({ error: "Ese nodo ya existe" }, { status: 409 });
     throw error;

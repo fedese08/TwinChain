@@ -3,33 +3,25 @@
 import Link from "next/link";
 import { useAppStore } from "@/stores/app-store";
 import { NODE_TYPE_COLOR } from "@/lib/domain/node-visuals";
-import type { StabilityCheck } from "@/lib/domain/types";
+import { useChainStatuses } from "@/hooks/use-chain-status";
+import type { ChainStability } from "@/lib/domain/synthetic";
 
 /**
- * Veredicto del pipeline de ingesta sobre el historial de la cadena (C24). Corre por cada cadena
- * nueva, no una sola vez en desarrollo: por eso una recién creada aparece primero como "revisando".
- * El mecanismo (CUSUM) no se nombra acá — es jerga que no le dice nada a quien opera; queda para
- * las vistas de detalle técnico.
+ * Veredicto de la verificación de estabilidad del historial (C24), derivado de los datos: no se guarda ni
+ * se "dispara" a mano. El mecanismo (CUSUM) no se nombra acá — es jerga que no le dice nada a quien opera;
+ * queda para las vistas de detalle técnico.
  */
-function StabilityBadge({ check }: { check?: StabilityCheck }) {
-  if (!check) return null;
-
-  if (check.status === "corriendo") {
-    return (
-      <div className="flex items-center gap-1.5 font-mono text-[10.5px] text-muted-foreground">
-        <span className="h-2.5 w-2.5 animate-spin rounded-full border-[1.5px] border-border border-t-primary" />
-        revisando historial…
-      </div>
-    );
-  }
-
-  const alerta = check.status === "alerta";
+function StabilityBadge({ stability }: { stability: ChainStability | null }) {
+  if (!stability) return null;
+  const alerta = stability.status === "alerta";
   return (
     <div className="flex items-center gap-1.5 font-mono text-[10.5px] text-muted-foreground">
       <span className="rounded border px-1 py-0.5" style={{ borderColor: alerta ? "#f5c9a8" : "#b9e2d8", color: alerta ? "#c2571f" : "#0a7d6a" }}>
-        {alerta ? "cambió el comportamiento" : "desempeño estable"}
+        {alerta ? "cambió el comportamiento" : "historial estable"}
       </span>
-      {alerta && check.changePointWeek ? `desde ${check.changePointWeek}` : `revisado ${check.ranAt}`}
+      {alerta && stability.changePointWeek
+        ? `desde ${stability.changePointWeek} · ${stability.unstableNodeCount} de ${stability.nodeCount} nodos`
+        : null}
     </div>
   );
 }
@@ -40,8 +32,7 @@ export default function ChainsPage() {
   const nodes = useAppStore((s) => s.nodes);
   const edges = useAppStore((s) => s.edges);
   const scenarios = useAppStore((s) => s.scenarios);
-  const weeklyPerformance = useAppStore((s) => s.weeklyPerformance);
-  const stabilityChecks = useAppStore((s) => s.stabilityChecks);
+  const statuses = useChainStatuses();
 
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-background">
@@ -67,10 +58,12 @@ export default function ChainsPage() {
           const chainNodeIds = new Set(chainNodes.map((n) => n.id));
           const chainEdges = edges.filter((e) => chainNodeIds.has(e.sourceNodeId) && chainNodeIds.has(e.targetNodeId));
           const chainScenarios = scenarios.filter((s) => s.chainId === chain.id);
-          const chainDeficits = weeklyPerformance.filter((w) => chainNodeIds.has(w.nodeId));
-          const avgDeficit =
-            chainDeficits.length > 0 ? chainDeficits.reduce((sum, w) => sum + w.deficit, 0) / chainDeficits.length : 0;
-          const stable = avgDeficit < 2;
+          const status = statuses.get(chain.id);
+          const health = status?.health;
+          const critical = health?.criticalCount ?? 0;
+          const attention = health?.attentionCount ?? 0;
+          const hasData = chainNodes.length > 0 && status?.stability !== null;
+          const operationColor = critical > 0 ? "#d33f28" : attention > 0 ? "#c2571f" : "#0a7d6a";
 
           return (
             <Link
@@ -99,12 +92,20 @@ export default function ChainsPage() {
               <div className="font-mono text-[11px] text-muted-foreground">
                 {chainNodes.length} nodos · {chainEdges.length} aristas · {chainScenarios.length} simulaciones
               </div>
-              <div className="flex items-center gap-1.5 text-[11.5px]" style={{ color: stable ? "#0a7d6a" : "#c2571f" }}>
-                <span className="h-1.5 w-1.5 rounded-full" style={{ background: stable ? "#0d9c84" : "#f2703c" }} />
-                {stable ? "desempeño estable" : `déficit promedio ${avgDeficit.toFixed(1)} pp`}
-              </div>
-              {/* Validación de estabilidad estructural del pipeline de ingesta (C24). */}
-              <StabilityBadge check={stabilityChecks[chain.id]} />
+              {hasData ? (
+                <div className="flex items-center gap-1.5 text-[11.5px]" style={{ color: operationColor }}>
+                  <span className="h-1.5 w-1.5 rounded-full" style={{ background: operationColor }} />
+                  {critical > 0
+                    ? `${critical} ${critical === 1 ? "nodo crítico" : "nodos críticos"}${attention > 0 ? ` · ${attention} en atención` : ""}`
+                    : attention > 0
+                      ? `${attention} ${attention === 1 ? "nodo en atención" : "nodos en atención"}`
+                      : "operación normal"}
+                </div>
+              ) : (
+                <div className="text-[11.5px] text-muted-foreground">sin datos de desempeño todavía</div>
+              )}
+              {/* Verificación de estabilidad estructural del historial (C24), derivada de los datos. */}
+              <StabilityBadge stability={status?.stability ?? null} />
             </Link>
           );
         })}

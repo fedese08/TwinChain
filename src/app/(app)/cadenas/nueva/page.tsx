@@ -28,7 +28,7 @@ export default function NewChainPage() {
     formState: { errors, isSubmitting },
   } = useForm<ChainFormValues>({
     resolver: zodResolver(chainFormSchema),
-    defaultValues: { name: "", visibility: "shared", template: "blank" },
+    defaultValues: { name: "", visibility: "shared", template: "blank", withLevelShift: false },
   });
 
   const name = watch("name");
@@ -155,6 +155,38 @@ export default function NewChainPage() {
             )}
           />
         </div>
+
+        <Controller
+          control={control}
+          name="withLevelShift"
+          render={({ field }) => (
+            <button
+              type="button"
+              role="switch"
+              aria-checked={!!field.value}
+              onClick={() => field.onChange(!field.value)}
+              className={cn(
+                "flex items-start gap-3 rounded-lg border px-3 py-2.5 text-left",
+                field.value ? "border-primary/50 bg-accent" : "border-border hover:border-primary/30",
+              )}
+            >
+              <span
+                className={cn(
+                  "mt-0.5 flex h-4 w-7 flex-none items-center rounded-full p-0.5 transition-colors",
+                  field.value ? "bg-primary" : "bg-border",
+                )}
+              >
+                <span className={cn("h-3 w-3 rounded-full bg-white transition-transform", field.value && "translate-x-3")} />
+              </span>
+              <span className="flex flex-col leading-tight">
+                <span className="text-[13px]">Historial con un cambio de nivel</span>
+                <span className="text-[11px] leading-snug text-muted-foreground">
+                  Parte de los nodos cae de nivel a mitad del historial. Sirve para ver la alerta de estabilidad.
+                </span>
+              </span>
+            </button>
+          )}
+        />
 
         {serverError && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-[12.5px] text-destructive">{serverError}</p>}
         {!canWrite && (

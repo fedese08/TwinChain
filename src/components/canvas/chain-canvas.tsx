@@ -22,7 +22,8 @@ import { SupplyChainNodeView, type SupplyChainNodeData } from "@/components/canv
 import { TransitEdge } from "@/components/canvas/transit-edge";
 import { useAppStore } from "@/stores/app-store";
 import type { Severity } from "@/lib/domain/simulate";
-import type { NodeType, SupplyChainNode } from "@/lib/domain/types";
+import { assessNode } from "@/lib/domain/monitoring";
+import type { NodeType, SupplyChainNode, WeeklyPerformance } from "@/lib/domain/types";
 
 const NODE_TYPES = { supplyChainNode: SupplyChainNodeView };
 const EDGE_TYPES = { transitEdge: TransitEdge };
@@ -74,15 +75,15 @@ function CanvasInner({ chainId, mode, selectedNodeIds, onNodeSelect, severityByN
     [allEdges, chainNodeIds],
   );
 
-  const latestDeficitByNode = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const nodeId of chainNodeIds) {
-      const history = weeklyPerformance
-        .filter((w) => w.nodeId === nodeId)
-        .sort((a, b) => b.weekStart.localeCompare(a.weekStart));
-      map.set(nodeId, history[0]?.deficit ?? 0);
+  const healthByNode = useMemo(() => {
+    const rowsByNode = new Map<string, WeeklyPerformance[]>();
+    for (const row of weeklyPerformance) {
+      if (!chainNodeIds.has(row.nodeId)) continue;
+      const list = rowsByNode.get(row.nodeId) ?? [];
+      list.push(row);
+      rowsByNode.set(row.nodeId, list);
     }
-    return map;
+    return new Map([...chainNodeIds].map((nodeId) => [nodeId, assessNode(rowsByNode.get(nodeId) ?? [])]));
   }, [weeklyPerformance, chainNodeIds]);
 
   const selectedSet = useMemo(() => new Set(selectedNodeIds ?? []), [selectedNodeIds]);
@@ -101,12 +102,13 @@ function CanvasInner({ chainId, mode, selectedNodeIds, onNodeSelect, severityByN
           label: n.label,
           nodeType: n.nodeType,
           detail: nodeDetail(n),
-          latestDeficit: latestDeficitByNode.get(n.id) ?? 0,
+          recentDeficit: healthByNode.get(n.id)?.recentDeficit ?? 0,
+          health: healthByNode.get(n.id)?.level ?? "normal",
           highlighted: isSelect && selectedSet.has(n.id),
           severity: isDisplay ? severityByNode?.[n.id] : undefined,
         } satisfies SupplyChainNodeData,
       })),
-    [chainNodes, latestDeficitByNode, isSelect, selectedSet, isDisplay, severityByNode],
+    [chainNodes, healthByNode, isSelect, selectedSet, isDisplay, severityByNode],
   );
 
   const rebuiltEdges = useMemo(

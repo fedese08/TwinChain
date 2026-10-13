@@ -135,18 +135,6 @@ export interface PendingRun {
   startedAt: number;
 }
 
-/**
- * Veredicto de la validación de estabilidad estructural (CUSUM) que el pipeline de ingesta
- * corre por cada cadena nueva (decisión 14 / C24). Tampoco es una entidad del modelo: el
- * pipeline de ingesta es un contenedor de la arquitectura, no una tabla.
- */
-export interface StabilityCheck {
-  status: "corriendo" | "estable" | "alerta";
-  /** Semana detectada como punto de cambio, si la validación encontró uno. */
-  changePointWeek?: string;
-  ranAt?: string;
-}
-
 export interface ScenarioResult {
   id: string;
   scenarioId: string;

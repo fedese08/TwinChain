@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ChainCanvas } from "@/components/canvas/chain-canvas";
 import { DeleteChainButton } from "@/components/canvas/delete-chain-dialog";
 import { ScenarioForm, type ScenarioFormHandle } from "@/components/scenario/scenario-form";
+import { useChainStatus } from "@/hooks/use-chain-status";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/stores/app-store";
 
@@ -17,7 +18,7 @@ export default function ChainDetailPage({ params }: { params: Promise<{ chainId:
   const scenarioFormRef = useRef<ScenarioFormHandle>(null);
 
   const chain = useAppStore((s) => s.chains.find((c) => c.id === chainId));
-  const stabilityCheck = useAppStore((s) => s.stabilityChecks[chainId]);
+  const stability = useChainStatus(chainId)?.stability ?? null;
   const canWrite = useAppStore((s) => s.canWrite);
   const nodes = useAppStore((s) => s.nodes);
   const chainNodes = useMemo(() => nodes.filter((n) => n.chainId === chainId), [nodes, chainId]);
@@ -44,27 +45,28 @@ export default function ChainDetailPage({ params }: { params: Promise<{ chainId:
         </Link>
         <div className="h-5 w-px flex-none bg-border" />
         <div className="min-w-0 truncate text-[14.5px] font-medium">{chain.name}</div>
-        {/* C24: el pipeline de ingesta valida la estabilidad estructural de cada cadena nueva.
+        {/* C24: verificación de estabilidad estructural del historial, derivada de los datos de la cadena.
             El nombre del mecanismo (CUSUM) no se muestra: es jerga para quien opera la cadena. */}
-        {stabilityCheck && (
-          <div className="flex flex-none items-center gap-1.5 font-mono text-[10.5px] text-muted-foreground">
-            {stabilityCheck.status === "corriendo" ? (
-              <>
-                <span className="h-2.5 w-2.5 animate-spin rounded-full border-[1.5px] border-border border-t-primary" />
-                revisando historial…
-              </>
-            ) : (
-              <span
-                className="rounded border px-1 py-0.5"
-                style={
-                  stabilityCheck.status === "alerta"
-                    ? { borderColor: "#f5c9a8", color: "#c2571f" }
-                    : { borderColor: "#b9e2d8", color: "#0a7d6a" }
-                }
-              >
-                {stabilityCheck.status === "alerta" ? "cambió el comportamiento" : "desempeño estable"}
-              </span>
-            )}
+        {stability && (
+          <div
+            className="flex flex-none items-center gap-1.5 font-mono text-[10.5px] text-muted-foreground"
+            title={
+              stability.status === "alerta"
+                ? `${stability.unstableNodeCount} de ${stability.nodeCount} nodos cambiaron de nivel en su historial: la línea base de esos nodos puede no ser confiable`
+                : "El historial de todos los nodos es estable: la línea base se pudo congelar sin problemas"
+            }
+          >
+            <span
+              className="rounded border px-1 py-0.5"
+              style={
+                stability.status === "alerta"
+                  ? { borderColor: "#f5c9a8", color: "#c2571f" }
+                  : { borderColor: "#b9e2d8", color: "#0a7d6a" }
+              }
+            >
+              {stability.status === "alerta" ? "cambió el comportamiento" : "historial estable"}
+            </span>
+            {stability.status === "alerta" && stability.changePointWeek ? `desde ${stability.changePointWeek}` : null}
           </div>
         )}
         <div className="flex-1" />

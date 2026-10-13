@@ -5,9 +5,14 @@ import { readJson } from "@/lib/api/http";
 import { toChain, toEdge, toNode } from "@/lib/data/mappers";
 import { aristas, cadenas, getDb, nodos } from "@/lib/db";
 import { instantiateTemplate } from "@/lib/domain/templates";
+import { ingestChainHistory } from "@/lib/ingestion/ingest-history";
 import { chainFormSchema } from "@/lib/validators/chain";
 
-/** Crea una cadena (en blanco o desde plantilla) con sus nodos y aristas, todo en una transacción. */
+/**
+ * Crea una cadena (en blanco o desde plantilla) con sus nodos y aristas, y le carga el historial de
+ * desempeño de cada nodo (pipeline de ingesta), todo en una transacción: o queda la cadena completa
+ * y con datos, o no queda nada.
+ */
 export async function POST(request: Request) {
   const access = await requireApiMember("chain:write");
   if (!access.ok) return access.response;
@@ -15,7 +20,7 @@ export async function POST(request: Request) {
 
   const body = await readJson(request, chainFormSchema);
   if (!body.ok) return body.response;
-  const { name, visibility, template } = body.data;
+  const { name, visibility, template, withLevelShift } = body.data;
 
   const chainId = randomUUID();
   // La plantilla nace con ids de mentira ("tpl-node-0"); se reemplazan por uuids reales antes de insertar.
@@ -63,11 +68,19 @@ export async function POST(request: Request) {
             )
             .returning();
 
-    return { chain, nodeRows, edgeRows };
+    const ingested = await ingestChainHistory(tx, chainId, { withLevelShift });
+
+    return { chain, nodeRows, edgeRows, ingested };
   });
 
   return NextResponse.json(
-    { chain: toChain(created.chain), nodes: created.nodeRows.map(toNode), edges: created.edgeRows.map(toEdge) },
+    {
+      chain: toChain(created.chain),
+      nodes: created.nodeRows.map(toNode),
+      edges: created.edgeRows.map(toEdge),
+      weeklyPerformance: created.ingested.weeklyPerformance,
+      stability: created.ingested.stability,
+    },
     { status: 201 },
   );
 }

@@ -84,3 +84,33 @@ export function evaluateChainStability(nodes: { weekStarts: string[]; values: nu
     nodeCount: nodes.length,
   };
 }
+
+/**
+ * Veredicto de estabilidad de una cadena derivado de las filas de `desempeno_semanal`: función pura de
+ * los datos, así que NO hace falta guardarlo (no es una entidad del modelo) y se puede recalcular al
+ * abrir la app o cuando entran nodos o semanas nuevas.
+ *
+ * Mira solo la ventana de entrenamiento de cada nodo (sus primeras `trainingWeeks` semanas): C24 valida
+ * que la línea base se haya podido congelar sobre un historial estable, y eso no cambia con el monitoreo.
+ * Los nodos con menos semanas que la ventana todavía no se pueden evaluar y se ignoran. Devuelve `null`
+ * si ningún nodo se pudo evaluar.
+ */
+export function deriveChainStability(
+  rows: { nodeId: string; weekStart: string; actualValue: number }[],
+  trainingWeeks: number,
+): ChainStability | null {
+  const byNode = new Map<string, { weekStart: string; actualValue: number }[]>();
+  for (const row of rows) {
+    const list = byNode.get(row.nodeId) ?? [];
+    list.push(row);
+    byNode.set(row.nodeId, list);
+  }
+
+  const evaluable: { weekStarts: string[]; values: number[] }[] = [];
+  for (const list of byNode.values()) {
+    if (list.length < trainingWeeks) continue;
+    const training = [...list].sort((a, b) => a.weekStart.localeCompare(b.weekStart)).slice(0, trainingWeeks);
+    evaluable.push({ weekStarts: training.map((r) => r.weekStart), values: training.map((r) => r.actualValue) });
+  }
+  return evaluable.length === 0 ? null : evaluateChainStability(evaluable);
+}
