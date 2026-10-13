@@ -49,12 +49,35 @@ La ruta se borró al terminar.
 - **La base se midió con una cadena de 10 nodos,** no con una de 300. Crear una cadena de 300 nodos habría
   llenado la base de producción de datos de prueba. Con 300 nodos las lecturas traen ~4.800 filas de desempeño
   semanal; el costo extra no se midió y lo estimo en unas pocas decenas de milisegundos desde `gru1`.
-- **No tengo acceso al panel de Vercel.** Los tiempos y el CPU son los que mide la propia función. Lo que Vercel
-  factura (CPU activa y memoria aprovisionada por el tiempo de vida de la instancia) puede diferir un poco; se
-  puede contrastar en *Observability → Functions*.
+- **Los tiempos y el CPU son los que mide la propia función,** no los que factura Vercel. El contraste con el panel
+  de Observability está en la sección siguiente.
 - **La memoria es RSS del proceso, y es acumulativa.** Node no devuelve memoria al sistema operativo entre
   requests, así que dentro de una instancia reutilizada el pico solo crece. Las cifras por N de abajo son el pico
   de esa instancia al terminar el caso, no el aporte exacto de cada uno.
+
+## Contraste con el panel de Vercel
+
+Captura de *Observability → Functions* de las pruebas (12/10/2026), contra mis propios registros:
+
+| | Panel de Vercel | Mis registros |
+|---|---|---|
+| Invocaciones de `/api/bench-motor` | 145 | 136 medidas + las de verificación |
+| CPU activa total de la ruta | 4 min | 3,6 min (218 s) |
+| Memoria promedio | 311 MB de **2,05 GB** | RSS promedio 243 MB, pico 359 MB |
+| Modelo de cómputo | **Fluid** | — |
+| Errores / timeouts | 0 % / 0 % | 0 / 0 |
+| Arranque en frío | 1,8 % de las invocaciones | 2 casos aislados de ~0,7 s |
+| Throttling de CPU (P75) | 7,2 % | no medible desde la función |
+
+- **El CPU coincide:** 3,6 min míos contra los 4 min redondeados del panel. Las mediciones desde adentro de la
+  función son confiables para el CPU activa.
+- **La memoria configurada es 2,05 GB** (confirmada, ya no supuesta). El peor caso medido, 0,36 GB, usa el 18 %.
+- **La memoria del panel es ~28 % mayor que mi RSS promedio** (311 MB contra 243 MB). Para el costo conviene usar
+  el criterio del panel: sumarle ~25 % a la columna de memoria de las tablas de abajo.
+- **Hay throttling de CPU (7,2 % en P75):** parte del tiempo la función no recibe el núcleo completo. Es parte de
+  las condiciones reales, ya incluida en los tiempos medidos.
+- **El panel no discrimina por tamaño de red:** muestra el agregado de todas las pruebas, así que no sirve para
+  validar cada N por separado. La duración P75 aparece bloqueada en el plan Hobby.
 
 ## Resultados del motor
 
@@ -138,9 +161,72 @@ arranque en frío.
 - **Con arranque en frío**, sumar ~0,7 s en esa invocación.
 - **El peor caso posible con 300 nodos** (todos con todos y 20 eventos): 17 s de CPU, 0,36 GB y ~17 s de
   instancia.
-- **Memoria configurada de la función: no la pude verificar.** Está en *Settings → Functions* del proyecto. En
-  Hobby, por lo que sé, es de 2 GB y 1 vCPU, pero hay que confirmarlo en el panel antes de calcular el 70 %.
-  Con 2 GB, el peor caso medido (0,36 GB) usa el 18 %.
+- **Memoria configurada de la función: 2,05 GB** (confirmada en el panel de Observability). El peor caso medido
+  (0,36 GB) usa el 18 %, y el 70 % que fija el criterio serían 1,4 GB.
+
+## Costo por ejecución (simulación de salida al mercado)
+
+TwinChain es un trabajo de tesis y no va a salir al mercado: se despliega en el plan Hobby, que no factura. El costo
+de cada tier se **simula** aplicando las tarifas públicas de Vercel **Pro** a lo que se midió. Es la forma de
+responder "cuánto costaría esto si fuera un producto".
+
+**Tarifas usadas** (Vercel, *Fluid compute pricing*, página con fecha del 16/06/2026; verificarlas si la fecha de
+entrega queda lejos):
+
+| Recurso | `gru1` (São Paulo, el desplegado) | `iad1` (Washington, el de antes) |
+|---|---|---|
+| CPU activa | $0,221 por hora | $0,128 por hora |
+| Memoria aprovisionada | $0,0183 por GB-hora | $0,0106 por GB-hora |
+| Invocaciones | $0,60 por millón | $0,60 por millón |
+
+**Cómo factura Vercel** (según su documentación):
+
+- La **CPU activa** se cobra solo mientras el código corre; mientras espera a la base no se cobra.
+- La **memoria** se cobra sobre la memoria *configurada* (2,05 GB acá), no sobre la usada, durante **toda la vida de
+  la instancia**, incluso mientras espera a la base. Por eso el tiempo de espera cuesta aunque no haya CPU.
+- Cada petición cuenta como una invocación.
+
+**Fórmula:** `costo = CPU(s)/3600 × tarifa_CPU + 2,05 GB × instancia(s)/3600 × tarifa_memoria + $0,60/1.000.000`
+
+### Resultado, con las funciones en `gru1`
+
+Con los números de "Los cuatro números por tier" (red densa de 52 semanas, un evento):
+
+| | CPU (s) | Instancia (s) | CPU ($) | Memoria ($) | Invocación ($) | **Por ejecución** | **Por 1.000 ejecuciones** |
+|---|---|---|---|---|---|---|---|
+| N = 6 (Freemium) | 0,06 | 0,14 | 0,0000037 | 0,0000015 | 0,0000006 | **$0,0000057** | **$0,0057** |
+| N = 40 (Pro) | 0,24 | 0,30 | 0,0000147 | 0,0000031 | 0,0000006 | **$0,0000185** | **$0,0185** |
+| N = 150 (Max) | 0,66 | 0,73 | 0,0000405 | 0,0000076 | 0,0000006 | **$0,0000487** | **$0,0487** |
+| N = 300 (tope extendido) | 1,32 | 1,38 | 0,0000810 | 0,0000144 | 0,0000006 | **$0,0000960** | **$0,0960** |
+| N = 300, el peor caso posible (todos con todos, 20 eventos) | 17,0 | 17,0 | 0,0010436 | 0,0001772 | 0,0000006 | **$0,0012214** | **$1,2214** |
+
+- **Escala con N:** una ejecución de N = 300 cuesta unas 17 veces más que una de N = 6, y casi todo es CPU (84 %).
+- **El peor caso posible no es un riesgo de costo:** una sola ejecución cuesta ~$0,0012 y el control previo lo
+  rechazaría antes de correr. Ni mil de ellas llegan a $1,3.
+- **Antes del crédito:** Vercel Pro descuenta un crédito mensual de uso. Los costos de arriba son brutos.
+- **Lo que no incluye:** la base de datos (Neon, se factura aparte) y el tráfico de red.
+- **Es una cota alta en un punto:** si varias simulaciones comparten una instancia (Fluid compute lo permite), la
+  memoria se reparte entre ellas y cada una cuesta menos que lo calculado.
+- **Arranque en frío:** suma ~0,7 s en una de cada ~50 invocaciones (1,8 % según el panel); impacto despreciable
+  en el costo.
+
+### El efecto de la región sobre el costo
+
+`gru1` es un 73 % más cara por unidad que `iad1`, pero la espera a la base la encarece más:
+
+| | `gru1` | `iad1` (con +3,3 s de espera) | `iad1` / `gru1` |
+|---|---|---|---|
+| N = 6 | $0,0000057 | $0,0000235 | **4,1×** |
+| N = 40 | $0,0000185 | $0,0000309 | **1,7×** |
+| N = 150 | $0,0000487 | $0,0000484 | 1,0× |
+| N = 300 | $0,0000960 | $0,0000758 | 0,8× |
+
+- **En los tiers chicos, `gru1` es hasta 4 veces más barato.** La espera a la base domina el costo y `gru1` la
+  elimina.
+- **Con redes grandes la cuenta se invierte:** el CPU domina y `iad1` tiene mejor tarifa, hasta un 20 % más barata
+  en N = 300.
+- **Igual se mantiene `gru1`:** para el usuario son ~3,3 s menos de espera por simulación, y la diferencia de
+  costo a favor de `iad1` en los tiers grandes es de centésimas de centavo.
 
 ## El tope de Max
 
@@ -182,12 +268,12 @@ El control previo rechaza (HTTP 422) una corrida cuyo trabajo estimado supere `M
 
 ## Qué falta
 
-1. **Contrastar con el panel de Vercel** (*Observability → Functions*): CPU activa, memoria y duración facturadas
-   de estas pruebas. No tengo acceso a esa vista.
-2. **Confirmar la memoria configurada** de las funciones (*Settings → Functions*).
+1. ~~Ver la facturación real~~: no hace falta. El plan Hobby no factura y el proyecto no sale al mercado; el costo
+   se simula con las tarifas de Pro (ver "Costo por ejecución"). Si se quisiera contrastar, la pestaña *Usage* de
+   Vercel muestra el consumo en horas de CPU y GB-hora, pero sin dólares.
+2. ~~Contrastar con *Observability* y confirmar la memoria configurada~~: hecho, ver "Contraste con el panel".
 3. **Medir la base con una cadena grande** cuando exista una de 150 a 300 nodos, para cerrar los 4.800 filas de
    desempeño que acá se estimaron.
 4. **Que el tope de nodos dependa del plan** (hoy fijo en 50).
-5. **Tener en cuenta que el plan Hobby de Vercel es para uso no comercial.** Si TwinChain va a cobrar tiers
-   (Freemium, Pro, Max), el despliegue va a necesitar el plan Pro de Vercel; ahí `maxDuration` sube a 800 s y la
-   calibración de arriba se puede relajar.
+5. **Si se pasara a Pro**, `maxDuration` sube a 800 s y `MAX_SIMULATION_WORK` se puede relajar; el costo de
+   arriba ya está calculado con las tarifas de ese plan.

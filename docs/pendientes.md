@@ -43,15 +43,11 @@ funcionalidad que todavía no existe.
 
 - **[falta] El tope de nodos por cadena es fijo (50)** y no depende del plan. Si Max va a ser 150 o 300, hace falta
   una entidad de plan o suscripción que hoy no existe en el modelo. Desde el motor, 300 es holgado (0,36 s).
-- **[deuda] Contrastar la medición con el panel de Vercel y confirmar la memoria configurada.** La medición en
-  Vercel está hecha (`docs/rendimiento-motor-vercel.md`), pero con lo que mide la propia función. Falta mirar
-  *Observability → Functions* (CPU activa, memoria y duración facturadas) y *Settings → Functions* (memoria real,
-  que en Hobby sería 2 GB).
 - **[deuda] Medir la base con una cadena grande.** La carga de base se midió con la cadena demo (10 nodos); con
   150–300 nodos las lecturas traen ~4.800 filas de desempeño y ese costo se estimó, no se midió.
-- **[deuda] El plan Hobby de Vercel es solo para uso no comercial.** Si se cobran tiers, el despliegue necesita
-  Pro; ahí `maxDuration` sube a 800 y se puede relajar `MAX_SIMULATION_WORK`. Hoy `maxDuration = 300` (máximo de
-  Hobby; un valor mayor hace fallar el build) y el tope está en 50 M unidades.
+- **[deuda] Límites del despliegue en Hobby:** `maxDuration = 300` (máximo de Hobby; un valor mayor hace fallar el
+  build) y `MAX_SIMULATION_WORK` en 50 M unidades. El proyecto no sale al mercado: el costo de los tiers está
+  simulado con tarifas de Pro en `docs/rendimiento-motor-vercel.md`. Si se pasara a Pro, ambos límites se relajan.
 - **[deuda] `estimateSimulationWork` es conservador:** no distingue redes baratas de caras por unidad (varía ~10×
   entre topologías), así que rechazaría una red de 300 nodos todos con todos y 20 eventos que en la práctica tarda
   16 s. Hoy no se dispara con el tope de 50 nodos; refinarlo con el grado de las aristas si llega a molestar.
