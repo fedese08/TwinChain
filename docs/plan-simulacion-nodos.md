@@ -1,6 +1,8 @@
 # Plan: scripts de simulación de datos para los nodos de la cadena
 
-**Estado: propuesta, pendiente de aprobación. No se escribió código.**
+**Estado: implementado (fases 0 a 5). La referencia vigente es `docs/ingesta-sintetica.md`, que además lista las
+desviaciones respecto de este plan (ventana de 28/24 semanas, CUSUM retrospectivo estandarizado, avance anclado al
+nivel del nodo). El script 7, la inyección de incidentes, quedó sin hacer: ver `docs/pendientes.md`.**
 
 Se entiende por "scripts de simulación de los nodos" lo que el spec (`TwinChain-DEV.md`, Fase 3) y la bitácora
 (decisión 12, RF009) llaman *ingesta sintética*: los generadores que producen el desempeño semanal de cada nodo,

@@ -32,7 +32,7 @@ instalado hoy, qué falta, y las sugerencias propias marcadas como tales.
 | **PostgreSQL (Neon) + Drizzle ORM** | base de datos y capa de acceso — ✅ **instalado y confirmado** (`drizzle-orm`, `postgres`, `drizzle-kit`). Reemplaza a MongoDB + Mongoose por decisión del usuario (ver `docs/modelo-datos.md`, sección "Migración de motor"). Hosting: **Neon** (se evaluó Supabase y se descartó: la app no usa su Auth, RLS, Storage ni Realtime, y su free tier se pausa por inactividad, un riesgo para las demos) | Fase 1 |
 | **Python 3.12+ / FastAPI / Uvicorn** | microservicio ML, separado del monolito | Fase 5 |
 | **scikit-learn, XGBoost, pandas, joblib** | entrenamiento e inferencia del modelo | Fase 5 |
-| **Vitest** | tests del motor de simulación — el script `npm run test` ya existe en `package.json` pero el paquete todavía no está instalado | cuando arranque el motor real (Fase 4) |
+| **Vitest** | tests — ✅ **instalado** (`npm test`): cubren la ingesta sintética y el estado operativo, con calibraciones de Monte Carlo. Falta la capa de integración (base y API) | Fase 4 |
 | **Sentry** | monitoreo de errores en producción | Fase 8 |
 | **Vercel** | deploy del monolito Next.js | Fase 8 |
 | **Railway o Render** | deploy del microservicio ML | Fase 5/8 |

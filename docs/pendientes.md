@@ -32,8 +32,10 @@ funcionalidad que todavía no existe.
   mostradas dejan de coincidir con la `tabla_k` guardada, y RF030 ("conservar la corrida sin poder repetirla no
   alcanza") se rompe en la práctica. Opciones: guardar un snapshot de las entradas junto a cada corrida, o guardar
   las proyecciones por nodo en el resultado. Hoy solo se protege borrar un nodo usado por una simulación.
-- **[deuda] Fechas y zona horaria.** `startOfWeek` trabaja en hora local y `toIsoDate` corta el ISO en UTC; en zonas
-  al este de UTC la semana puede correrse un día. En Argentina (UTC-3) no se nota. Unificar en UTC.
+- **[deuda] Fechas y zona horaria.** `startOfWeek` (lo usa el motor) trabaja en hora local y `toIsoDate` corta el ISO
+  en UTC; en zonas al este de UTC la semana puede correrse un día. `formatWeekLabel` ya se corrigió (mostraba el
+  lunes como domingo al oeste de UTC) y la ingesta usa aritmética de semanas en UTC (`synthetic/weeks.ts`); falta
+  unificar el resto — tocar el motor exige verificarlo con `scripts/verify-engine-equivalence.ts`.
 - **[deuda] Etiqueta de un nodo nuevo.** El canvas arma el código con las 3 primeras letras del tipo en español
   (`PRO-01`, `ALM-01`, `FAB-01`) en vez de `SUP-01`. Los nodos de la demo y de las plantillas usan `SUP`. Ver
   `handleAddNode` en `src/components/canvas/chain-canvas.tsx`.
@@ -57,7 +59,7 @@ funcionalidad que todavía no existe.
 - **[deuda] Simulación síncrona.** `POST /api/escenarios` y `/corridas` corren el motor dentro del request. Con 30
   réplicas son milisegundos; con 200–300 (o cadenas de 50 nodos) hay que pasarlo a un job real (`after()` de Next o
   una cola) y hacer polling/SSE del resultado. El cliente ya tiene `pendingRuns` pensado para eso (C36).
-- **[deuda] El snapshot carga TODO lo de la organización en cada carga completa** (`src/lib/data/snapshot.ts`:
+- **[deuda] El snapshot carga TODO lo de la organización en cada carga completa** (con el monitoreo vivo, hasta 156 semanas por nodo) (`src/lib/data/snapshot.ts`:
   cadenas, nodos, aristas, desempeño, escenarios, eventos, corridas con su `tabla_k`). Está bien para una tesis; con
   muchos datos hay que paginar o cargar por cadena.
 - **[deuda] El store del cliente es una copia de trabajo sin sincronización entre pestañas ni tiempo real.** Dos
@@ -65,8 +67,8 @@ funcionalidad que todavía no existe.
   mitad de la cola, el rollback es por acción, no transaccional.
 - **[deuda] Ids generados por el cliente** (nodos, aristas, escenarios, eventos): el servidor los acepta tal cual.
   Un id repetido devuelve 409, no hay riesgo de fuga, pero conviene revisarlo si algún día se abre la API.
-- **[falta] Tests automatizados.** `npm run test` apunta a Vitest, que no está instalado. Las pruebas de integración
-  que se hicieron a mano (aislamiento entre organizaciones, permisos, cadenas privadas, cascadas, reproducibilidad
+- **[falta] Tests de integración.** Vitest ya está instalado y cubre las funciones puras (ingesta sintética, estado
+  operativo, calibración del CUSUM). Falta lo que toca la base y la API: las pruebas de integración que se hicieron a mano (aislamiento entre organizaciones, permisos, cadenas privadas, cascadas, reproducibilidad
   por semilla) se descartaron después de correrlas: convertirlas en una suite permanente y sumarla al CI (hoy el CI
   solo hace lint + typecheck + `drizzle-kit check`). Prioridad: aislamiento multi-tenant y determinismo del motor.
 - **[deuda] El `.env.local` de desarrollo apunta a la rama `production` de Neon.** Cualquier prueba local que
@@ -103,10 +105,25 @@ funcionalidad que todavía no existe.
 
 - **[deuda] El Visualizador ve el canvas en modo `display`**, que no abre el inspector del nodo: no puede consultar
   los atributos ni el desempeño semanal. Falta un modo de solo lectura que sí los muestre.
-- **[deuda] Verificación de estabilidad (C24)** sigue siendo una simulación de runtime (`stabilityChecks` en el
-  store): solo aparece en cadenas creadas en la sesión, no se persiste y las cadenas demo ya no la muestran. No es
-  una entidad del modelo; se resuelve con el pipeline de ingesta real.
-- **[falta] Ingesta de datos reales (Olist)** y escritura de `desempeno_semanal`: hoy el desempeño sale del seed.
+- **[falta] Datos reales (Olist).** El desempeño lo genera la ingesta sintética (`docs/ingesta-sintetica.md`). El
+  rango del perfil `Vendedor` (nivel 88–92, σ 8–11) es provisorio: calibrarlo con la media y la dispersión de
+  entregas a tiempo del Preliminar E50 §4.1, o cargar datos reales con otra implementación de la ingesta.
+- **[metodología] Provisorios de la ingesta, a revisar con quien defiende la tesis:** (1) el estimador de línea base
+  (media recortada + intervalo de confianza del 90 %) reemplaza al ML de la Fase 5; (2) el CUSUM retrospectivo
+  estandarizado y su umbral 6,4 (0,16 % de falsas alarmas por nodo con 24 semanas); (3) los umbrales de estado de
+  nodo (atención 2 σ, crítico 3,4 σ del déficit medio de 3 semanas); (4) la ventana de entrenamiento de 24 semanas.
+- **[deuda] Producción no tiene el historial nuevo.** Las cadenas ya creadas en Neon sin desempeño siguen vacías
+  hasta correr `npx tsx scripts/backfill-history.ts --apply` contra esa base (primero sin `--apply`, que solo
+  cuenta). No se corrió: escribe en producción.
+- **[falta] Inyección de incidentes en el monitoreo vivo** (script 7 del plan). El monitoreo avanza sin eventos: los
+  nodos solo se mueven por ruido, así que nunca se ve un nodo "crítico". Está sin hacer porque la serie se ancla al
+  nivel del nodo (para que no derive) y un incidente sostenido exigiría que el ancla lo reconozca a partir de los
+  datos: hay que extender `continueSeries` y recalibrar.
+- **[deuda] El reinicio del monitoreo con nodos agregados tarde.** "Reiniciar" deja a cada nodo con sus primeras 28
+  semanas; un nodo agregado después de avanzar termina en una semana posterior a la de los demás. Casi no se nota,
+  pero la línea de tiempo queda desalineada hasta que se vuelve a avanzar.
+- **[deuda] Fechas simuladas.** Cada avance es una semana más y pasa de la fecha de hoy. La pantalla lo rotula como
+  "semana simulada", pero el formulario de escenarios sugiere la fecha real.
 - **[falta] Plantillas y nodos (`/biblioteca`)** es una página de referencia estática.
 - **[deuda] Landing:** los precios y planes son de relleno, sin backend de pagos ni límites reales asociados.
 - **[falta] Eliminar/editar cadena:** se puede eliminar, pero no renombrarla ni cambiar su visibilidad

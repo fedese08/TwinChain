@@ -104,8 +104,18 @@ actual y no con la de la corrida.
      Borrar una cadena también se lleva sus simulaciones (`DELETE /api/cadenas/[id]`).
   6. **Retirar el mock — hecho.** No queda ningún dato de mentira en la app: `src/lib/mock/` pasó a `src/lib/domain/`
      (tipos de la UI, motor, fechas, plantillas) y el generador de datos demo vive en `scripts/seed-data.ts` (solo lo
-     usa `db:seed`). La única simulación de runtime que queda es `stabilityChecks` (C24, validación CUSUM del
-     pipeline de ingesta): no es una entidad del modelo y solo aparece en cadenas creadas en la sesión.
+     usa `db:seed`).
+  7. **Ingesta sintética + monitoreo vivo — hecho.** El desempeño semanal de los nodos ya no sale solo del seed:
+     `src/lib/ingestion/ingest-history.ts` (pipeline de ingesta, contenedor C4) lo genera al **crear una cadena** y
+     al **agregar un nodo**, en la misma transacción. Núcleo puro en `src/lib/domain/synthetic/` (perfiles por tipo,
+     generador AR(1) determinístico por (nodo, semana), estimador de línea base, CUSUM, avance semanal) y estado
+     operativo en `src/lib/domain/monitoring.ts`. **Leer `docs/ingesta-sintetica.md` antes de tocarlo**: tiene los
+     parámetros, cómo se calibraron y qué es provisorio. Reglas que no se rompen: la línea base se estima **solo**
+     del historial del propio nodo (RF017) y queda **congelada** (el avance la copia, nunca la recalcula); capacidades
+     y stock no entran en ninguna fórmula; el historial es de 28 semanas y las primeras 24 son la ventana de
+     entrenamiento. `POST/DELETE /api/cadenas/[id]/avance` es el monitoreo vivo (un tick = una semana; el reloj lo
+     maneja el navegador porque Vercel no sostiene un proceso). `scripts/backfill-history.ts` completa cadenas ya
+     existentes (simulacro por defecto, escribe solo con `--apply`).
   - **Reglas del backend (no romper):** (a) la sesión JWT guarda **solo la identidad**; organización y rol se leen
     de la base en cada request (`getCurrentUser` en `src/lib/auth/session.ts`). (b) toda query de negocio filtra por
     el `organizacionId` que devuelve `requireApiMember()` / `requirePageMember()` — **nunca** por uno que venga en
@@ -178,10 +188,14 @@ actual y no con la de la corrida.
     horizonte. El motor tuvo una rampa de recuperación automática (`RECOVERY_SPAN_WEEKS`) y se sacó a propósito
     porque equivalía a hardcodear la duración de la disrupción — ver `docs/duracion-de-la-disrupcion.md`, **no
     volver a agregarla**. El escalón viaja aguas abajo con el retraso de tránsito de cada nodo.
-  - **C36 (ejecución en background)** y **C24 (CUSUM en el pipeline de ingesta)** están simulados como estado de
-    runtime en el store — `pendingRuns` y `stabilityChecks`. **No son entidades del modelo de datos** y no deben
-    convertirse en tablas: el job y el pipeline son contenedores de la arquitectura C4, no filas. Cuando exista el
-    backend real, `pendingRuns` lo reemplaza el job de Vercel y `stabilityChecks` el pipeline de ingesta.
+  - **C36 (ejecución en background)** sigue simulado como estado de runtime en el store (`pendingRuns`). **C24
+    (CUSUM) ya es real**: el veredicto se **deriva** de las filas de desempeño (`deriveChainStability` en
+    `domain/synthetic/cusum.ts`, hook `useChainStatuses`) y no se guarda. Ninguno de los dos es una entidad del
+    modelo de datos ni debe convertirse en tabla: el job y el pipeline son contenedores de la arquitectura C4.
+    Cuando exista el job real, `pendingRuns` lo reemplaza el job de Vercel.
+  - **Tests:** Vitest (`npm test`). Hay 34 de la ingesta sintética y el estado operativo, incluidas las
+    calibraciones de Monte Carlo del CUSUM y de los umbrales de atención/crítico: **no relajarlos para que
+    pasen**, si fallan es que cambió algo que afecta la tasa de falsas alarmas.
 - **`ChainCanvas` necesita un padre con altura.** Su raíz es `flex h-full min-h-0 flex-1`: dentro de un padre
   flex toma `flex-1`, y dentro de una caja de alto fijo (la red fork del resultado) toma `h-full`. Si el padre es
   `block` **y** se le saca el `h-full`, el canvas colapsa a 0 de alto y no se ve nada.
