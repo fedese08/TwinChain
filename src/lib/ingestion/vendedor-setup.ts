@@ -1,8 +1,10 @@
+// (Inactivo mientras `REAL_VENDEDORES_ENABLED` sea false: devuelve sin planes y el Vendedor sale sintético.)
 // Prepara los nodos Vendedor con datos REALES de Olist: asigna un vendedor a cada nodo y resuelve su línea base.
 //
 // Corre ANTES de abrir la transacción de base de datos: llamar al servicio de ML dentro de una transacción la
 // tendría abierta mientras espera la red (en Render gratis, hasta un minuto si el servicio estaba dormido).
 import { HISTORY_WEEKS } from "@/lib/domain/synthetic";
+import { REAL_VENDEDORES_ENABLED } from "@/lib/domain/vendedor/config";
 import { assignSellers } from "@/lib/domain/vendedor/assign";
 import { baselineFromModel, PHASE1_WEEKS, provisionalVendedorBaseline, type VendedorBaseline } from "@/lib/domain/vendedor/baseline";
 import type { VendedorSetup } from "@/lib/domain/synthetic";
@@ -44,7 +46,7 @@ export async function resolveVendedorBaseline(realWeeks: RealWeek[], timeoutMs: 
  * vendedores que la cadena ya usa, para no repetirlos.
  */
 export async function prepareVendedorPlans(nodeIds: string[], usedSellerIds: ReadonlySet<string> = new Set()): Promise<Map<string, VendedorPlan>> {
-  if (nodeIds.length === 0) return new Map();
+  if (!REAL_VENDEDORES_ENABLED || nodeIds.length === 0) return new Map();
   const assignment = assignSellers(nodeIds, poolSellers(), usedSellerIds, HISTORY_WEEKS);
 
   const plans = await Promise.all(

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Controller, useForm } from "react-hook-form";
@@ -32,12 +32,6 @@ export default function NewChainPage() {
   });
 
   const name = watch("name");
-
-  // Los nodos Vendedor toman su línea base del modelo de ML, que en Render gratis puede estar dormido: se lo
-  // despierta apenas se abre el formulario, así cuando se crea la cadena ya contesta rápido.
-  useEffect(() => {
-    void fetch("/api/ml/estado").catch(() => undefined);
-  }, []);
 
   async function onSubmit(values: ChainFormValues) {
     setServerError(null);

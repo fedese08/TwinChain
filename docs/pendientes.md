@@ -155,3 +155,8 @@ funcionalidad que todavía no existe.
 - **[falta] Desplegar `twinchain-ml` en Render** y cargar `ML_SERVICE_URL`/`ML_API_KEY` en Vercel. El Dockerfile no se
   probó con `docker build`.
 - **[decisión] Atraso no representado:** el motor trunca en 0; un margen negativo del Vendedor no suma pérdida.
+- **[decisión tomada] Vendedor sintético.** `REAL_VENDEDORES_ENABLED = false`: los Vendedores nuevos (y los de `db:seed`)
+  salen del generador sintético, en 0–100. El camino real queda inactivo en el código (`lib/domain/vendedor`,
+  `ingestion/vendedor-setup.ts`, `units.ts`, endpoint `/linea-base`). Si se confirma que no se va a reactivar,
+  conviene borrarlo; hasta entonces no tocarlo. Las cadenas de Neon con Vendedores reales creadas antes siguen en días.
+

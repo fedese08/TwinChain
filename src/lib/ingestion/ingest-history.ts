@@ -2,10 +2,10 @@
 // nodos que todavía no lo tienen, lo guarda y corre la verificación de estabilidad (C24, decisión 14).
 //
 // Dos orígenes de datos, según el nodo:
-//   - nodos sintéticos: serie generada en escala 0-100 (`lib/domain/synthetic`);
-//   - nodos Vendedor: vendedores REALES de Olist, en DÍAS de margen, con la línea base del modelo de ML
-//     (`lib/domain/vendedor`). Su plan (vendedor asignado + línea base) lo prepara quien llama ANTES de abrir la
-//     transacción, ver `vendedor-setup.ts`.
+//   - nodos sintéticos (hoy TODOS, incluido el Vendedor): serie generada en escala 0-100 (`lib/domain/synthetic`);
+//   - nodos Vendedor con plan (camino inactivo, ver `lib/domain/vendedor/config.ts`): vendedores REALES de Olist, en
+//     DÍAS de margen, con la línea base del modelo de ML (`lib/domain/vendedor`). Su plan lo prepara quien llama
+//     ANTES de abrir la transacción, ver `vendedor-setup.ts`.
 //
 // La base solo entra acá. Quien llama pasa su propia transacción, así que o queda todo (cadena, nodos e
 // historial) o no queda nada.
@@ -58,7 +58,8 @@ async function markVendedorNode(db: Executor, nodeId: string, plan: VendedorPlan
 function toHistoryNode(node: { id: string; tipo: NodeType }, plans: ReadonlyMap<string, VendedorPlan>): HistoryNode {
   if (node.tipo !== "Vendedor") return { id: node.id, type: node.tipo };
   const plan = plans.get(node.id);
-  if (!plan) throw new Error(`Falta el plan de vendedor real del nodo ${node.id}: hay que prepararlo antes de la transacción`);
+  // Sin plan, el Vendedor es sintético como cualquier otro tipo (ver `lib/domain/vendedor/config.ts`).
+  if (!plan) return { id: node.id, type: node.tipo };
   return { id: node.id, type: node.tipo, vendedor: plan.setup };
 }
 

@@ -1,9 +1,10 @@
 # Modelo de ML de línea base: integración, auditoría de alineación y plan
 
 Estado al 19/10/2026. El modelo está en `twinchain-ml/` y se integra con la app a través de la pantalla **Modelo de
-línea base** (`/modelo`). **Desde la Opción 1 (sección 7) el modelo SÍ alimenta el pipeline**: los nodos Vendedor usan
-vendedores reales de Olist, en días, con la línea base del modelo; el motor recibe déficit relativo a través de un
-adaptador. Las secciones 4 y 5 quedan como registro de la auditoría y de la decisión.
+línea base** (`/modelo`). **Estado actual (decisión posterior): todos los nodos, incluido el Vendedor, se alimentan con el generador
+sintético.** La Opción 1 (sección 7) se implementó y se verificó, pero el camino de Vendedor real quedó **inactivo**
+tras el interruptor `REAL_VENDEDORES_ENABLED` (`src/lib/domain/vendedor/config.ts`). El modelo sigue disponible en
+`/modelo` y como referencia de calibración. Las secciones 4 y 5 quedan como registro de la auditoría y de la decisión.
 
 ## 1. Qué es el modelo
 
@@ -182,7 +183,10 @@ la bitácora. El spec quedó desactualizado en este punto (y habla de Python 3.1
 | `src/app/(app)/modelo/`, `src/components/model/` | Pantalla "Modelo de línea base" |
 
 
-## 7. Opción 1 implementada (Fase E)
+## 7. Opción 1 implementada (Fase E) — hoy inactiva
+
+> **Inactiva por decisión del proyecto:** los nodos Vendedor nuevos se generan de forma sintética. Lo que sigue describe
+> el camino que se activa con `REAL_VENDEDORES_ENABLED = true`.
 
 **Qué se hizo**
 

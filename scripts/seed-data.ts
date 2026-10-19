@@ -3,6 +3,7 @@ import { hashSeed } from "@/lib/domain/rng";
 import { runScenarioSimulation } from "@/lib/domain/simulate";
 import { buildChainHistory, HISTORY_WEEKS } from "@/lib/domain/synthetic";
 import { adaptForEngine } from "@/lib/domain/units";
+import { REAL_VENDEDORES_ENABLED } from "@/lib/domain/vendedor/config";
 import { assignSellers } from "@/lib/domain/vendedor/assign";
 import { provisionalVendedorBaseline, type VendedorBaseline } from "@/lib/domain/vendedor/baseline";
 import { getSellerWeeks, poolSellers } from "@/lib/olist/sample";
@@ -79,11 +80,12 @@ export const seedEdges: SupplyChainEdge[] = [
 ];
 
 /**
- * Los nodos Vendedor de la demo usan vendedores REALES de Olist (en días de margen), como cualquier cadena que se
- * cree en la app. La asignación es determinística (función del id del nodo) y no repite vendedores dentro de la
+ * Con `REAL_VENDEDORES_ENABLED` encendido, los Vendedores de la demo usan vendedores REALES de Olist (en días de
+ * margen), como cualquier cadena que se cree en la app; apagado (hoy), son sintéticos como todos los nodos. La asignación es determinística (función del id del nodo) y no repite vendedores dentro de la
  * cadena. El `seller_id` queda en `olistSellerId`; la fuente de la línea base la fija `seed.ts` al resolverla.
  */
 for (const chain of seedChains) {
+  if (!REAL_VENDEDORES_ENABLED) break;
   const vendedores = seedNodes.filter((n) => n.chainId === chain.id && n.nodeType === "Vendedor");
   const assignment = assignSellers(vendedores.map((n) => n.id), poolSellers(), new Set(), HISTORY_WEEKS);
   for (const node of vendedores) node.olistSellerId = assignment.get(node.id);

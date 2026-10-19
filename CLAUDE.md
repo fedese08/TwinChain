@@ -10,7 +10,7 @@ en todo lo que choque. Leer ambos antes de tocar modelos, tipos o pantallas de s
 ## Dos capas de análisis (no confundirlas)
 
 1. **Monitoreo Digital Twin** — desempeño semanal real vs. línea base por nodo (`DesempenoSemanal`), medido a partir
-   de datos reales (Olist) para nodos `Vendedor`. El resto de los tipos de nodo son conceptuales todavía.
+   de datos **sintéticos** para todos los tipos de nodo (generador por perfil de tipo); Olist calibra el perfil y entrena el modelo de ML, pero no alimenta los nodos.
 2. **Simulación hipotética** — un `Escenario` (fork conceptual, no altera la cadena viva) agrupa uno o más `Evento`
    (disrupciones) sobre nodos de una cadena, y produce un `Resultado` con una `tabla_k` (costo de reconfigurar en
    semanas malas equivalentes ↔ umbral de reconfiguración). El ML **no** corre sobre simulaciones.
@@ -116,14 +116,16 @@ actual y no con la de la corrida.
      entrenamiento. `POST/DELETE /api/cadenas/[id]/avance` es el monitoreo vivo (un tick = una semana; el reloj lo
      maneja el navegador porque Vercel no sostiene un proceso). `scripts/backfill-history.ts` completa cadenas ya
      existentes (simulacro por defecto, escribe solo con `--apply`).
-  8. **Modelo de ML (`twinchain-ml/`) — integrado al pipeline (Opción 1).** Microservicio FastAPI con el modelo de línea
-     base de vendedores (regresión de cuantiles + bandas CQR, entrenado con Olist; **no** es el clasificador de backorder
-     de `TwinChain-DEV.md`). Los nodos Vendedor usan un `seller_id` real de Olist, **en días (`margin_days`)**, con la línea
-     base del modelo (`fuente_linea_base` `ml`, o `provisoria` si el servicio no contesta; se mejora con
-     `POST /api/cadenas/[id]/linea-base`). **Unidades por nodo** (`src/lib/domain/units.ts`): días iff el nodo tiene
-     `vendedorOlistId`, el resto 0–100. **Todo lo que llame al motor pasa las filas por `adaptForEngine`** (escala cada
-     nodo en días a base=100; identidad si no hay nodos en días) — no llamar a `runScenarioSimulation` con filas crudas.
-     Vendedores reales se monitorean con la banda semanal del modelo, no con C24. Leer `docs/modelo-ml.md` (sección 7) y
+  8. **Modelo de ML (`twinchain-ml/`) — módulo de calibración/exploración; los nodos son TODOS sintéticos.** Microservicio
+     FastAPI con el modelo de línea base de vendedores (regresión de cuantiles + bandas CQR, entrenado con Olist; **no**
+     es el clasificador de backorder de `TwinChain-DEV.md`). Se consulta desde el servidor con `src/lib/ml-client` y se
+     muestra en `/modelo`. **Decisión del proyecto: todos los nodos, incluido el Vendedor, se alimentan con el generador
+     sintético** (`lib/domain/synthetic`, escala 0–100); Olist es fuente de calibración y de entrenamiento, no de los
+     nodos. Existe un camino de Vendedor real (Olist en días + línea base del modelo + `adaptForEngine` en
+     `src/lib/domain/units.ts` + banda semanal) que queda **inactivo** tras el interruptor
+     `REAL_VENDEDORES_ENABLED = false` (`src/lib/domain/vendedor/config.ts`); las cadenas que ya tengan Vendedores reales
+     siguen funcionando. **Todo lo que llame al motor pasa las filas por `adaptForEngine`** (identidad si no hay nodos en
+     días) — no llamar a `runScenarioSimulation` con filas crudas. Leer `docs/modelo-ml.md` (sección 7) y
      `twinchain-ml/README.md`. Variables: `ML_SERVICE_URL`, `ML_API_KEY` (opcionales). El bundle `.joblib` es un pickle de
      scikit-learn **1.9.1 exacto**: no actualizar la versión.
   - **Reglas del backend (no romper):** (a) la sesión JWT guarda **solo la identidad**; organización y rol se leen
