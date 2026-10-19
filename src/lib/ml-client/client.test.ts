@@ -44,6 +44,16 @@ describe("cliente del microservicio de línea base", () => {
     expect(JSON.parse(init.body)).toEqual({ fase1: phase1, fase2: [2.5] });
   });
 
+  it("predict pide la línea base con las 4 semanas de Fase I y respeta el timeout que se le pasa", async () => {
+    fetchMock.mockResolvedValue(json(prediction));
+    const result = await mlClient.predict({ phase1, timeoutMs: 1234 });
+    expect(result.linea_base).toBe(3.2);
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe("http://ml.test/predecir_desde_semanas");
+    expect(JSON.parse(init.body)).toEqual({ semanas: phase1 });
+    expect(init.signal).toBeInstanceOf(AbortSignal);
+  });
+
   it("sin clave configurada no manda el header", async () => {
     vi.stubEnv("ML_API_KEY", "");
     fetchMock.mockResolvedValue(json({ status: "ok", version: "v2", features_esperadas: 7, bundle_sha256: "abc" }));

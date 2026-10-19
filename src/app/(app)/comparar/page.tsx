@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { ScenarioComparisonChart } from "@/components/charts/scenario-comparison-chart";
+import { adaptForEngine } from "@/lib/domain/units";
 import { runScenarioSimulation } from "@/lib/domain/simulate";
 import { EVENT_TYPE_LABELS } from "@/lib/validators/scenario";
 import { useAppStore } from "@/stores/app-store";
@@ -51,12 +52,14 @@ export default function CompareScenariosPage() {
       const chainNodeIds = new Set(chainNodes.map((n) => n.id));
       const chainEdges = edges.filter((e) => chainNodeIds.has(e.sourceNodeId) && chainNodeIds.has(e.targetNodeId));
 
+      // Los Vendedor con datos reales están en días: el motor los recibe en escala relativa (domain/units.ts).
+      const adapter = adaptForEngine(chainNodes, weeklyPerformance);
       const outcome = lastRun
         ? runScenarioSimulation(
             chainNodes,
             chainEdges,
             scenarioEvents,
-            weeklyPerformance,
+            adapter.rows,
             scenario.projectionHorizonWeeks,
             {
               seed: lastRun.seed,

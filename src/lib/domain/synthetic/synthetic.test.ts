@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { NODE_TYPES } from "@/lib/domain/types";
+import { provisionalVendedorBaseline } from "@/lib/domain/vendedor/baseline";
 import { advanceNode } from "./advance";
 import { buildChainHistory, buildSingleNodeHistory, planLevelShifts } from "./build-history";
 import { HISTORY_WEEKS, MAX_ADVANCE_WEEKS, TRAINING_WEEKS } from "./config";
@@ -157,13 +158,13 @@ describe("historial de cadena", () => {
 
   it("sin el interruptor la cadena es estable; con él, alerta con la semana del cambio", () => {
     const stable = buildChainHistory(nodes, { endWeek: END });
-    expect(stable.stability.status).toBe("estable");
+    expect(stable.stability!.status).toBe("estable");
 
     const broken = buildChainHistory(nodes, { endWeek: END, withLevelShift: true });
-    expect(broken.stability.status).toBe("alerta");
-    expect(broken.stability.unstableNodeCount).toBeGreaterThanOrEqual(1);
+    expect(broken.stability!.status).toBe("alerta");
+    expect(broken.stability!.unstableNodeCount).toBeGreaterThanOrEqual(1);
     const shiftWeek = weeks(HISTORY_WEEKS)[Math.floor(TRAINING_WEEKS * 0.6)];
-    const gapWeeks = Math.abs((Date.parse(broken.stability.changePointWeek!) - Date.parse(shiftWeek)) / (7 * 86_400_000));
+    const gapWeeks = Math.abs((Date.parse(broken.stability!.changePointWeek!) - Date.parse(shiftWeek)) / (7 * 86_400_000));
     expect(gapWeeks).toBeLessThanOrEqual(2);
   });
 
@@ -173,6 +174,30 @@ describe("historial de cadena", () => {
     const many = Array.from({ length: 20 }, () => randomUUID());
     expect(planLevelShifts(many, weeks(HISTORY_WEEKS))).toEqual(planLevelShifts(many, weeks(HISTORY_WEEKS)));
     expect(planLevelShifts(many, weeks(HISTORY_WEEKS)).size).toBe(6);
+  });
+});
+
+describe("historial de cadena con Vendedores reales", () => {
+  const realWeeks = Array.from({ length: 40 }, (_, i) => ({ margen: 3 + Math.sin(i), items: 2 }));
+  const vendedor = { realWeeks, baseline: provisionalVendedorBaseline(realWeeks.slice(0, 4).map((w) => w.margen)) };
+
+  it("los nodos reales usan sus datos en días y quedan afuera de la verificación de estabilidad", () => {
+    const synthetic = NODE_TYPES.filter((t) => t !== "Vendedor").map((type) => ({ id: randomUUID(), type }));
+    const real = { id: randomUUID(), type: "Vendedor" as const, vendedor };
+    const { rows, stability } = buildChainHistory([...synthetic, real], { endWeek: END });
+    const own = rows.filter((r) => r.nodeId === real.id);
+    expect(own.map((r) => r.actualValue)).toEqual(realWeeks.slice(0, HISTORY_WEEKS).map((w) => w.margen));
+    expect(stability?.nodeCount).toBe(synthetic.length);
+  });
+
+  it("una cadena de solo Vendedores reales no tiene nada que evaluar", () => {
+    expect(buildChainHistory([{ id: randomUUID(), type: "Vendedor", vendedor }], { endWeek: END }).stability).toBeNull();
+  });
+
+  it("el cambio de nivel inyectado nunca toca a un nodo con datos reales", () => {
+    const real = { id: randomUUID(), type: "Vendedor" as const, vendedor };
+    const plain = buildChainHistory([real], { endWeek: END }).rows;
+    expect(buildChainHistory([real], { endWeek: END, withLevelShift: true }).rows).toEqual(plain);
   });
 });
 

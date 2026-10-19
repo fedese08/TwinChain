@@ -17,6 +17,15 @@ export const RECENT_WEEKS = 3;
 export const ATTENTION_SIGMAS = 2;
 export const CRITICAL_SIGMAS = 3.4;
 
+/**
+ * Nodos con línea base del MODELO de ML (Vendedores reales): se mira cuántas de las últimas semanas cayeron por
+ * debajo de la banda SEMANAL del modelo, que es justamente la banda pensada para alertar semana a semana. Medido
+ * con 81 vendedores reales que el modelo no vio: "atención" en el 3,3 % de las ventanas y "crítico" en el 0,6 %.
+ * (La regla por σ casi no salta con datos reales: 0,2 %, porque su σ incluye los cambios de nivel propios del vendedor.)
+ */
+export const BAND_ATTENTION_COUNT = 2;
+export const BAND_CRITICAL_COUNT = 3;
+
 /** Piso de σ: un nodo casi constante no debe disparar por divisiones por ~0. */
 const MIN_SIGMA = 0.5;
 
@@ -26,7 +35,10 @@ export interface NodeHealth {
   recentDeficit: number;
   /** Déficit de la última semana registrada. */
   latestDeficit: number;
-  /** Déficit reciente medio expresado en σ del nodo. */
+  /**
+   * Déficit reciente medio en unidades de variabilidad del nodo: σ de su ventana de entrenamiento o, en los
+   * nodos con banda semanal del modelo, semi-anchos de esa banda. Es un número sin unidades.
+   */
   deficitSigmas: number;
 }
 
@@ -40,6 +52,15 @@ export function assessNode(rows: WeeklyPerformance[]): NodeHealth {
   const recent = sorted.slice(-RECENT_WEEKS);
   const recentDeficit = recent.reduce((sum, r) => sum + r.deficit, 0) / recent.length;
   const latestDeficit = sorted[sorted.length - 1].deficit;
+
+  // Nodo con línea base del modelo: la regla es la banda semanal del propio modelo.
+  const latest = sorted[sorted.length - 1];
+  if (latest.weeklyBandLower !== undefined) {
+    const below = recent.filter((r) => r.weeklyBandLower !== undefined && r.actualValue < r.weeklyBandLower).length;
+    const level: NodeHealthLevel = below >= BAND_CRITICAL_COUNT ? "critico" : below >= BAND_ATTENTION_COUNT ? "atencion" : "normal";
+    const halfWidth = Math.max(latest.baseline - latest.weeklyBandLower, MIN_SIGMA);
+    return { level, recentDeficit, latestDeficit, deficitSigmas: recentDeficit / halfWidth };
+  }
 
   // σ del nodo: de su ventana de entrenamiento, la misma sobre la que se congeló la línea base.
   const training = sorted.slice(0, TRAINING_WEEKS).map((r) => r.actualValue);

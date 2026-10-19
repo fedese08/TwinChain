@@ -15,6 +15,7 @@ import type {
   KTableRow,
   Scenario,
   ScenarioResult,
+  BaselineSource,
   SupplyChainEdge,
   SupplyChainNode,
   WeeklyPerformance,
@@ -36,6 +37,8 @@ export const toNode = (r: NodoRow): SupplyChainNode => ({
   productionCapacity: r.capacidadProduccion ?? undefined,
   storageCapacity: r.capacidadAlmacenamiento ?? undefined,
   currentStockLevel: r.nivelStockActual ?? undefined,
+  olistSellerId: r.vendedorOlistId ?? undefined,
+  baselineSource: (r.fuenteLineaBase as BaselineSource | null) ?? undefined,
   canvasPosition: { x: r.posX, y: r.posY },
 });
 
@@ -54,6 +57,8 @@ export const toWeeklyPerformance = (r: DesempenoSemanalRow): WeeklyPerformance =
   baseline: r.lineaBase,
   baselineLowerBand: r.bandaInferior,
   baselineUpperBand: r.bandaSuperior,
+  weeklyBandLower: r.bandaSemanalInferior ?? undefined,
+  weeklyBandUpper: r.bandaSemanalSuperior ?? undefined,
   deficit: r.deficit,
 });
 

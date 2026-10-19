@@ -1,7 +1,11 @@
 import { addWeeks, startOfWeek, toIsoDate } from "@/lib/domain/dates";
 import { hashSeed } from "@/lib/domain/rng";
 import { runScenarioSimulation } from "@/lib/domain/simulate";
-import { buildChainHistory } from "@/lib/domain/synthetic";
+import { buildChainHistory, HISTORY_WEEKS } from "@/lib/domain/synthetic";
+import { adaptForEngine } from "@/lib/domain/units";
+import { assignSellers } from "@/lib/domain/vendedor/assign";
+import { provisionalVendedorBaseline, type VendedorBaseline } from "@/lib/domain/vendedor/baseline";
+import { getSellerWeeks, poolSellers } from "@/lib/olist/sample";
 import type {
   Chain,
   DisruptionEvent,
@@ -75,6 +79,20 @@ export const seedEdges: SupplyChainEdge[] = [
 ];
 
 /**
+ * Los nodos Vendedor de la demo usan vendedores REALES de Olist (en días de margen), como cualquier cadena que se
+ * cree en la app. La asignación es determinística (función del id del nodo) y no repite vendedores dentro de la
+ * cadena. El `seller_id` queda en `olistSellerId`; la fuente de la línea base la fija `seed.ts` al resolverla.
+ */
+for (const chain of seedChains) {
+  const vendedores = seedNodes.filter((n) => n.chainId === chain.id && n.nodeType === "Vendedor");
+  const assignment = assignSellers(vendedores.map((n) => n.id), poolSellers(), new Set(), HISTORY_WEEKS);
+  for (const node of vendedores) node.olistSellerId = assignment.get(node.id);
+}
+
+/** Los nodos Vendedor reales de la demo: lo que `seed.ts` tiene que resolver contra el modelo de ML. */
+export const seedVendedorNodes = seedNodes.filter((n) => n.olistSellerId);
+
+/**
  * Historial de desempeño de la demo, generado por el mismo pipeline de ingesta que usa la app al
  * crear una cadena (`lib/domain/synthetic`): la línea base se ESTIMA del historial de cada nodo y se
  * congela (RF017), sin perfiles escritos a mano por id.
@@ -84,11 +102,24 @@ export const seedEdges: SupplyChainEdge[] = [
  */
 const CHAINS_WITH_LEVEL_SHIFT = new Set(["chain-sur"]);
 
-export const seedWeeklyPerformance: WeeklyPerformance[] = seedChains.flatMap((chain) => {
-  const chainNodes = seedNodes.filter((n) => n.chainId === chain.id).map((n) => ({ id: n.id, type: n.nodeType }));
-  const { rows } = buildChainHistory(chainNodes, { withLevelShift: CHAINS_WITH_LEVEL_SHIFT.has(chain.id) });
-  return rows.map((row) => ({ ...row, id: `wp-${row.nodeId}-${row.weekStart}` }));
-});
+/**
+ * `vendedorBaselines`: la línea base de cada Vendedor real (la del modelo de ML o, sin servicio, la provisoria);
+ * `seed.ts` la resuelve antes de armar los datos.
+ */
+export function buildSeedWeeklyPerformance(vendedorBaselines: ReadonlyMap<string, VendedorBaseline>): WeeklyPerformance[] {
+  return seedChains.flatMap((chain) => {
+    const chainNodes = seedNodes
+      .filter((n) => n.chainId === chain.id)
+      .map((n) => {
+        if (!n.olistSellerId) return { id: n.id, type: n.nodeType };
+        const realWeeks = getSellerWeeks(n.olistSellerId)!;
+        const baseline = vendedorBaselines.get(n.id) ?? provisionalVendedorBaseline(realWeeks.slice(0, 4).map((w) => w.margen));
+        return { id: n.id, type: n.nodeType, vendedor: { realWeeks, baseline } };
+      });
+    const { rows } = buildChainHistory(chainNodes, { withLevelShift: CHAINS_WITH_LEVEL_SHIFT.has(chain.id) });
+    return rows.map((row) => ({ ...row, id: `wp-${row.nodeId}-${row.weekStart}` }));
+  });
+}
 
 export function weeksAgoIso(weeks: number): string {
   return toIsoDate(addWeeks(startOfWeek(new Date()), -weeks));
@@ -130,17 +161,25 @@ export const seedEvents: DisruptionEvent[] = [
   { id: "event-4", scenarioId: "scenario-3", nodeId: "node-sup-02", eventType: "corte", startDate: weeksAgoIso(2), magnitude: 20 },
 ];
 
-function buildResult(scenario: Scenario, events: DisruptionEvent[], runId: string, runDate: string): ScenarioResult {
+function buildResult(
+  scenario: Scenario,
+  events: DisruptionEvent[],
+  runId: string,
+  runDate: string,
+  weeklyPerformance: WeeklyPerformance[],
+): ScenarioResult {
   const chainNodes = seedNodes.filter((n) => n.chainId === scenario.chainId);
   const chainNodeIds = new Set(chainNodes.map((n) => n.id));
   const chainEdges = seedEdges.filter((e) => chainNodeIds.has(e.sourceNodeId) && chainNodeIds.has(e.targetNodeId));
   const seed = hashSeed(runId);
 
+  // Igual que la app: los Vendedor en días se pasan a escala relativa antes del motor (domain/units.ts).
+  const adapter = adaptForEngine(chainNodes, weeklyPerformance);
   const outcome = runScenarioSimulation(
     chainNodes,
     chainEdges,
     events,
-    seedWeeklyPerformance,
+    adapter.rows,
     scenario.projectionHorizonWeeks,
     { seed },
   );
@@ -156,21 +195,25 @@ function buildResult(scenario: Scenario, events: DisruptionEvent[], runId: strin
   };
 }
 
-export const seedResults: ScenarioResult[] = [
-  ...seedScenarios.map((scenario) =>
-    buildResult(
-      scenario,
-      seedEvents.filter((e) => e.scenarioId === scenario.id),
-      `result-${scenario.id}`,
-      scenario.createdAt,
+export function buildSeedResults(weeklyPerformance: WeeklyPerformance[]): ScenarioResult[] {
+  return [
+    ...seedScenarios.map((scenario) =>
+      buildResult(
+        scenario,
+        seedEvents.filter((e) => e.scenarioId === scenario.id),
+        `result-${scenario.id}`,
+        scenario.createdAt,
+        weeklyPerformance,
+      ),
     ),
-  ),
-  // Segunda corrida del mismo escenario: cada corrida se conserva por separado, no se pisa
-  // la anterior (RF030) — el listado de corridas del resultado arranca con algo que mostrar.
-  buildResult(
-    seedScenarios[0],
-    seedEvents.filter((e) => e.scenarioId === seedScenarios[0].id),
-    `result-${seedScenarios[0].id}-2`,
-    weeksAgoIso(0),
-  ),
-];
+    // Segunda corrida del mismo escenario: cada corrida se conserva por separado, no se pisa
+    // la anterior (RF030) — el listado de corridas del resultado arranca con algo que mostrar.
+    buildResult(
+      seedScenarios[0],
+      seedEvents.filter((e) => e.scenarioId === seedScenarios[0].id),
+      `result-${seedScenarios[0].id}-2`,
+      weeksAgoIso(0),
+      weeklyPerformance,
+    ),
+  ];
+}

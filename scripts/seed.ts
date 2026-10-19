@@ -24,10 +24,14 @@ import {
   seedEvents,
   seedNodes,
   seedOrganization,
-  seedResults,
   seedScenarios,
-  seedWeeklyPerformance,
+  seedVendedorNodes,
+  buildSeedResults,
+  buildSeedWeeklyPerformance,
 } from "./seed-data";
+import { resolveVendedorBaseline } from "../src/lib/ingestion/vendedor-setup";
+import { getSellerWeeks } from "../src/lib/olist/sample";
+import type { VendedorBaseline } from "../src/lib/domain/vendedor/baseline";
 
 const DEMO_EMAIL = "demo@twinchain.dev";
 
@@ -40,6 +44,17 @@ async function main() {
 
   try {
     const roles = await ensureRoles(db);
+
+    // Los Vendedores reales de la demo toman su línea base del modelo de ML si el servicio está configurado
+    // (ML_SERVICE_URL); si no, queda la provisoria, marcada como tal en el nodo.
+    const vendedorBaselines = new Map<string, VendedorBaseline>();
+    for (const node of seedVendedorNodes) {
+      vendedorBaselines.set(node.id, await resolveVendedorBaseline(getSellerWeeks(node.olistSellerId!)!, 20_000));
+    }
+    const seedWeeklyPerformance = buildSeedWeeklyPerformance(vendedorBaselines);
+    const seedResults = buildSeedResults(seedWeeklyPerformance);
+    const fromModel = [...vendedorBaselines.values()].filter((b) => b.source === "ml").length;
+    console.log(`Vendedores reales: ${vendedorBaselines.size} (línea base del modelo: ${fromModel}, provisoria: ${vendedorBaselines.size - fromModel})`);
 
     const password = process.env.SEED_DEMO_PASSWORD ?? randomBytes(9).toString("base64url");
     const passwordHash = await bcrypt.hash(password, 12);
@@ -95,6 +110,8 @@ async function main() {
           capacidadProduccion: n.productionCapacity ?? null,
           capacidadAlmacenamiento: n.storageCapacity ?? null,
           nivelStockActual: n.currentStockLevel ?? null,
+          vendedorOlistId: n.olistSellerId ?? null,
+          fuenteLineaBase: n.olistSellerId ? (vendedorBaselines.get(n.id)?.source ?? null) : null,
         })),
       );
 
@@ -115,6 +132,8 @@ async function main() {
           lineaBase: w.baseline,
           bandaInferior: w.baselineLowerBand,
           bandaSuperior: w.baselineUpperBand,
+          bandaSemanalInferior: w.weeklyBandLower ?? null,
+          bandaSemanalSuperior: w.weeklyBandUpper ?? null,
           deficit: w.deficit,
         })),
       );

@@ -32,10 +32,14 @@ export function useChainStatuses(): Map<string, ChainStatus> {
       if (chainId) rowsByChain.get(chainId)?.get(row.nodeId)?.push(row);
     }
 
+    // C24 valida la ventana larga sobre la que se congela la línea base de un nodo sintético. Los Vendedores
+    // reales tienen una línea base de 4 semanas (la del modelo): esa verificación no les corresponde.
+    const realNodeIds = new Set(nodes.filter((n) => n.olistSellerId).map((n) => n.id));
+
     const result = new Map<string, ChainStatus>();
     for (const [chainId, byNode] of rowsByChain) {
-      const flat = [...byNode.values()].flat();
-      result.set(chainId, { stability: deriveChainStability(flat, TRAINING_WEEKS), health: assessChain(byNode) });
+      const syntheticRows = [...byNode].filter(([nodeId]) => !realNodeIds.has(nodeId)).flatMap(([, rows]) => rows);
+      result.set(chainId, { stability: deriveChainStability(syntheticRows, TRAINING_WEEKS), health: assessChain(byNode) });
     }
     return result;
   }, [chains, nodes, weeklyPerformance]);

@@ -5,14 +5,16 @@ import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { NODE_TYPE_CODE, NODE_TYPE_COLOR, SEVERITY_COLOR } from "@/lib/domain/node-visuals";
 import type { Severity } from "@/lib/domain/simulate";
 import type { NodeHealthLevel } from "@/lib/domain/monitoring";
+import { formatPerformance, type PerformanceUnit } from "@/lib/domain/units";
 import type { NodeType } from "@/lib/domain/types";
 
 export interface SupplyChainNodeData extends Record<string, unknown> {
   label: string;
   nodeType: NodeType;
   detail: string;
-  /** Déficit medio de las últimas semanas, en puntos porcentuales. */
+  /** Déficit medio de las últimas semanas, en la unidad del nodo (puntos porcentuales o días). */
   recentDeficit: number;
+  unit: PerformanceUnit;
   /** Estado del nodo respecto de su propia variabilidad (ver `domain/monitoring.ts`). */
   health: NodeHealthLevel;
   highlighted?: boolean;
@@ -20,9 +22,10 @@ export interface SupplyChainNodeData extends Record<string, unknown> {
 }
 
 function SupplyChainNodeComponent({ data }: NodeProps) {
-  const { label, nodeType, detail, recentDeficit, health, highlighted, severity } = data as unknown as SupplyChainNodeData;
+  const { label, nodeType, detail, recentDeficit, unit, health, highlighted, severity } = data as unknown as SupplyChainNodeData;
   const color = NODE_TYPE_COLOR[nodeType];
-  const deficitRatio = Math.min(1, recentDeficit / 20);
+  // La barra del nodo se vacía con el déficit reciente: 20 puntos (escala 0-100) o 2 días de margen perdidos.
+  const deficitRatio = Math.min(1, unit === "dias" ? recentDeficit / 2 : recentDeficit / 20);
   const healthColor = health === "critico" ? "#d33f28" : health === "atencion" ? "#f2703c" : null;
 
   const severityColors = severity ? SEVERITY_COLOR[severity] : null;
@@ -57,9 +60,9 @@ function SupplyChainNodeComponent({ data }: NodeProps) {
           <span
             className="ml-auto flex-none rounded-sm px-1 py-[1px] font-mono text-[8.5px] font-medium whitespace-nowrap"
             style={{ color: healthColor, background: `${healthColor}1a` }}
-            title={`Déficit promedio de las últimas semanas: ${recentDeficit.toFixed(1)}% por debajo de la línea base esperada`}
+            title={`Déficit promedio de las últimas semanas: ${formatPerformance(recentDeficit, unit)} por debajo de la línea base esperada`}
           >
-            déf. −{recentDeficit.toFixed(0)}%
+            déf. −{formatPerformance(recentDeficit, unit, unit === "dias" ? 1 : 0).replace(" %", "%")}
           </span>
         )}
       </div>

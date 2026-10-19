@@ -1,11 +1,13 @@
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
+import { eq } from "drizzle-orm";
 import { requireApiMember } from "@/lib/auth/session";
 import { readJson } from "@/lib/api/http";
 import { toChain, toEdge, toNode } from "@/lib/data/mappers";
 import { aristas, cadenas, getDb, nodos } from "@/lib/db";
 import { instantiateTemplate } from "@/lib/domain/templates";
 import { ingestChainHistory } from "@/lib/ingestion/ingest-history";
+import { prepareVendedorPlans } from "@/lib/ingestion/vendedor-setup";
 import { chainFormSchema } from "@/lib/validators/chain";
 
 /**
@@ -26,6 +28,11 @@ export async function POST(request: Request) {
   // La plantilla nace con ids de mentira ("tpl-node-0"); se reemplazan por uuids reales antes de insertar.
   const blueprint = instantiateTemplate(template, chainId, "tpl");
   const nodeIds = new Map(blueprint.nodes.map((n) => [n.id, randomUUID()]));
+
+  // Los nodos Vendedor usan datos reales de Olist y la línea base del modelo de ML. Se prepara ANTES de abrir la
+  // transacción: llamar al servicio de ML dentro de ella la dejaría abierta mientras espera la red.
+  const vendedorNodeIds = blueprint.nodes.filter((n) => n.nodeType === "Vendedor").map((n) => nodeIds.get(n.id)!);
+  const vendedorPlans = await prepareVendedorPlans(vendedorNodeIds);
 
   const created = await getDb().transaction(async (tx) => {
     const [chain] = await tx
@@ -68,9 +75,11 @@ export async function POST(request: Request) {
             )
             .returning();
 
-    const ingested = await ingestChainHistory(tx, chainId, { withLevelShift });
+    const ingested = await ingestChainHistory(tx, chainId, { withLevelShift, vendedorPlans });
+    // Releídos después de la ingesta: los nodos Vendedor ahora llevan su vendedor real y la fuente de su línea base.
+    const finalNodeRows = nodeRows.length === 0 ? [] : await tx.select().from(nodos).where(eq(nodos.cadenaId, chainId));
 
-    return { chain, nodeRows, edgeRows, ingested };
+    return { chain, nodeRows: finalNodeRows, edgeRows, ingested };
   });
 
   return NextResponse.json(

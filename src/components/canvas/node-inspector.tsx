@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { WeeklyPerformanceChart } from "@/components/charts/weekly-performance-chart";
 import { NODE_TYPE_CODE, NODE_TYPE_COLOR } from "@/lib/domain/node-visuals";
+import { unitOfNode } from "@/lib/domain/units";
 import { useAppStore } from "@/stores/app-store";
 import type { SupplyChainNode } from "@/lib/domain/types";
 
@@ -46,9 +47,59 @@ const TYPE_NOTE: Record<string, string> = {
   Proveedor: "capacidad_suministro es el único atributo propio de este tipo — conceptual, no validado con datos reales.",
   Fabrica: "capacidad_produccion es el único atributo propio de este tipo.",
   Almacen: "capacidad_almacenamiento y nivel_stock_actual son sus atributos propios.",
-  Vendedor: "Corresponde al seller_id de Olist — el único nodo con desempeño real medido.",
+  Vendedor: "Corresponde al seller_id de Olist — el único tipo con datos reales. Este nodo es sintético (escala 0-100).",
   Cliente: "Sin atributos propios identificados todavía.",
 };
+
+/**
+ * Origen de los datos de un Vendedor con datos REALES de Olist y de dónde salió su línea base. Si quedó
+ * provisoria (el modelo de ML no contestó al crearlo), se puede actualizar con el modelo.
+ */
+function RealVendedorInfo({ node }: { node: SupplyChainNode }) {
+  const canWrite = useAppStore((s) => s.canWrite);
+  const refreshBaselines = useAppStore((s) => s.refreshBaselines);
+  const [refreshing, setRefreshing] = useState(false);
+  if (!node.olistSellerId) return null;
+  const provisional = node.baselineSource === "provisoria";
+
+  async function handleRefresh() {
+    setRefreshing(true);
+    const result = await refreshBaselines(node.chainId);
+    setRefreshing(false);
+    if (!result.ok) toast.error(result.error);
+    else if (result.updated > 0) toast.success("Línea base actualizada con el modelo de ML");
+    else toast.message("El modelo todavía no contesta. Probá de nuevo en un minuto.");
+  }
+
+  return (
+    <div className="flex flex-col gap-2 rounded-lg border border-border bg-muted/30 p-2.5 text-[11px] leading-relaxed">
+      <div>
+        <span className="font-medium">Datos reales de Olist</span> · vendedor <span className="font-mono">{node.olistSellerId.slice(0, 8)}</span>. El
+        desempeño es su <b>margen de despacho en días</b> (positivo: despachó antes de su plazo). Si el monitoreo avanza más allá de sus semanas
+        reales, se simulan a su nivel.
+      </div>
+      {provisional ? (
+        <div className="rounded-md border border-[#f5c9a8] bg-[#fdf5ec] px-2 py-1.5 text-[#8a4313]">
+          <b>Línea base provisoria</b>: el modelo de ML no contestó al crear el nodo, así que se usó el promedio de sus 4 primeras semanas.
+          {canWrite && (
+            <div className="mt-1.5">
+              <Button variant="outline" size="sm" disabled={refreshing} onClick={handleRefresh}>
+                {refreshing ? "Consultando al modelo…" : "Actualizar con el modelo"}
+              </Button>
+              <div className="mt-1 text-[10px] opacity-80">
+                Las simulaciones anteriores de esta cadena se recalcularán con la nueva línea base.
+              </div>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="text-muted-foreground">
+          Línea base del <b>modelo de ML</b>, estimada solo con las 4 primeras semanas del vendedor (RF017) y congelada.
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function NodeInspector({ node, onClose }: { node: SupplyChainNode; onClose: () => void }) {
   const edges = useAppStore((s) => s.edges);
@@ -171,15 +222,19 @@ export function NodeInspector({ node, onClose }: { node: SupplyChainNode; onClos
             </div>
           ))}
         </div>
-        <div className="text-[11px] leading-relaxed text-muted-foreground">{TYPE_NOTE[node.nodeType]}</div>
+        {node.olistSellerId ? (
+          <RealVendedorInfo node={node} />
+        ) : (
+          <div className="text-[11px] leading-relaxed text-muted-foreground">{TYPE_NOTE[node.nodeType]}</div>
+        )}
 
         <div>
           <div className="mb-2 font-mono text-[9.5px] font-medium uppercase tracking-wider text-muted-foreground">
-            Desempeño semanal
+            Desempeño semanal{unitOfNode(node) === "dias" ? " · días de margen" : ""}
           </div>
           {history.length > 0 ? (
             <div className="rounded-lg border border-border bg-muted/20 p-1">
-              <WeeklyPerformanceChart data={history} />
+              <WeeklyPerformanceChart data={history} unit={unitOfNode(node)} />
             </div>
           ) : (
             <div className="rounded-lg border border-dashed border-border p-3 text-center text-[11.5px] text-muted-foreground">

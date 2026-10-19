@@ -1,8 +1,9 @@
 # Modelo de ML de línea base: integración, auditoría de alineación y plan
 
 Estado al 19/10/2026. El modelo está en `twinchain-ml/` y se integra con la app a través de la pantalla **Modelo de
-línea base** (`/modelo`). **Todavía no alimenta el pipeline de ingesta ni el motor de simulación**, y este documento
-explica por qué: hay una decisión de unidades que tomar primero (sección 4, hallazgo 1).
+línea base** (`/modelo`). **Desde la Opción 1 (sección 7) el modelo SÍ alimenta el pipeline**: los nodos Vendedor usan
+vendedores reales de Olist, en días, con la línea base del modelo; el motor recibe déficit relativo a través de un
+adaptador. Las secciones 4 y 5 quedan como registro de la auditoría y de la decisión.
 
 ## 1. Qué es el modelo
 
@@ -179,3 +180,39 @@ la bitácora. El spec quedó desactualizado en este punto (y habla de Python 3.1
 | `src/lib/olist/` y `src/data/olist-vendedores.json` | Muestra de vendedores reales y armado de la exploración |
 | `src/app/api/ml/{estado,vendedor}/` | Rutas del lado servidor |
 | `src/app/(app)/modelo/`, `src/components/model/` | Pantalla "Modelo de línea base" |
+
+
+## 7. Opción 1 implementada (Fase E)
+
+**Qué se hizo**
+
+- **Unidades por nodo.** `src/lib/domain/units.ts`: un nodo con `vendedorOlistId` está en **días** (`margin_days`); el
+  resto sigue en 0–100. Las pantallas muestran cada nodo en su unidad.
+- **Adaptador del motor.** `adaptForEngine` escala a cada nodo en días para que su línea base valga 100 (divisor
+  `max(base, 0.5)`); si la cadena no tiene nodos en días devuelve las mismas filas (resultados idénticos bit a bit). El
+  motor (`simulate.ts`) no se tocó. Se usa en `run-scenario.ts`, en la pantalla de resultado y en `/comparar`.
+- **Vendedor real.** Al crear una cadena o agregar un nodo Vendedor se asigna un vendedor de la muestra
+  (181 vendedores del conjunto de prueba, todos con ≥12 semanas activas) de forma determinística, evitando repetir. Las
+  primeras 4 semanas activas son la Fase I: se llaman a `/predecir_desde_semanas` y la línea base queda congelada.
+- **Respaldo.** Si el servicio no contesta en 10 s o no está configurado, la línea base es **provisoria**
+  (media de la Fase I ± t·s/√4). Cada nodo registra `fuente_linea_base` (`ml` | `provisoria`).
+  `POST /api/cadenas/[id]/linea-base` (botón "Actualizar con el modelo" en el inspector) la pasa a `ml` una sola vez.
+- **Detección.** Para Vendedores reales rige la **banda semanal** del modelo: 2 de las últimas 3 semanas por debajo =
+  atención, 3 = crítico (medido: 3,3 % / 0,59 % de falsas alarmas en 81 vendedores no vistos). C24 (CUSUM) **no** aplica a
+  Vendedores reales. La banda semanal vive en dos columnas nuevas de `desempeno_semanal` (migración `0001`).
+- **Monitoreo vivo.** Un Vendedor avanza por sus semanas reales siguientes ("tiempo comprimido": su semana activa k va en
+  la semana k de la cadena); al agotarlas continúa con una serie simulada AR(1) anclada a su nivel real.
+
+**Verificado (local, contra Postgres y el servicio real):** crear cadena desde plantilla (Vendedores con `ml`),
+escenarios con evento en Vendedor/Fábrica/Proveedor (tabla_k de escala comparable), avance y reinicio, caída del servicio
+(cadena creada con `provisoria`, luego actualizada a `ml`, y segunda llamada sin efecto), pantalla de resultado,
+tsc/eslint, 80 tests Vitest, 22 pytest y `next build`.
+
+**Lo que hay que saber**
+
+- **0 días de margen es "entregar justo en la fecha", no colapso total.** El motor trunca el déficit en 0, así que el
+  atraso (margen negativo) no se representa como pérdida extra.
+- **"Semana mala equivalente" = un nodo pierde el 100 % de su propia línea base.** Todos los tipos pesan igual.
+- La base de los nodos en % (~92) y la de los nodos en días (100 tras escalar) no coinciden; es una inconsistencia menor
+  del adaptador.
+- Las cadenas ya existentes conservan sus Vendedores con datos sintéticos en %.

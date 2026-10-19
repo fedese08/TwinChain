@@ -12,6 +12,7 @@ import {
   YAxis,
 } from "recharts";
 import { formatWeekLabel } from "@/lib/domain/dates";
+import type { PerformanceUnit } from "@/lib/domain/units";
 
 export interface WeeklyChartPoint {
   weekStart: string;
@@ -22,6 +23,9 @@ export interface WeeklyChartPoint {
   /** banda_superior de la línea base (RF012). */
   baselineUpperBand: number;
   deficit: number;
+  /** Banda de UNA semana individual (CQR semanal del modelo de ML): solo nodos con línea base del modelo. */
+  weeklyBandLower?: number;
+  weeklyBandUpper?: number;
   /** Extremos del valor real entre réplicas — solo en proyecciones (RF029). */
   actualValueLow?: number;
   actualValueHigh?: number;
@@ -32,17 +36,26 @@ export function WeeklyPerformanceChart({
   height = 150,
   /** Semana en la que se aplicó el escalón de reconfiguración, para marcarla (RF022). */
   reconfigurationWeekIndex = null,
+  /** "pct": escala 0-100 (nodos sintéticos). "dias": días de margen (Vendedor con datos reales de Olist). */
+  unit = "pct",
 }: {
   data: WeeklyChartPoint[];
   height?: number;
   reconfigurationWeekIndex?: number | null;
+  unit?: PerformanceUnit;
 }) {
+  const isDays = unit === "dias";
+  const hasWeeklyBand = data.some((d) => d.weeklyBandLower !== undefined && d.weeklyBandUpper !== undefined);
   const hasReplicaRange = data.some((d) => d.actualValueLow !== undefined && d.actualValueHigh !== undefined);
 
   const chartData = data.map((d) => ({
     ...d,
     label: formatWeekLabel(d.weekStart),
     bandaLineaBase: [d.baselineLowerBand, d.baselineUpperBand] as [number, number],
+    bandaSemanal:
+      d.weeklyBandLower !== undefined && d.weeklyBandUpper !== undefined
+        ? ([d.weeklyBandLower, d.weeklyBandUpper] as [number, number])
+        : undefined,
     rangoReplicas:
       d.actualValueLow !== undefined && d.actualValueHigh !== undefined
         ? ([d.actualValueLow, d.actualValueHigh] as [number, number])
@@ -57,7 +70,8 @@ export function WeeklyPerformanceChart({
   const legend = [
     { name: "valor real", color: "#171922", kind: "line" as const },
     { name: "línea base", color: "#0a7d6a", kind: "dashed" as const },
-    { name: "banda esperada", color: "#0d9c84", kind: "area" as const },
+    { name: isDays ? "banda del promedio" : "banda esperada", color: "#0d9c84", kind: "area" as const },
+    ...(hasWeeklyBand ? [{ name: "banda semanal (modelo)", color: "#0d9c84", kind: "area" as const }] : []),
     { name: "déficit", color: "#f2703c", kind: "area" as const },
     ...(hasReplicaRange ? [{ name: "rango simulado", color: "#3b82f6", kind: "area" as const }] : []),
   ];
@@ -68,17 +82,21 @@ export function WeeklyPerformanceChart({
       <ComposedChart data={chartData} margin={{ top: 4, right: 4, left: -22, bottom: 0 }}>
         <CartesianGrid stroke="#eef1f6" vertical={false} />
         <XAxis dataKey="label" tick={{ fontSize: 9.5, fill: "#9aa4b3" }} interval="preserveStartEnd" axisLine={false} tickLine={false} />
-        <YAxis tick={{ fontSize: 9.5, fill: "#9aa4b3" }} width={30} axisLine={false} tickLine={false} domain={[0, 100]} />
+        <YAxis tick={{ fontSize: 9.5, fill: "#9aa4b3" }} width={30} axisLine={false} tickLine={false} domain={isDays ? ["auto", "auto"] : [0, 100]} tickFormatter={isDays ? (v: number) => `${v} d` : undefined} />
         <Tooltip
           contentStyle={{ fontSize: 11, borderRadius: 8, border: "1px solid #e4e8ef" }}
-          formatter={(value, name) =>
-            Array.isArray(value)
-              ? [`${Number(value[0]).toFixed(1)} – ${Number(value[1]).toFixed(1)}`, name]
-              : [Number(value).toFixed(1), name]
-          }
+          formatter={(value, name) => {
+            const suffix = isDays ? " d" : "";
+            return Array.isArray(value)
+              ? [`${Number(value[0]).toFixed(1)} – ${Number(value[1]).toFixed(1)}${suffix}`, name]
+              : [`${Number(value).toFixed(1)}${suffix}`, name];
+          }}
         />
         {/* Rellenos con borde propio y opacidad: sobre el fondo blanco de la tarjeta los tonos
             planos muy claros se perdían y la banda y el déficit no se leían. */}
+        {hasWeeklyBand && (
+          <Area type="monotone" dataKey="bandaSemanal" name="banda semanal" fill="#0d9c84" fillOpacity={0.07} stroke="#0d9c84" strokeOpacity={0.2} strokeWidth={1} />
+        )}
         <Area
           type="monotone"
           dataKey="bandaLineaBase"

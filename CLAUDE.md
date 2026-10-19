@@ -116,14 +116,16 @@ actual y no con la de la corrida.
      entrenamiento. `POST/DELETE /api/cadenas/[id]/avance` es el monitoreo vivo (un tick = una semana; el reloj lo
      maneja el navegador porque Vercel no sostiene un proceso). `scripts/backfill-history.ts` completa cadenas ya
      existentes (simulacro por defecto, escribe solo con `--apply`).
-  8. **Modelo de ML (`twinchain-ml/`) — integrado como módulo de exploración, NO alimenta el pipeline.** Microservicio
-     FastAPI con el modelo de línea base de vendedores (regresión de cuantiles + bandas CQR, entrenado con Olist; **no**
-     es el clasificador de backorder que describe `TwinChain-DEV.md`). La app lo llama desde el servidor con
-     `src/lib/ml-client` y lo muestra en `/modelo` con vendedores reales. **Unidades: días de `margin_days`, no 0–100.**
-     **No conectarlo a la ingesta ni al motor sin resolver antes las unidades** (el motor suma déficits de todos los
-     nodos y los divide por 100): es una decisión metodológica pendiente. Leer `docs/modelo-ml.md` (auditoría de
-     alineación y plan) y `twinchain-ml/README.md`. Variables: `ML_SERVICE_URL`, `ML_API_KEY` (opcionales: sin ellas la
-     app anda igual). El bundle `.joblib` es un pickle de scikit-learn **1.9.1 exacto**: no actualizar la versión.
+  8. **Modelo de ML (`twinchain-ml/`) — integrado al pipeline (Opción 1).** Microservicio FastAPI con el modelo de línea
+     base de vendedores (regresión de cuantiles + bandas CQR, entrenado con Olist; **no** es el clasificador de backorder
+     de `TwinChain-DEV.md`). Los nodos Vendedor usan un `seller_id` real de Olist, **en días (`margin_days`)**, con la línea
+     base del modelo (`fuente_linea_base` `ml`, o `provisoria` si el servicio no contesta; se mejora con
+     `POST /api/cadenas/[id]/linea-base`). **Unidades por nodo** (`src/lib/domain/units.ts`): días iff el nodo tiene
+     `vendedorOlistId`, el resto 0–100. **Todo lo que llame al motor pasa las filas por `adaptForEngine`** (escala cada
+     nodo en días a base=100; identidad si no hay nodos en días) — no llamar a `runScenarioSimulation` con filas crudas.
+     Vendedores reales se monitorean con la banda semanal del modelo, no con C24. Leer `docs/modelo-ml.md` (sección 7) y
+     `twinchain-ml/README.md`. Variables: `ML_SERVICE_URL`, `ML_API_KEY` (opcionales). El bundle `.joblib` es un pickle de
+     scikit-learn **1.9.1 exacto**: no actualizar la versión.
   - **Reglas del backend (no romper):** (a) la sesión JWT guarda **solo la identidad**; organización y rol se leen
     de la base en cada request (`getCurrentUser` en `src/lib/auth/session.ts`). (b) toda query de negocio filtra por
     el `organizacionId` que devuelve `requireApiMember()` / `requirePageMember()` — **nunca** por uno que venga en

@@ -23,6 +23,7 @@ import { TransitEdge } from "@/components/canvas/transit-edge";
 import { useAppStore } from "@/stores/app-store";
 import type { Severity } from "@/lib/domain/simulate";
 import { assessNode } from "@/lib/domain/monitoring";
+import { unitOfNode } from "@/lib/domain/units";
 import type { NodeType, SupplyChainNode, WeeklyPerformance } from "@/lib/domain/types";
 
 const NODE_TYPES = { supplyChainNode: SupplyChainNodeView };
@@ -44,6 +45,8 @@ function nodeDetail(node: SupplyChainNode): string {
       ? `${node.currentStockLevel}/${node.storageCapacity} u`
       : `almac. ${node.storageCapacity} u`;
   }
+  // Vendedor con datos reales de Olist: se muestra de dónde salen sus datos.
+  if (node.olistSellerId) return `Olist · ${node.olistSellerId.slice(0, 8)}`;
   return "sin atributos propios";
 }
 
@@ -103,6 +106,7 @@ function CanvasInner({ chainId, mode, selectedNodeIds, onNodeSelect, severityByN
           nodeType: n.nodeType,
           detail: nodeDetail(n),
           recentDeficit: healthByNode.get(n.id)?.recentDeficit ?? 0,
+          unit: unitOfNode(n),
           health: healthByNode.get(n.id)?.level ?? "normal",
           highlighted: isSelect && selectedSet.has(n.id),
           severity: isDisplay ? severityByNode?.[n.id] : undefined,

@@ -146,3 +146,12 @@ funcionalidad que todavía no existe.
   (compartida/privada) después de crearla.
 - **[deuda] En el sandbox de verificación** el panel del navegador no pinta los gráficos de Recharts ni algunas
   aristas de React Flow (`ResizeObserver` no dispara). Confirmar el aspecto visual en un navegador real.
+- **[acción] Aplicar la migración `0001` a Neon** (`npm run db:migrate` con `DIRECT_URL` de producción): agrega
+  `vendedor_olist_id`, `fuente_linea_base` y las bandas semanales. Hasta entonces el código nuevo falla en producción.
+- **[deuda] Cadenas viejas:** sus nodos Vendedor siguen con datos sintéticos en %; solo las cadenas/nodos nuevos usan
+  vendedores reales en días.
+- **[deuda] Re-baseline:** pasar un nodo de `provisoria` a `ml` recalcula la línea base pero no rehace el historial ya
+  guardado más allá de banda y déficit; una vez hecho no se repite.
+- **[falta] Desplegar `twinchain-ml` en Render** y cargar `ML_SERVICE_URL`/`ML_API_KEY` en Vercel. El Dockerfile no se
+  probó con `docker build`.
+- **[decisión] Atraso no representado:** el motor trunca en 0; un margen negativo del Vendedor no suma pérdida.

@@ -2,10 +2,12 @@ import type { z } from "zod";
 import {
   healthSchema,
   modelInfoSchema,
+  predictionSchema,
   seriesEvaluationSchema,
   type ActiveWeek,
   type ModelHealth,
   type ModelInfo,
+  type Prediction,
   type SeriesEvaluation,
 } from "./schemas";
 
@@ -91,6 +93,17 @@ export const mlClient = {
   health: (): Promise<ModelHealth> => call("/health", healthSchema, { timeoutMs: HEALTH_TIMEOUT_MS }),
 
   info: (): Promise<ModelInfo> => call("/info", modelInfoSchema, { timeoutMs: CALL_TIMEOUT_MS }),
+
+  /**
+   * Línea base y bandas de un vendedor a partir de sus 4 primeras semanas con actividad. `timeoutMs` permite a
+   * quien lo llama en un camino crítico (crear una cadena) no esperar el arranque en frío del servicio.
+   */
+  predict: (input: { phase1: ActiveWeek[]; timeoutMs?: number }): Promise<Prediction> =>
+    call("/predecir_desde_semanas", predictionSchema, {
+      method: "POST",
+      body: { semanas: input.phase1 },
+      timeoutMs: input.timeoutMs ?? CALL_TIMEOUT_MS,
+    }),
 
   /**
    * Línea base y bandas de un vendedor a partir de SUS PROPIAS primeras 4 semanas con actividad (RF017), y el

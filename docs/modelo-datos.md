@@ -255,3 +255,11 @@ No hay entidades nuevas ni cambios de cardinalidad por este cambio de motor — 
 e implementación.
 
 Ver `CLAUDE.md` para el estado de avance del código frente a este modelo.
+
+## Columnas `app:` agregadas por la integración del modelo de ML (migración 0001)
+
+- `nodos.vendedor_olist_id` (text, nullable) y `nodos.fuente_linea_base` (`ml` | `provisoria`, nullable): el vendedor real
+  de Olist que respalda a un nodo `Vendedor` y de dónde salió su línea base. CHECK: ambas null o ambas con valor.
+  Un nodo con `vendedor_olist_id` mide en **días**; el resto, en 0–100.
+- `desempeno_semanal.banda_semanal_inferior/superior` (nullable, ambas o ninguna): banda del modelo para una semana
+  puntual, usada para alertar; distinta de `banda_inferior/superior`, que es la banda del promedio (línea base).

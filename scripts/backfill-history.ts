@@ -18,6 +18,7 @@ loadEnvConfig(process.cwd());
 
 import * as schema from "../src/lib/db/schema";
 import { ingestChainHistory } from "../src/lib/ingestion/ingest-history";
+import { prepareVendedorPlans } from "../src/lib/ingestion/vendedor-setup";
 
 async function main() {
   const apply = process.argv.includes("--apply");
@@ -34,16 +35,18 @@ async function main() {
 
   try {
     const pending = await db
-      .select({ chainId: schema.nodos.cadenaId, nodeId: schema.nodos.id })
+      .select({ chainId: schema.nodos.cadenaId, nodeId: schema.nodos.id, tipo: schema.nodos.tipo })
       .from(schema.nodos)
       .where(
         notExists(db.select({ one: schema.desempenoSemanal.id }).from(schema.desempenoSemanal).where(eq(schema.desempenoSemanal.nodoId, schema.nodos.id))),
       );
 
     const byChain = new Map<string, number>();
+    const vendedoresByChain = new Map<string, string[]>();
     for (const row of pending) {
       if (onlyChain && row.chainId !== onlyChain) continue;
       byChain.set(row.chainId, (byChain.get(row.chainId) ?? 0) + 1);
+      if (row.tipo === "Vendedor") vendedoresByChain.set(row.chainId, [...(vendedoresByChain.get(row.chainId) ?? []), row.nodeId]);
     }
     if (byChain.size === 0) {
       console.log("No hay nodos sin historial. Nada para hacer.");
@@ -55,7 +58,17 @@ async function main() {
         console.log(`  cadena ${chainId}: ${nodeCount} nodos sin historial`);
         continue;
       }
-      const result = await db.transaction((tx) => ingestChainHistory(tx, chainId));
+      // Los Vendedores usan vendedores reales de Olist y la línea base del modelo de ML: se preparan ANTES de la
+      // transacción (no se la deja abierta esperando la red) y evitan los que la cadena ya usa.
+      const used = await db
+        .select({ id: schema.nodos.vendedorOlistId })
+        .from(schema.nodos)
+        .where(eq(schema.nodos.cadenaId, chainId));
+      const vendedorPlans = await prepareVendedorPlans(
+        vendedoresByChain.get(chainId) ?? [],
+        new Set(used.flatMap((u) => (u.id ? [u.id] : []))),
+      );
+      const result = await db.transaction((tx) => ingestChainHistory(tx, chainId, { vendedorPlans }));
       console.log(
         `  cadena ${chainId}: ${nodeCount} nodos · ${result.weeklyPerformance.length} filas · estabilidad: ${result.stability?.status ?? "sin datos"}`,
       );

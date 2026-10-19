@@ -14,6 +14,7 @@ import { ChainCanvas } from "@/components/canvas/chain-canvas";
 import { Button } from "@/components/ui/button";
 import { classifySeverity, runScenarioSimulation, type ProjectedWeek, type Severity } from "@/lib/domain/simulate";
 import { formatWeekLabel } from "@/lib/domain/dates";
+import { adaptForEngine, type EngineAdapter } from "@/lib/domain/units";
 import { hashSeed } from "@/lib/domain/rng";
 import { useAppStore } from "@/stores/app-store";
 import { cn } from "@/lib/utils";
@@ -26,6 +27,23 @@ function classifyImpact(badWeeks: number, horizonWeeks: number) {
   if (share >= 0.25) return { label: "Impacto alto", tone: "#c2571f", bg: "#fdece0", border: "#f5c9a8" };
   if (share >= 0.1) return { label: "Impacto moderado", tone: "#a8761f", bg: "#fdf5e7", border: "#eddbb4" };
   return { label: "Impacto bajo", tone: "#0a7d6a", bg: "#e8f6f3", border: "#b9e2d8" };
+}
+
+/** La proyección del motor está en escala relativa; para un nodo en días se vuelve a las unidades del nodo. */
+function toDisplayUnits(adapter: EngineAdapter, nodeId: string, week: ProjectedWeek): ProjectedWeek {
+  const d = (v: number) => adapter.toDisplay(nodeId, v);
+  return {
+    ...week,
+    baseline: d(week.baseline),
+    baselineLowerBand: d(week.baselineLowerBand),
+    baselineUpperBand: d(week.baselineUpperBand),
+    actualValue: d(week.actualValue),
+    actualValueLow: d(week.actualValueLow),
+    actualValueHigh: d(week.actualValueHigh),
+    deficit: d(week.deficit),
+    deficitLow: d(week.deficitLow),
+    deficitHigh: d(week.deficitHigh),
+  };
 }
 
 export default function ScenarioResultPage({
@@ -79,16 +97,20 @@ export default function ScenarioResultPage({
     [allEdges, chainNodeIds],
   );
 
+  // Los nodos Vendedor con datos reales están en días: el motor los recibe en escala relativa a su línea base
+  // (domain/units.ts). Los nodos en 0-100 pasan sin tocar, así que sus resultados no cambian.
+  const adapter = useMemo(() => adaptForEngine(chainNodes, weeklyPerformance), [chainNodes, weeklyPerformance]);
+
   // Se reproduce la corrida guardada con su propia semilla: mismo seed, mismas réplicas,
   // mismo resultado que el que quedó registrado.
   const outcome = useMemo(() => {
     if (!scenario || !result) return null;
-    return runScenarioSimulation(chainNodes, chainEdges, events, weeklyPerformance, scenario.projectionHorizonWeeks, {
+    return runScenarioSimulation(chainNodes, chainEdges, events, adapter.rows, scenario.projectionHorizonWeeks, {
       seed: result.seed,
       replications: result.replications,
       reconfigurationWeekIndex: result.reconfigurationWeekIndex,
     });
-  }, [chainNodes, chainEdges, events, weeklyPerformance, scenario, result]);
+  }, [chainNodes, chainEdges, events, adapter, scenario, result]);
 
   // La animación de entrada solo corre en la primera corrida del escenario: al volver a abrir
   // uno ya calculado se entra derecho al resultado.
@@ -108,11 +130,11 @@ export default function ScenarioResultPage({
    */
   const previewOutcome = useMemo(() => {
     if (!scenario || !playingIntro || events.length === 0) return null;
-    return runScenarioSimulation(chainNodes, chainEdges, events, weeklyPerformance, scenario.projectionHorizonWeeks, {
+    return runScenarioSimulation(chainNodes, chainEdges, events, adapter.rows, scenario.projectionHorizonWeeks, {
       seed: hashSeed(scenario.id),
       replications: 12,
     });
-  }, [chainNodes, chainEdges, events, weeklyPerformance, scenario, playingIntro]);
+  }, [chainNodes, chainEdges, events, adapter, scenario, playingIntro]);
 
   const propagation = useMemo((): Map<string, ProjectedWeek[]> => outcome?.projectionByNode ?? new Map(), [outcome]);
 
@@ -707,9 +729,10 @@ export default function ScenarioResultPage({
                     </span>
                   </div>
                   <WeeklyPerformanceChart
-                    data={projection}
+                    data={adapter.unitOf(nodeId) === "dias" ? projection.map((w) => toDisplayUnits(adapter, nodeId, w)) : projection}
                     height={160}
                     reconfigurationWeekIndex={result.reconfigurationWeekIndex}
+                    unit={adapter.unitOf(nodeId)}
                   />
                 </div>
               );

@@ -139,9 +139,19 @@ export const nodos = pgTable(
     capacidadAlmacenamiento: doublePrecision("capacidad_almacenamiento"),
     // Dato descriptivo: NO entra en ninguna fórmula del motor (RF027).
     nivelStockActual: doublePrecision("nivel_stock_actual"),
+    // app: nodo Vendedor con datos REALES de Olist. `vendedor_olist_id` es el seller_id anonimizado cuyo
+    // historial usa; su desempeño está en DÍAS de margen (margin_days), no en la escala 0-100 de los nodos
+    // sintéticos. Null = nodo sintético. `fuente_linea_base` dice de dónde salió su línea base: "ml" (modelo
+    // de línea base) o "provisoria" (estimador de respaldo cuando el servicio de ML no contestó).
+    vendedorOlistId: text("vendedor_olist_id"),
+    fuenteLineaBase: text("fuente_linea_base"),
   },
   (t) => [
     index("nodos_cadena_idx").on(t.cadenaId),
+    check(
+      "nodos_datos_reales_completos",
+      sql`(${t.vendedorOlistId} IS NULL) = (${t.fuenteLineaBase} IS NULL) AND (${t.fuenteLineaBase} IS NULL OR ${t.fuenteLineaBase} IN ('ml', 'provisoria'))`,
+    ),
     check(
       "nodos_capacidades_no_negativas",
       sql`coalesce(${t.capacidadSuministro}, 0) >= 0 AND coalesce(${t.capacidadProduccion}, 0) >= 0 AND coalesce(${t.capacidadAlmacenamiento}, 0) >= 0 AND coalesce(${t.nivelStockActual}, 0) >= 0`,
@@ -183,12 +193,17 @@ export const desempenoSemanal = pgTable(
     lineaBase: doublePrecision("linea_base").notNull(),
     bandaInferior: doublePrecision("banda_inferior").notNull(),
     bandaSuperior: doublePrecision("banda_superior").notNull(),
+    // app: banda de UNA semana individual (CQR semanal del modelo de ML), la que sirve para alertas semana a
+    // semana. Solo la tienen los nodos con línea base del modelo; null en el resto.
+    bandaSemanalInferior: doublePrecision("banda_semanal_inferior"),
+    bandaSemanalSuperior: doublePrecision("banda_semanal_superior"),
     // linea_base − valor_real, nunca negativo: las semanas buenas no compensan a las malas.
     deficit: doublePrecision("deficit").notNull(),
   },
   (t) => [
     uniqueIndex("desempeno_nodo_semana_uq").on(t.nodoId, t.semana),
     check("desempeno_deficit_no_negativo", sql`${t.deficit} >= 0`),
+    check("desempeno_banda_semanal_completa", sql`(${t.bandaSemanalInferior} IS NULL) = (${t.bandaSemanalSuperior} IS NULL)`),
   ],
 );
 

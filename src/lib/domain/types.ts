@@ -37,6 +37,9 @@ export interface Chain {
   visibility: ChainVisibility;
 }
 
+/** De dónde salió la línea base de un nodo con datos reales: el modelo de ML o el estimador de respaldo. */
+export type BaselineSource = "ml" | "provisoria";
+
 export interface SupplyChainNode {
   id: string;
   chainId: string;
@@ -56,6 +59,13 @@ export interface SupplyChainNode {
    * como contexto operativo y nada más.
    */
   currentStockLevel?: number;
+  /**
+   * Solo nodos Vendedor con datos REALES de Olist: el seller_id (anonimizado) cuyo historial usan. Su desempeño
+   * está en DÍAS de margen (`margin_days`), no en la escala 0-100 de los nodos sintéticos (ver `domain/units.ts`).
+   */
+  olistSellerId?: string;
+  /** Solo con `olistSellerId`: de dónde salió su línea base. */
+  baselineSource?: BaselineSource;
   /** Posición en el canvas. Metadata de UI, no del modelo formal. */
   canvasPosition: { x: number; y: number };
 }
@@ -81,6 +91,9 @@ export interface WeeklyPerformance {
   baselineLowerBand: number;
   /** banda_superior — extremo superior de la banda de incertidumbre de la línea base (RF012). */
   baselineUpperBand: number;
+  /** Banda de UNA semana individual (CQR semanal del modelo de ML). Solo nodos con línea base del modelo. */
+  weeklyBandLower?: number;
+  weeklyBandUpper?: number;
   /** deficit = max(baseline - actualValue, 0). Nunca negativo: las semanas buenas no compensan a las malas. */
   deficit: number;
 }

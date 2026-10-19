@@ -8,6 +8,7 @@ import { aristas, desempenoSemanal, nodos, type Database, type ResultadoRow } fr
 import { hashSeed } from "@/lib/domain/rng";
 import { estimateSimulationWork, runScenarioSimulation } from "@/lib/domain/simulate";
 import type { DisruptionEvent } from "@/lib/domain/types";
+import { adaptForEngine } from "@/lib/domain/units";
 
 /**
  * Tope de trabajo de una corrida, en las unidades de `estimateSimulationWork`.
@@ -76,11 +77,16 @@ export async function runScenarioOnChain(
   const resultId = crypto.randomUUID();
   const seed = hashSeed(resultId);
 
+  // Los nodos Vendedor con datos reales están en días: se pasan a escala relativa a su línea base ANTES del motor
+  // (ver domain/units.ts). Los nodos en 0-100 pasan sin tocar, así que sus resultados no cambian.
+  const nodes = nodeRows.map(toNode);
+  const adapter = adaptForEngine(nodes, weeklyRows.map(toWeeklyPerformance));
+
   const outcome = runScenarioSimulation(
-    nodeRows.map(toNode),
+    nodes,
     edges,
     input.events,
-    weeklyRows.map(toWeeklyPerformance),
+    adapter.rows,
     input.horizonWeeks,
     { seed, reconfigurationWeekIndex: input.reconfigurationWeekIndex },
   );

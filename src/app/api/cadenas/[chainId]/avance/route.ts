@@ -13,10 +13,12 @@ import { toWeeklyPerformance } from "@/lib/data/mappers";
 import { desempenoSemanal, getDb, nodos } from "@/lib/db";
 import { advanceNode, HISTORY_WEEKS, MAX_WEEKS_PER_NODE } from "@/lib/domain/synthetic";
 import type { NodeType } from "@/lib/domain/types";
+import { advanceVendedor } from "@/lib/domain/vendedor/history";
+import { getSellerWeeks } from "@/lib/olist/sample";
 import { advanceChainSchema } from "@/lib/validators/chain-api";
 
 async function loadChainRows(db: ReturnType<typeof getDb>, chainId: string) {
-  const nodeRows = await db.select({ id: nodos.id, tipo: nodos.tipo }).from(nodos).where(eq(nodos.cadenaId, chainId));
+  const nodeRows = await db.select({ id: nodos.id, tipo: nodos.tipo, olistSellerId: nodos.vendedorOlistId }).from(nodos).where(eq(nodos.cadenaId, chainId));
   const rows = nodeRows.length
     ? await db
         .select()
@@ -66,6 +68,27 @@ export async function POST(request: Request, { params }: { params: Promise<{ cha
     const own = rowsByNode.get(node.id);
     if (!own || own.length === 0) return [];
     const last = own[own.length - 1];
+    if (node.olistSellerId) {
+      // Vendedor con datos reales (días): sigue por sus semanas reales y, agotadas, por una simulación anclada a su nivel.
+      const history = own.map((r) => r.valorReal);
+      return advanceVendedor(
+        {
+          nodeId: node.id,
+          history,
+          realMargins: getSellerWeeks(node.olistSellerId)?.map((w) => w.margen) ?? history,
+          lastWeekStart: last.semana,
+          baseline: {
+            baseline: last.lineaBase,
+            lower: last.bandaInferior,
+            upper: last.bandaSuperior,
+            weeklyLower: last.bandaSemanalInferior ?? undefined,
+            weeklyUpper: last.bandaSemanalSuperior ?? undefined,
+            source: "ml",
+          },
+        },
+        weeks,
+      );
+    }
     return advanceNode(
       {
         nodeId: node.id,
@@ -93,6 +116,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ cha
         lineaBase: r.baseline,
         bandaInferior: r.baselineLowerBand,
         bandaSuperior: r.baselineUpperBand,
+        bandaSemanalInferior: r.weeklyBandLower ?? null,
+        bandaSemanalSuperior: r.weeklyBandUpper ?? null,
         deficit: r.deficit,
       })),
     )

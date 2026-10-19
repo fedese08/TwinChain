@@ -144,6 +144,11 @@ interface AppState {
    * llama decide qué hacer con el error (p. ej. frenar el reproductor).
    */
   advanceChain: (chainId: string, weeks: number) => Promise<{ ok: true } | { ok: false; error: string; code?: string }>;
+  /**
+   * Reemplaza con la del modelo de ML las líneas base de los Vendedores que quedaron provisorias (el servicio estaba
+   * dormido al crear la cadena). Espera al servidor: puede tardar hasta un minuto si hay que despertarlo.
+   */
+  refreshBaselines: (chainId: string) => Promise<{ ok: true; updated: number; stillProvisional: number } | { ok: false; error: string }>;
   /** Vuelve la cadena a su historial original (borra las semanas avanzadas). */
   resetMonitoring: (chainId: string) => Promise<{ ok: true } | { ok: false; error: string }>;
   /**
@@ -293,6 +298,27 @@ export const useAppStore = create<AppState>()((set, get) => {
       return { ok: true };
     },
 
+    refreshBaselines: async (chainId) => {
+      const result = await enqueue(() =>
+        send<{ updated: number; stillProvisional: number; nodes: SupplyChainNode[]; weeklyPerformance: WeeklyPerformance[] }>(
+          "POST",
+          `/api/cadenas/${chainId}/linea-base`,
+        ),
+      );
+      if (!result.ok) return result;
+      const data = result.data;
+      if (!data) return { ok: false, error: "Respuesta vacía del servidor" };
+      const updatedIds = new Set(data.nodes.map((n) => n.id));
+      set((s) => ({
+        nodes: s.nodes.map((n) => {
+          const fresh = data.nodes.find((u) => u.id === n.id);
+          return fresh ? { ...n, olistSellerId: fresh.olistSellerId, baselineSource: fresh.baselineSource } : n;
+        }),
+        weeklyPerformance: [...s.weeklyPerformance.filter((w) => !updatedIds.has(w.nodeId)), ...data.weeklyPerformance],
+      }));
+      return { ok: true, updated: data.updated, stillProvisional: data.stillProvisional };
+    },
+
     resetMonitoring: async (chainId) => {
       const result = await enqueue(() =>
         send<{ weeklyPerformance: WeeklyPerformance[] }>("DELETE", `/api/cadenas/${chainId}/avance`),
@@ -352,7 +378,7 @@ export const useAppStore = create<AppState>()((set, get) => {
         nodes: [...state.nodes, { id, chainId, nodeType, label, canvasPosition: position }],
       }));
       void enqueue(async () => {
-        const result = await send<{ weeklyPerformance: WeeklyPerformance[] }>("POST", `/api/cadenas/${chainId}/nodos`, {
+        const result = await send<{ node: SupplyChainNode; weeklyPerformance: WeeklyPerformance[] }>("POST", `/api/cadenas/${chainId}/nodos`, {
           id,
           tipo: nodeType,
           etiqueta: label,
@@ -362,7 +388,12 @@ export const useAppStore = create<AppState>()((set, get) => {
         if (result.ok) {
           // El servidor le cargó al nodo su historial de desempeño: se suma a la copia de trabajo.
           const incoming = result.data?.weeklyPerformance ?? [];
-          set((s) => ({ weeklyPerformance: [...s.weeklyPerformance.filter((w) => w.nodeId !== id), ...incoming] }));
+          const saved = result.data?.node;
+          set((s) => ({
+            // Un Vendedor trae además su vendedor real de Olist y de dónde salió su línea base.
+            nodes: saved ? s.nodes.map((n) => (n.id === id ? { ...n, olistSellerId: saved.olistSellerId, baselineSource: saved.baselineSource } : n)) : s.nodes,
+            weeklyPerformance: [...s.weeklyPerformance.filter((w) => w.nodeId !== id), ...incoming],
+          }));
           return;
         }
         set((s) => ({ nodes: s.nodes.filter((n) => n.id !== id) }));

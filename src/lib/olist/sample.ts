@@ -2,6 +2,10 @@
 // twinchain-ml/training/build_olist_sample.py). Solo vendedores del conjunto de TEST del modelo: no los vio
 // ni al entrenar ni al calibrar. Unidad: días de `margin_days`.
 import raw from "@/data/olist-vendedores.json";
+import type { PoolSeller } from "@/lib/domain/vendedor/assign";
+import type { RealWeek } from "@/lib/domain/vendedor/history";
+
+export { PHASE1_WEEKS } from "@/lib/domain/vendedor/baseline";
 
 export interface OlistWeek {
   /** Lunes de la semana calendario en que el vendedor tuvo actividad. */
@@ -25,8 +29,6 @@ export interface OlistSampleMeta {
   muestra: string;
 }
 
-/** Semanas con actividad que el modelo usa para estimar la línea base (Fase I). */
-export const PHASE1_WEEKS = 4;
 
 const sellers = raw.vendedores as OlistSeller[];
 export const OLIST_META = raw.meta as OlistSampleMeta;
@@ -45,4 +47,14 @@ export interface SellerListItem {
 
 export function listSellers(): SellerListItem[] {
   return sellers.map((s) => ({ id: s.id, shortId: shortId(s.id), weeks: s.semanas.length }));
+}
+
+/** El historial de un vendedor del pool en el formato del dominio, o `undefined` si no está. */
+export function getSellerWeeks(id: string): RealWeek[] | undefined {
+  return getSeller(id)?.semanas.map((w) => ({ margen: w.margen, items: w.items }));
+}
+
+/** Los vendedores del pool y cuántas semanas tiene cada uno, para asignarlos a nodos. */
+export function poolSellers(): PoolSeller[] {
+  return sellers.map((s) => ({ id: s.id, weeks: s.semanas.length }));
 }
