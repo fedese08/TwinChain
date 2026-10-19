@@ -12,7 +12,8 @@ const compat = new FlatCompat({
 const eslintConfig = [
   ...compat.extends("next/core-web-vitals", "next/typescript"),
   {
-    ignores: [".next/**", "out/**", "build/**", "next-env.d.ts"],
+    // twinchain-ml es Python: su .venv trae archivos JS de terceros (sklearn) que no son nuestros.
+    ignores: [".next/**", "out/**", "build/**", "next-env.d.ts", "twinchain-ml/**"],
   },
 ];
 
