@@ -161,6 +161,8 @@ twinchain/
 - Lógica de propagación configurable por nodo (absorción de buffer, política de distribución, participación en cascada).
 
 ### Machine Learning
+> ⚠️ **Desactualizado:** el modelo real NO es un clasificador de backorder sino una regresión de línea base de vendedor con bandas CQR, entrenada con Olist. Ver `docs/modelo-ml.md`.
+
 - Modelo supervisado de clasificación binaria (backorder sí/no), entrenado sobre dataset público (ver `TwinChain_ML_Dataset_Analysis.md` y `TwinChain_ML_Training_Guide.md`).
 - Corre en microservicio Python/FastAPI separado.
 - Scoring en cada tick del monitoreo en tiempo real. No se aplica sobre simulaciones hipotéticas del motor determinístico.
@@ -238,6 +240,8 @@ No avances a una fase sin que la anterior tenga al menos un flujo funcional prob
 **Entregable:** usuario inserta una perturbación y ve el impacto propagarse.
 
 ### Fase 5 — Microservicio ML (puede ir en paralelo a la Fase 4)
+> ⚠️ **Desactualizado:** ver `docs/modelo-ml.md` y `twinchain-ml/README.md` (el servicio ya está construido; falta desplegarlo).
+
 - Entrenamiento del modelo (ver guía adjunta).
 - API FastAPI de scoring.
 - Deploy en Railway/Render.

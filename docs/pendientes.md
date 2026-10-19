@@ -105,9 +105,25 @@ funcionalidad que todavía no existe.
 
 - **[deuda] El Visualizador ve el canvas en modo `display`**, que no abre el inspector del nodo: no puede consultar
   los atributos ni el desempeño semanal. Falta un modo de solo lectura que sí los muestre.
-- **[falta] Datos reales (Olist).** El desempeño lo genera la ingesta sintética (`docs/ingesta-sintetica.md`). El
-  rango del perfil `Vendedor` (nivel 88–92, σ 8–11) es provisorio: calibrarlo con la media y la dispersión de
-  entregas a tiempo del Preliminar E50 §4.1, o cargar datos reales con otra implementación de la ingesta.
+- **[metodología] Unidades del Vendedor: decisión pendiente, bloquea conectar el ML al pipeline.** El modelo de datos
+  define `valor_real` del Vendedor en días (Olist) y el modelo de ML trabaja en días, pero la app usa 0–100 para todos
+  los tipos (generador, gráficos y la agregación del motor, que divide por 100). Tres opciones en
+  `docs/modelo-ml.md` §5 (recomendada: Vendedor en días con motor sobre déficit relativo, lo que cambia la definición
+  de "semana mala equivalente"). Mientras tanto el Vendedor usa el perfil sintético provisorio (nivel 88–92, σ 8–11).
+- **[falta] Desplegar `twinchain-ml` en Render** (Blueprint con `render.yaml`) y cargar `ML_SERVICE_URL` y
+  `ML_API_KEY` en Vercel; hasta entonces `/modelo` en producción dice "servicio no configurado". El plan gratuito se
+  duerme: el primer pedido tarda hasta un minuto.
+- **[deuda] El Dockerfile de `twinchain-ml` no se probó** (no había Docker corriendo). El servicio sí se probó con
+  `uvicorn` y la suite completa.
+- **[metodología] Cobertura temporal del modelo.** La banda del promedio cubre 65,8 % (promete 80 %) en la validación
+  temporal; recalibrar el CQR con partición temporal y/o reentrenar con todos los datos. No hay política de
+  reentrenamiento (el bundle se entrenó con el 60 % de una partición aleatoria).
+- **[falta] La banda semanal del modelo no tiene dónde guardarse:** `desempeno_semanal` solo tiene
+  `banda_inferior/superior` (la del promedio). Si se quieren alertas semanales con ella, dos columnas nuevas.
+- **[deuda] `TwinChain-DEV.md` describe un clasificador de backorder** (§6 y Fase 5); el modelo real es una regresión
+  de línea base. Marcado como desactualizado con una nota; reescribir esas secciones y el diagrama C4.
+- **[deuda] Licencia de los datos:** Olist es CC BY-NC-SA 4.0 (uso no comercial). Bien para la tesis; chocaría con una
+  salida al mercado real.
 - **[metodología] Provisorios de la ingesta, a revisar con quien defiende la tesis:** (1) el estimador de línea base
   (media recortada + intervalo de confianza del 90 %) reemplaza al ML de la Fase 5; (2) el CUSUM retrospectivo
   estandarizado y su umbral 6,4 (0,16 % de falsas alarmas por nodo con 24 semanas); (3) los umbrales de estado de

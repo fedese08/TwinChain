@@ -30,12 +30,12 @@ instalado hoy, qué falta, y las sugerencias propias marcadas como tales.
 | **TanStack Query v5** | estado de servidor / cache de fetch | cuando haya backend real (Fase 1+) |
 | **NextAuth.js (Auth.js) v5** | login Google + credentials — **credentials ya implementado** (bcryptjs, sesión JWT solo con identidad); Google se suma después | Fase 1 (Google pendiente) |
 | **PostgreSQL (Neon) + Drizzle ORM** | base de datos y capa de acceso — ✅ **instalado y confirmado** (`drizzle-orm`, `postgres`, `drizzle-kit`). Reemplaza a MongoDB + Mongoose por decisión del usuario (ver `docs/modelo-datos.md`, sección "Migración de motor"). Hosting: **Neon** (se evaluó Supabase y se descartó: la app no usa su Auth, RLS, Storage ni Realtime, y su free tier se pausa por inactividad, un riesgo para las demos) | Fase 1 |
-| **Python 3.12+ / FastAPI / Uvicorn** | microservicio ML, separado del monolito | Fase 5 |
-| **scikit-learn, XGBoost, pandas, joblib** | entrenamiento e inferencia del modelo | Fase 5 |
+| **Python 3.14 / FastAPI / Uvicorn** | microservicio ML, separado del monolito — ✅ construido en `twinchain-ml/` (versiones exactas en su `requirements.txt`); deploy en Render pendiente | Fase 5 |
+| **scikit-learn 1.9.1, numpy, scipy, joblib** | inferencia del modelo de línea base (el bundle es un pickle: versión exacta). XGBoost y pandas **no** se usan en el servicio; pandas solo para entrenar | Fase 5 |
 | **Vitest** | tests — ✅ **instalado** (`npm test`): cubren la ingesta sintética y el estado operativo, con calibraciones de Monte Carlo. Falta la capa de integración (base y API) | Fase 4 |
 | **Sentry** | monitoreo de errores en producción | Fase 8 |
 | **Vercel** | deploy del monolito Next.js | Fase 8 |
-| **Railway o Render** | deploy del microservicio ML | Fase 5/8 |
+| **Render** | deploy del microservicio ML (`twinchain-ml/render.yaml`, Docker) | Fase 5/8 |
 | **GitHub Actions** | CI (lint + typecheck) | ✅ ya configurado en `.github/workflows/ci.yml` |
 
 **Sugerencia propia, no en el spec original:** para los "tests E2E de flujos críticos" de la Fase 8,

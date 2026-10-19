@@ -116,6 +116,14 @@ actual y no con la de la corrida.
      entrenamiento. `POST/DELETE /api/cadenas/[id]/avance` es el monitoreo vivo (un tick = una semana; el reloj lo
      maneja el navegador porque Vercel no sostiene un proceso). `scripts/backfill-history.ts` completa cadenas ya
      existentes (simulacro por defecto, escribe solo con `--apply`).
+  8. **Modelo de ML (`twinchain-ml/`) — integrado como módulo de exploración, NO alimenta el pipeline.** Microservicio
+     FastAPI con el modelo de línea base de vendedores (regresión de cuantiles + bandas CQR, entrenado con Olist; **no**
+     es el clasificador de backorder que describe `TwinChain-DEV.md`). La app lo llama desde el servidor con
+     `src/lib/ml-client` y lo muestra en `/modelo` con vendedores reales. **Unidades: días de `margin_days`, no 0–100.**
+     **No conectarlo a la ingesta ni al motor sin resolver antes las unidades** (el motor suma déficits de todos los
+     nodos y los divide por 100): es una decisión metodológica pendiente. Leer `docs/modelo-ml.md` (auditoría de
+     alineación y plan) y `twinchain-ml/README.md`. Variables: `ML_SERVICE_URL`, `ML_API_KEY` (opcionales: sin ellas la
+     app anda igual). El bundle `.joblib` es un pickle de scikit-learn **1.9.1 exacto**: no actualizar la versión.
   - **Reglas del backend (no romper):** (a) la sesión JWT guarda **solo la identidad**; organización y rol se leen
     de la base en cada request (`getCurrentUser` en `src/lib/auth/session.ts`). (b) toda query de negocio filtra por
     el `organizacionId` que devuelve `requireApiMember()` / `requirePageMember()` — **nunca** por uno que venga en
@@ -193,7 +201,7 @@ actual y no con la de la corrida.
     `domain/synthetic/cusum.ts`, hook `useChainStatuses`) y no se guarda. Ninguno de los dos es una entidad del
     modelo de datos ni debe convertirse en tabla: el job y el pipeline son contenedores de la arquitectura C4.
     Cuando exista el job real, `pendingRuns` lo reemplaza el job de Vercel.
-  - **Tests:** Vitest (`npm test`). Hay 34 de la ingesta sintética y el estado operativo, incluidas las
+  - **Tests:** Vitest (`npm test`, 50) y, para el servicio de ML, pytest (`cd twinchain-ml && .venv/bin/pytest`, 22). Los de la ingesta sintética y el estado operativo incluyen las
     calibraciones de Monte Carlo del CUSUM y de los umbrales de atención/crítico: **no relajarlos para que
     pasen**, si fallan es que cambió algo que afecta la tasa de falsas alarmas.
 - **`ChainCanvas` necesita un padre con altura.** Su raíz es `flex h-full min-h-0 flex-1`: dentro de un padre
