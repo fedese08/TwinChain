@@ -18,5 +18,23 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm run typecheck
+      # Tests de la ingesta sintética, el estado operativo y el cliente del servicio de ML (incluye calibraciones de Monte Carlo).
+      - run: npm test
       # Verifica que las migraciones de drizzle/ sean consistentes entre sí (no necesita base de datos).
       - run: npx drizzle-kit check
+
+  # Microservicio de línea base (modelo de ML). Versiones exactas: el bundle .joblib es un pickle de scikit-learn.
+  ml-service:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: twinchain-ml
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: twinchain-ml/requirements-dev.txt
+      - run: pip install -r requirements-dev.txt
+      - run: pytest -q

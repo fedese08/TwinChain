@@ -1,0 +1,11 @@
+,valor
+umbral_abs_dias,60
+items_despachados_antes_del_filtro,110195
+filas_descartadas_por_umbral,8
+vendedores_con_actividad,2970
+descartados_fase1_corta,1172
+descartados_sin_fase2,338
+vendedores_usables,1460
+train,876
+calibracion,292
+test,292

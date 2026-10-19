@@ -1,0 +1,14 @@
+# Blueprint de Render para el microservicio de línea base. En Render: New > Blueprint > este repo.
+# La clave de API se genera sola: copiarla de ahí al entorno de Vercel como ML_API_KEY.
+services:
+  - type: web
+    name: twinchain-ml
+    runtime: docker
+    rootDir: twinchain-ml
+    dockerfilePath: ./Dockerfile
+    plan: free            # se duerme tras ~15 min sin tráfico: el primer pedido puede tardar hasta un minuto
+    region: oregon        # el plan gratuito no ofrece São Paulo; la latencia no importa para este servicio
+    healthCheckPath: /health
+    envVars:
+      - key: ML_API_KEY
+        generateValue: true

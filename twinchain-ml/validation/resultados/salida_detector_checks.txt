@@ -1,0 +1,20 @@
+CUSUM_THRESHOLD=6.4  TRAINING_WEEKS=24  HISTORY_WEEKS=28
+
+[1] C24 detectInstability sobre 20000 series SINTÉTICAS estables de 24 semanas (semillas val-fa-i):
+    falsas alarmas: 34/20000 = 0.170%  IC95% Wilson [0.12%, 0.24%]
+    cambio de nivel -1.5σ en semana 14: detección 9.9% | error medio de ubicación 1.09 semanas
+    cambio de nivel -2σ en semana 14: detección 26.1% | error medio de ubicación 0.67 semanas
+    cambio de nivel -3σ en semana 14: detección 73.6% | error medio de ubicación 0.27 semanas
+    cambio de nivel -4σ en semana 14: detección 96.9% | error medio de ubicación 0.10 semanas
+    cambio de nivel +4σ en semana 14: detección 13.4% | error medio de ubicación 2.44 semanas
+
+[2] assessNode (déficit medio de 3 semanas, atención ≥2σ, crítico ≥3.4σ) sobre 4000 nodos SINTÉTICOS,
+    línea base y σ congeladas con las primeras 24 semanas; 156 semanas de monitoreo; el cambio entra en la semana 1 del monitoreo.
+    Operación estable (sin incidente) — esto es el equivalente a ARL0 del criterio de estado:
+    estable: nodos que alguna vez pasan a atención/crítico en 156 sem: 55.4% | mediana 1ª atención: 45 sem (p10 8, p90 124) | crítico alguna vez: 6.4% (mediana 64 sem) | semanas marcadas: 1.99%
+    ARL0 empírico (semanas hasta 1ª atención, censurado a 156): media del tiempo observado ≈ 100.7 sem (cota inferior por censura)
+    Con cambio de nivel sostenido desde la semana 1 del monitoreo:
+    cambio -1σ: nodos que alguna vez pasan a atención/crítico en 156 sem: 96.0% | mediana 1ª atención: 11 sem (p10 3, p90 57) | crítico alguna vez: 37.3% (mediana 40 sem) | semanas marcadas: 15.82%
+    cambio -2σ: nodos que alguna vez pasan a atención/crítico en 156 sem: 100.0% | mediana 1ª atención: 3 sem (p10 2, p90 11) | crítico alguna vez: 82.4% (mediana 15 sem) | semanas marcadas: 55.15%
+    cambio -3σ: nodos que alguna vez pasan a atención/crítico en 156 sem: 100.0% | mediana 1ª atención: 2 sem (p10 1, p90 3) | crítico alguna vez: 98.2% (mediana 4 sem) | semanas marcadas: 89.45%
+    cambio -4σ: nodos que alguna vez pasan a atención/crítico en 156 sem: 100.0% | mediana 1ª atención: 2 sem (p10 1, p90 3) | crítico alguna vez: 100.0% (mediana 3 sem) | semanas marcadas: 98.71%

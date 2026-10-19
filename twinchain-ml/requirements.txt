@@ -1,0 +1,9 @@
+# Servicio de línea base de vendedor (TwinChain). Versiones EXACTAS: el bundle .joblib es un pickle de
+# scikit-learn y solo se garantiza que cargue bien con la versión con la que se entrenó (1.9.1).
+fastapi==0.142.2
+uvicorn==0.54.0
+pydantic==2.13.5
+numpy==2.5.3
+scikit-learn==1.9.1
+scipy==1.18.1
+joblib==1.6.0

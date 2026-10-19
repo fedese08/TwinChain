@@ -1,0 +1,5 @@
+-r requirements.txt
+pytest
+httpx==0.28.1
+# Solo para el test de paridad contra training/features.py (el servicio no usa pandas).
+pandas

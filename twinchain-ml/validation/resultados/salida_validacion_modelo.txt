@@ -1,0 +1,85 @@
+==================================================================================================== 
+A1 — Cantidades del pipeline (umbral 60 días, como la guía)
+  umbral_abs_dias: 60
+  items_despachados_antes_del_filtro: 110195
+  filas_descartadas_por_umbral: 8
+  vendedores_con_actividad: 2970
+  descartados_fase1_corta: 1172
+  descartados_sin_fase2: 338
+  vendedores_usables: 1460
+  train: 876
+  calibracion: 292
+  test: 292
+==================================================================================================== 
+A2 — 10 semillas (la misma semilla fija partición y modelo)
+ semilla  mae_modelo  mae_ingenuo  cobertura_sin_cqr  cobertura_con_cqr      Q
+      42      1.3583       1.8257             0.6986             0.7911 0.2987
+       1      1.4105       2.0534             0.7055             0.8048 0.3192
+       2      1.2781       1.9924             0.7671             0.8185 0.1599
+       3      1.1952       1.8671             0.7432             0.8185 0.2889
+       4      1.3198       1.9593             0.7329             0.7842 0.2840
+       5      1.1872       1.7051             0.7123             0.7911 0.2423
+       6      1.2892       1.7470             0.7705             0.8151 0.1724
+       7      1.1755       1.7723             0.7500             0.8014 0.2310
+       8      1.1943       1.6626             0.7671             0.7911 0.0788
+       9      1.1895       1.6501             0.7500             0.8082 0.2857
+
+                     media  desvio_std(ddof=1)
+mae_modelo         1.2598              0.0837
+mae_ingenuo        1.8235              0.1415
+cobertura_sin_cqr  0.7397              0.0265
+cobertura_con_cqr  0.8024              0.0126
+Q                  0.2361              0.0768
+
+  Test binomial de cobertura con CQR vs 80% por semilla (n_test=292):
+    semilla 42: con CQR 0.791 (p=0.714) | sin CQR 0.699 (p=0.0000)
+    semilla  1: con CQR 0.805 (p=0.884) | sin CQR 0.705 (p=0.0001)
+    semilla  2: con CQR 0.818 (p=0.465) | sin CQR 0.767 (p=0.1645)
+    semilla  3: con CQR 0.818 (p=0.465) | sin CQR 0.743 (p=0.0190)
+    semilla  4: con CQR 0.784 (p=0.510) | sin CQR 0.733 (p=0.0054)
+    semilla  5: con CQR 0.791 (p=0.714) | sin CQR 0.712 (p=0.0003)
+    semilla  6: con CQR 0.815 (p=0.559) | sin CQR 0.771 (p=0.2135)
+    semilla  7: con CQR 0.801 (p=1.000) | sin CQR 0.750 (p=0.0401)
+    semilla  8: con CQR 0.791 (p=0.714) | sin CQR 0.767 (p=0.1645)
+    semilla  9: con CQR 0.808 (p=0.770) | sin CQR 0.750 (p=0.0401)
+==================================================================================================== 
+A3 — ¿El bundle se entrenó con la partición de semilla 42 o con todos los datos?
+  baseline_model_bundle.joblib: claves=['cqr_adjustment_Q_days', 'feature_columns', 'min_phase1_weeks', 'min_phase2_weeks', 'model_family', 'outlier_abs_days_threshold']...
+    max|pred_bundle - pred_train60%_seed42| = 0.000e+00   |   max|pred_bundle - pred_todos_los_datos| = 5.000e+00
+    Q del bundle = 0.298733  | Q recalculado con calib seed42 = 0.298733
+    => ENTRENADO CON EL 60% (seed 42)
+  baseline_model_bundle_v2.joblib: claves=['bands', 'cqr_adjustment_Q_days', 'cqr_adjustment_Q_weekly_days', 'feature_columns', 'min_phase1_weeks', 'min_phase2_weeks']...
+    max|pred_bundle - pred_train60%_seed42| = 0.000e+00   |   max|pred_bundle - pred_todos_los_datos| = 5.000e+00
+    Q del bundle = 0.298733  | Q recalculado con calib seed42 = 0.298733
+    => ENTRENADO CON EL 60% (seed 42)
+==================================================================================================== 
+A4 — Comparación con otros algoritmos (MAE de la línea base en test, mismas 10 particiones)
+                                         media  desvio_std(ddof=1)
+GBR cuantil 0.5 (guía)                  1.2598              0.0837
+Ridge (alpha=1)                         1.2833              0.0807
+Regresión lineal                        1.2854              0.0818
+GBR pérdida cuadrática (mismos HP)      1.3202              0.0991
+Random Forest (300 árboles, hoja>=5)    1.3215              0.0839
+Constante: mediana de Fase II en train  1.3271              0.0909
+Ingenuo: media Fase I                   1.8235              0.1415
+==================================================================================================== 
+A5 — Sensibilidad al umbral de anomalías (30/45/60/90 y sin filtro), 10 semillas cada uno
+    umbral  filas_descartadas  vendedores_usables  mae_modelo  mae_ingenuo  cobertura_con_cqr      Q
+        30                155                1458      1.1934       1.7119             0.7939 0.1720
+        45                 24                1460      1.2615       1.8220             0.8058 0.2557
+        60                  8                1460      1.2598       1.8235             0.8024 0.2361
+        90                  8                1460      1.2598       1.8235             0.8024 0.2361
+sin filtro                  0                1460      1.2602       1.8238             0.8000 0.2280
+==================================================================================================== 
+D1 — Permutation importance (modelo de la mediana, test, scoring MAE, n_repeats=30)
+                            aumento_MAE_medio  desvio_entre_semillas  semillas_con_importancia_positiva  ranking_medio
+variable                                                                                                              
+phase1_mean                            0.0944                 0.0313                                 10            1.0
+phase1_max                             0.0368                 0.0085                                 10            2.1
+phase1_min                             0.0221                 0.0176                                 10            3.1
+phase1_std                             0.0083                 0.0151                                  8            4.3
+phase1_n_weeks                         0.0000                 0.0000                                  0            5.7
+phase1_mean_items_per_week            -0.0013                 0.0043                                  5            5.8
+phase1_total_items                    -0.0014                 0.0063                                  4            6.0
+
+  shap NO está instalado en el venv (no se instaló nada nuevo); SHAP no se calculó.
