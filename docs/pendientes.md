@@ -155,8 +155,18 @@ funcionalidad que todavía no existe.
 - **[falta] Desplegar `twinchain-ml` en Render** y cargar `ML_SERVICE_URL`/`ML_API_KEY` en Vercel. El Dockerfile no se
   probó con `docker build`.
 - **[decisión] Atraso no representado:** el motor trunca en 0; un margen negativo del Vendedor no suma pérdida.
-- **[decisión tomada] Vendedor sintético.** `REAL_VENDEDORES_ENABLED = false`: los Vendedores nuevos (y los de `db:seed`)
-  salen del generador sintético, en 0–100. El camino real queda inactivo en el código (`lib/domain/vendedor`,
-  `ingestion/vendedor-setup.ts`, `units.ts`, endpoint `/linea-base`). Si se confirma que no se va a reactivar,
-  conviene borrarlo; hasta entonces no tocarlo. Las cadenas de Neon con Vendedores reales creadas antes siguen en días.
+- **[decisión tomada] Todos los nodos son sensores simulados; el modelo estima su línea base.** Ver `docs/modelo-ml.md`
+  sección 8. `REAL_VENDEDORES_ENABLED = false`: el camino de vendedor REAL de Olist queda inactivo (`lib/domain/vendedor`,
+  parte de `ingestion/vendedor-setup.ts`). Si se confirma que no se reactiva, conviene borrarlo. Las cadenas de Neon con
+  Vendedores reales creadas antes siguen funcionando.
+- **[acción] Aplicar la migración `0002` a Neon** (`npm run db:migrate`): relaja `nodos_datos_reales_completos` para que la
+  fuente de la línea base valga para cualquier nodo. Sin ella, crear una cadena falla en producción.
+- **[deuda] Cadenas viejas en 0–100.** Los nodos sin `fuente_linea_base` (creados antes) siguen en 0–100, con el
+  estimador estadístico provisorio. Se pueden convivir en una cadena con nodos en días (el adaptador del motor los
+  trata por separado). No hay backfill que los pase a días.
+- **[problema] Sesgo del modelo y detección débil de la banda semanal.** Ver `docs/modelo-ml.md` sección 8, "Problemas
+  encontrados". Decisión pendiente: reentrenar con partición temporal (Fase D) o recalibrar las bandas, o aceptarlo y
+  declararlo en el E90.
+- **[deuda] El volumen de la Fase I no se guarda** (se regenera al actualizar la línea base). Columna `items_semana`
+  pendiente si se quiere que la ingesta sea fiel a un sensor real.
 

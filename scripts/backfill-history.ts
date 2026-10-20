@@ -10,7 +10,7 @@
  * producción, `--apply` escribe en producción.
  */
 import { loadEnvConfig } from "@next/env";
-import { eq, notExists } from "drizzle-orm";
+import { and, eq, notExists } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 
@@ -18,7 +18,10 @@ loadEnvConfig(process.cwd());
 
 import * as schema from "../src/lib/db/schema";
 import { ingestChainHistory } from "../src/lib/ingestion/ingest-history";
-import { prepareVendedorPlans } from "../src/lib/ingestion/vendedor-setup";
+import { prepareSensorBaselines, prepareVendedorPlans } from "../src/lib/ingestion/vendedor-setup";
+import { chainLatestWeek } from "../src/lib/ingestion/ingest-history";
+import { lastCompleteWeek } from "../src/lib/domain/synthetic";
+import type { NodeType } from "../src/lib/domain/types";
 
 async function main() {
   const apply = process.argv.includes("--apply");
@@ -68,7 +71,22 @@ async function main() {
         vendedoresByChain.get(chainId) ?? [],
         new Set(used.flatMap((u) => (u.id ? [u.id] : []))),
       );
-      const result = await db.transaction((tx) => ingestChainHistory(tx, chainId, { vendedorPlans }));
+      // Los demás nodos: línea base del modelo de ML con las primeras semanas de su sensor simulado.
+      const endWeek = (await chainLatestWeek(db, chainId)) ?? lastCompleteWeek();
+      const pending = await db
+        .select({ id: schema.nodos.id, tipo: schema.nodos.tipo })
+        .from(schema.nodos)
+        .where(
+          and(
+            eq(schema.nodos.cadenaId, chainId),
+            notExists(db.select({ one: schema.desempenoSemanal.id }).from(schema.desempenoSemanal).where(eq(schema.desempenoSemanal.nodoId, schema.nodos.id))),
+          ),
+        );
+      const baselines = await prepareSensorBaselines(
+        pending.filter((n) => !vendedorPlans.has(n.id)).map((n) => ({ id: n.id, tipo: n.tipo as NodeType })),
+        endWeek,
+      );
+      const result = await db.transaction((tx) => ingestChainHistory(tx, chainId, { vendedorPlans, baselines, endWeek }));
       console.log(
         `  cadena ${chainId}: ${nodeCount} nodos · ${result.weeklyPerformance.length} filas · estabilidad: ${result.stability?.status ?? "sin datos"}`,
       );

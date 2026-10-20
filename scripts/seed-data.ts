@@ -5,7 +5,7 @@ import { buildChainHistory, HISTORY_WEEKS } from "@/lib/domain/synthetic";
 import { adaptForEngine } from "@/lib/domain/units";
 import { REAL_VENDEDORES_ENABLED } from "@/lib/domain/vendedor/config";
 import { assignSellers } from "@/lib/domain/vendedor/assign";
-import { provisionalVendedorBaseline, type VendedorBaseline } from "@/lib/domain/vendedor/baseline";
+import { provisionalVendedorBaseline, type NodeBaseline } from "@/lib/domain/vendedor/baseline";
 import { getSellerWeeks, poolSellers } from "@/lib/olist/sample";
 import type {
   Chain,
@@ -105,18 +105,27 @@ export const seedVendedorNodes = seedNodes.filter((n) => n.olistSellerId);
 const CHAINS_WITH_LEVEL_SHIFT = new Set(["chain-sur"]);
 
 /**
- * `vendedorBaselines`: la línea base de cada Vendedor real (la del modelo de ML o, sin servicio, la provisoria);
- * `seed.ts` la resuelve antes de armar los datos.
+ * `baselines`: la línea base de cada nodo (por id de la semilla), estimada por el modelo de ML con las primeras
+ * semanas de su sensor simulado, o la provisoria si el servicio no contesta; `seed.ts` la resuelve antes de armar los
+ * datos. `idOf` da el id con el que el nodo queda guardado (la serie del sensor depende de él, así que tiene que ser
+ * el mismo con el que luego continúa el monitoreo vivo); devuelve filas con ESE id.
  */
-export function buildSeedWeeklyPerformance(vendedorBaselines: ReadonlyMap<string, VendedorBaseline>): WeeklyPerformance[] {
+export function buildSeedWeeklyPerformance(
+  baselines: ReadonlyMap<string, NodeBaseline>,
+  idOf: (seedId: string) => string = (seedId) => seedId,
+): WeeklyPerformance[] {
   return seedChains.flatMap((chain) => {
     const chainNodes = seedNodes
       .filter((n) => n.chainId === chain.id)
       .map((n) => {
-        if (!n.olistSellerId) return { id: n.id, type: n.nodeType };
-        const realWeeks = getSellerWeeks(n.olistSellerId)!;
-        const baseline = vendedorBaselines.get(n.id) ?? provisionalVendedorBaseline(realWeeks.slice(0, 4).map((w) => w.margen));
-        return { id: n.id, type: n.nodeType, vendedor: { realWeeks, baseline } };
+        const id = idOf(n.id);
+        if (n.olistSellerId) {
+          const realWeeks = getSellerWeeks(n.olistSellerId)!;
+          const baseline = baselines.get(n.id) ?? provisionalVendedorBaseline(realWeeks.slice(0, 4).map((w) => w.margen));
+          return { id, type: n.nodeType, vendedor: { realWeeks, baseline } };
+        }
+        const baseline = baselines.get(n.id);
+        return baseline ? { id, type: n.nodeType, baseline } : { id, type: n.nodeType };
       });
     const { rows } = buildChainHistory(chainNodes, { withLevelShift: CHAINS_WITH_LEVEL_SHIFT.has(chain.id) });
     return rows.map((row) => ({ ...row, id: `wp-${row.nodeId}-${row.weekStart}` }));
@@ -169,8 +178,12 @@ function buildResult(
   runId: string,
   runDate: string,
   weeklyPerformance: WeeklyPerformance[],
+  baselines: ReadonlyMap<string, NodeBaseline>,
 ): ScenarioResult {
-  const chainNodes = seedNodes.filter((n) => n.chainId === scenario.chainId);
+  // Los nodos con línea base del modelo (o provisoria) miden en días: se marcan para que el adaptador los reconozca.
+  const chainNodes = seedNodes
+    .filter((n) => n.chainId === scenario.chainId)
+    .map((n) => ({ ...n, baselineSource: baselines.get(n.id)?.source ?? n.baselineSource }));
   const chainNodeIds = new Set(chainNodes.map((n) => n.id));
   const chainEdges = seedEdges.filter((e) => chainNodeIds.has(e.sourceNodeId) && chainNodeIds.has(e.targetNodeId));
   const seed = hashSeed(runId);
@@ -197,7 +210,8 @@ function buildResult(
   };
 }
 
-export function buildSeedResults(weeklyPerformance: WeeklyPerformance[]): ScenarioResult[] {
+/** `weeklyPerformance` con los ids de la semilla (los de `seedNodes`), igual que `seedEvents`. */
+export function buildSeedResults(weeklyPerformance: WeeklyPerformance[], baselines: ReadonlyMap<string, NodeBaseline>): ScenarioResult[] {
   return [
     ...seedScenarios.map((scenario) =>
       buildResult(
@@ -206,6 +220,7 @@ export function buildSeedResults(weeklyPerformance: WeeklyPerformance[]): Scenar
         `result-${scenario.id}`,
         scenario.createdAt,
         weeklyPerformance,
+        baselines,
       ),
     ),
     // Segunda corrida del mismo escenario: cada corrida se conserva por separado, no se pisa
@@ -216,6 +231,7 @@ export function buildSeedResults(weeklyPerformance: WeeklyPerformance[]): Scenar
       `result-${seedScenarios[0].id}-2`,
       weeksAgoIso(0),
       weeklyPerformance,
+      baselines,
     ),
   ];
 }

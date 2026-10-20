@@ -1,4 +1,6 @@
-// Línea base de un nodo Vendedor con datos REALES de Olist. Todo en DÍAS de margen (`margin_days`).
+// Línea base de un nodo en DÍAS de margen (`margin_days`): la que da el modelo de ML a partir de las 4 primeras semanas
+// del nodo (Fase I) o, si no contesta, la provisoria. Sirve igual para un vendedor real de Olist que para un nodo
+// cuyo historial llega de un sensor (simulado).
 import { mean, stdDev, tCritical90 } from "@/lib/domain/synthetic/stats";
 import type { BaselineSource } from "@/lib/domain/types";
 
@@ -7,6 +9,9 @@ export const PHASE1_WEEKS = 4;
 
 /** Mitad mínima de la banda de la estimación provisoria: con 4 semanas idénticas el desvío da cero. */
 const MIN_HALF_WIDTH_DAYS = 0.25;
+
+/** Línea base y bandas de un nodo en días: la del modelo de ML o, si no contestó, la provisoria. */
+export type NodeBaseline = VendedorBaseline;
 
 export interface VendedorBaseline {
   baseline: number;

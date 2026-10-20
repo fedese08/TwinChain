@@ -148,9 +148,11 @@ export const nodos = pgTable(
   },
   (t) => [
     index("nodos_cadena_idx").on(t.cadenaId),
+    // `fuente_linea_base` marca a un nodo que mide en días (línea base del modelo de ML o provisoria); un vendedor
+    // real de Olist (camino inactivo) siempre la tiene.
     check(
-      "nodos_datos_reales_completos",
-      sql`(${t.vendedorOlistId} IS NULL) = (${t.fuenteLineaBase} IS NULL) AND (${t.fuenteLineaBase} IS NULL OR ${t.fuenteLineaBase} IN ('ml', 'provisoria'))`,
+      "nodos_fuente_linea_base_valida",
+      sql`(${t.fuenteLineaBase} IS NULL OR ${t.fuenteLineaBase} IN ('ml', 'provisoria')) AND (${t.vendedorOlistId} IS NULL OR ${t.fuenteLineaBase} IS NOT NULL)`,
     ),
     check(
       "nodos_capacidades_no_negativas",

@@ -1,0 +1,2 @@
+ALTER TABLE "nodos" DROP CONSTRAINT "nodos_datos_reales_completos";--> statement-breakpoint
+ALTER TABLE "nodos" ADD CONSTRAINT "nodos_fuente_linea_base_valida" CHECK (("nodos"."fuente_linea_base" IS NULL OR "nodos"."fuente_linea_base" IN ('ml', 'provisoria')) AND ("nodos"."vendedor_olist_id" IS NULL OR "nodos"."fuente_linea_base" IS NOT NULL));

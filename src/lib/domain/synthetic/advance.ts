@@ -3,6 +3,7 @@
 // La línea base y su banda se COPIAN de lo ya registrado: están congeladas y no se recalculan con las
 // semanas nuevas (si se movieran junto con la caída que se quiere detectar, el déficit se encogería).
 import type { NodeType } from "@/lib/domain/types";
+import type { PerformanceUnit } from "@/lib/domain/units";
 import { MAX_ADVANCE_WEEKS } from "./config";
 import { type NewWeeklyRow } from "./estimate-baseline";
 import { continueSeries } from "./generate-series";
@@ -16,6 +17,11 @@ export interface NodeLatestState {
   baseline: number;
   baselineLowerBand: number;
   baselineUpperBand: number;
+  /** Banda de una semana individual del modelo de ML (solo nodos en días con línea base del modelo). */
+  weeklyBandLower?: number;
+  weeklyBandUpper?: number;
+  /** Escala de la serie del nodo; por defecto "pct". */
+  unit?: PerformanceUnit;
 }
 
 export function advanceNode(state: NodeLatestState, weeks: number): NewWeeklyRow[] {
@@ -28,6 +34,7 @@ export function advanceNode(state: NodeLatestState, weeks: number): NewWeeklyRow
     history: state.history,
     lastWeekStart: state.lastWeekStart,
     weeks,
+    unit: state.unit,
   });
   return next.weekStarts.map((weekStart, i) => ({
     nodeId: state.nodeId,
@@ -36,6 +43,9 @@ export function advanceNode(state: NodeLatestState, weeks: number): NewWeeklyRow
     baseline: state.baseline,
     baselineLowerBand: state.baselineLowerBand,
     baselineUpperBand: state.baselineUpperBand,
+    ...(state.weeklyBandLower !== undefined && state.weeklyBandUpper !== undefined
+      ? { weeklyBandLower: state.weeklyBandLower, weeklyBandUpper: state.weeklyBandUpper }
+      : {}),
     deficit: Math.max(0, state.baseline - next.values[i]),
   }));
 }

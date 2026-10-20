@@ -7,8 +7,9 @@ import { toNode } from "@/lib/data/mappers";
 import { getDb, nodos } from "@/lib/db";
 import { isUniqueViolation } from "@/lib/db/errors";
 import { MAX_NODES_PER_CHAIN } from "@/lib/domain/types";
-import { ingestNodeHistory } from "@/lib/ingestion/ingest-history";
-import { prepareVendedorPlans, type VendedorPlan } from "@/lib/ingestion/vendedor-setup";
+import { chainLatestWeek, ingestNodeHistory } from "@/lib/ingestion/ingest-history";
+import { prepareSensorBaselines, prepareVendedorPlans, type VendedorPlan } from "@/lib/ingestion/vendedor-setup";
+import { lastCompleteWeek } from "@/lib/domain/synthetic";
 import { createNodeSchema } from "@/lib/validators/chain-api";
 
 export async function POST(request: Request, { params }: { params: Promise<{ chainId: string }> }) {
@@ -38,11 +39,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ cha
     vendedorPlan = plans.get(id);
   }
 
+  // El sensor del nodo nuevo termina en la misma semana que el resto de la cadena; el modelo estima su línea base
+  // con sus primeras semanas, también ANTES de la transacción.
+  const endWeek = (await chainLatestWeek(db, chainId)) ?? lastCompleteWeek();
+  const baseline = vendedorPlan ? undefined : (await prepareSensorBaselines([{ id, tipo }], endWeek)).get(id);
+
   try {
     // El nodo y su historial se guardan juntos: un nodo nunca queda sin datos de desempeño.
     const created = await db.transaction(async (tx) => {
       await tx.insert(nodos).values({ id, tipo, cadenaId: chainId, etiqueta, posX: x, posY: y });
-      const weeklyPerformance = await ingestNodeHistory(tx, { id, tipo }, chainId, vendedorPlan);
+      const weeklyPerformance = await ingestNodeHistory(tx, { id, tipo }, chainId, { plan: vendedorPlan, baseline, endWeek });
       const [row] = await tx.select().from(nodos).where(eq(nodos.id, id));
       return { row, weeklyPerformance };
     });

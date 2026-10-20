@@ -28,41 +28,45 @@ const FEATURES = [
 
 const PLANS = [
   {
-    name: "Gratis",
-    price: "$0",
+    name: "Freemium",
+    price: "US$0",
     period: "para siempre",
-    description: "Para probar el modelo con una cadena chica.",
-    features: ["1 cadena", "Hasta 10 nodos", "Monitoreo de desempeño semanal", "1 simulación activa"],
+    description: "Para conocer TwinChain con una red chica. No es una prueba: el plan es permanente.",
+    features: [
+      "Hasta 6 nodos",
+      "Hasta 3 escenarios guardados",
+      "Ejecuciones ilimitadas, sin límite de retención",
+      "Monitoreo de desempeño semanal",
+    ],
     cta: "Empezar gratis",
     highlighted: false,
   },
   {
     name: "Pro",
-    price: "$49",
-    period: "por mes",
-    description: "Para equipos que monitorean varias cadenas en serio.",
+    price: "US$29",
+    period: "por mes + IVA",
+    description: "Para equipos que ya modelan una red mediana y comparan alternativas.",
     features: [
-      "Cadenas ilimitadas",
-      "Hasta 50 nodos por cadena",
-      "Simulaciones ilimitadas",
-      "Comparar escenarios",
-      "Historial de corridas guardado",
+      "Hasta 15 nodos",
+      "Hasta 6 escenarios guardados",
+      "Ejecuciones ilimitadas, sin límite de retención",
+      "Monitoreo de desempeño semanal",
     ],
     cta: "Empezar con Pro",
     highlighted: true,
   },
   {
-    name: "Empresas",
-    price: "A medida",
-    period: "según tu operación",
-    description: "Para organizaciones con múltiples equipos y cadenas críticas.",
+    name: "Max",
+    price: "US$99",
+    period: "por mes + IVA",
+    description: "Para operaciones con redes extensas y muchos frentes de riesgo.",
     features: [
-      "Todo lo de Pro",
-      "Múltiples organizaciones",
-      "Roles y permisos por equipo",
-      "Soporte dedicado",
+      "Hasta 100 nodos",
+      "Hasta 30 escenarios guardados",
+      "Ejecuciones ilimitadas, sin límite de retención",
+      "Monitoreo de desempeño semanal",
     ],
-    cta: "Hablar con nosotros",
+    cta: "Empezar con Max",
     highlighted: false,
   },
 ] as const;
@@ -165,8 +169,9 @@ export default async function LandingPage() {
           <div className="mx-auto flex w-full max-w-6xl flex-col items-center gap-10 px-6 py-16">
             <div className="flex flex-col items-center gap-2.5 text-center">
               <h2 className="text-[28px] font-bold tracking-tight">Planes</h2>
-              <p className="max-w-md text-[14px] text-muted-foreground">
-                Empezá gratis y subí de plan cuando tu operación lo necesite.
+              <p className="max-w-xl text-[14px] text-muted-foreground">
+                Los planes se diferencian por la cantidad de nodos de tu red y de escenarios guardados a la vez. Empezá
+                gratis y subí de plan cuando tu operación lo necesite.
               </p>
             </div>
 
@@ -217,6 +222,11 @@ export default async function LandingPage() {
                 </div>
               ))}
             </div>
+
+            <p className="max-w-2xl text-center text-[12.5px] text-muted-foreground">
+              Precios en dólares, netos de IVA. Al completar el tope de escenarios guardados, crear uno nuevo queda
+              bloqueado hasta que borres otro o cambies de plan. Los tres planes admiten una cadena por organización.
+            </p>
           </div>
         </section>
       </main>

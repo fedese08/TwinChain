@@ -8,6 +8,7 @@
 // se monitorean, porque si la referencia se moviera junto con la caída que se quiere detectar, el
 // déficit se encogería solo y una disrupción sostenida no se detectaría nunca.
 import type { WeeklyPerformance } from "@/lib/domain/types";
+import type { NodeBaseline } from "@/lib/domain/vendedor/baseline";
 import { MIN_BASELINE_WEEKS } from "./config";
 import { stdDev, tCritical90, trimmedMean } from "./stats";
 
@@ -63,5 +64,25 @@ export function buildRows(input: {
     baselineLowerBand: estimate.lower,
     baselineUpperBand: estimate.upper,
     deficit: Math.max(0, estimate.baseline - values[i]),
+  }));
+}
+
+/**
+ * Arma las filas de un nodo en DÍAS con una línea base ya resuelta (la del modelo de ML o la provisoria), congelada
+ * para toda la serie, con su banda del promedio y, si el modelo la dio, su banda semanal.
+ */
+export function buildRowsWithBaseline(input: { nodeId: string; weekStarts: string[]; values: number[]; baseline: NodeBaseline }): NewWeeklyRow[] {
+  const { nodeId, weekStarts, values, baseline } = input;
+  return weekStarts.map((weekStart, i) => ({
+    nodeId,
+    weekStart,
+    actualValue: values[i],
+    baseline: baseline.baseline,
+    baselineLowerBand: baseline.lower,
+    baselineUpperBand: baseline.upper,
+    ...(baseline.weeklyLower !== undefined && baseline.weeklyUpper !== undefined
+      ? { weeklyBandLower: baseline.weeklyLower, weeklyBandUpper: baseline.weeklyUpper }
+      : {}),
+    deficit: Math.max(0, baseline.baseline - values[i]),
   }));
 }

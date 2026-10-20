@@ -29,9 +29,10 @@ import {
   buildSeedResults,
   buildSeedWeeklyPerformance,
 } from "./seed-data";
-import { resolveVendedorBaseline } from "../src/lib/ingestion/vendedor-setup";
+import { prepareSensorBaselines, resolveVendedorBaseline } from "../src/lib/ingestion/vendedor-setup";
 import { getSellerWeeks } from "../src/lib/olist/sample";
-import type { VendedorBaseline } from "../src/lib/domain/vendedor/baseline";
+import { lastCompleteWeek } from "../src/lib/domain/synthetic";
+import type { NodeBaseline } from "../src/lib/domain/vendedor/baseline";
 
 const DEMO_EMAIL = "demo@twinchain.dev";
 
@@ -45,16 +46,25 @@ async function main() {
   try {
     const roles = await ensureRoles(db);
 
-    // Los Vendedores reales de la demo toman su línea base del modelo de ML si el servicio está configurado
-    // (ML_SERVICE_URL); si no, queda la provisoria, marcada como tal en el nodo.
-    const vendedorBaselines = new Map<string, VendedorBaseline>();
+    // Cada nodo de la demo recibe su línea base del modelo de ML, estimada con las primeras semanas de su sensor
+    // simulado (si el servicio no está configurado o no contesta, queda la provisoria, marcada como tal en el nodo).
+    // Los ids de la base se deciden ANTES: la serie del sensor depende del id del nodo.
+    const nodeIds = new Map<string, string>(seedNodes.map((n) => [n.id, randomUUID()]));
+    const seedIdOf = new Map([...nodeIds].map(([seedId, uuid]) => [uuid, seedId]));
+    const endWeek = lastCompleteWeek();
+    const sensorNodes = seedNodes.filter((n) => !n.olistSellerId);
+    const byUuid = await prepareSensorBaselines(sensorNodes.map((n) => ({ id: nodeIds.get(n.id)!, tipo: n.nodeType })), endWeek);
+    const baselines = new Map<string, NodeBaseline>(sensorNodes.map((n) => [n.id, byUuid.get(nodeIds.get(n.id)!)!]));
     for (const node of seedVendedorNodes) {
-      vendedorBaselines.set(node.id, await resolveVendedorBaseline(getSellerWeeks(node.olistSellerId!)!, 20_000));
+      baselines.set(node.id, await resolveVendedorBaseline(getSellerWeeks(node.olistSellerId!)!, 20_000));
     }
-    const seedWeeklyPerformance = buildSeedWeeklyPerformance(vendedorBaselines);
-    const seedResults = buildSeedResults(seedWeeklyPerformance);
-    const fromModel = [...vendedorBaselines.values()].filter((b) => b.source === "ml").length;
-    console.log(`Vendedores reales: ${vendedorBaselines.size} (línea base del modelo: ${fromModel}, provisoria: ${vendedorBaselines.size - fromModel})`);
+    const seedWeeklyPerformance = buildSeedWeeklyPerformance(baselines, (seedId) => nodeIds.get(seedId)!);
+    const seedResults = buildSeedResults(
+      seedWeeklyPerformance.map((w) => ({ ...w, nodeId: seedIdOf.get(w.nodeId)! })),
+      baselines,
+    );
+    const fromModel = [...baselines.values()].filter((b) => b.source === "ml").length;
+    console.log(`Nodos: ${baselines.size} (línea base del modelo: ${fromModel}, provisoria: ${baselines.size - fromModel})`);
 
     const password = process.env.SEED_DEMO_PASSWORD ?? randomBytes(9).toString("base64url");
     const passwordHash = await bcrypt.hash(password, 12);
@@ -97,7 +107,6 @@ async function main() {
         })),
       );
 
-      const nodeIds = new Map(seedNodes.map((n) => [n.id, randomUUID()]));
       await tx.insert(schema.nodos).values(
         seedNodes.map((n) => ({
           id: nodeIds.get(n.id)!,
@@ -111,7 +120,7 @@ async function main() {
           capacidadAlmacenamiento: n.storageCapacity ?? null,
           nivelStockActual: n.currentStockLevel ?? null,
           vendedorOlistId: n.olistSellerId ?? null,
-          fuenteLineaBase: n.olistSellerId ? (vendedorBaselines.get(n.id)?.source ?? null) : null,
+          fuenteLineaBase: baselines.get(n.id)?.source ?? null,
         })),
       );
 
@@ -126,7 +135,7 @@ async function main() {
       // --- Desempeño semanal -------------------------------------------------------------
       await tx.insert(schema.desempenoSemanal).values(
         seedWeeklyPerformance.map((w) => ({
-          nodoId: nodeIds.get(w.nodeId)!,
+          nodoId: w.nodeId,
           semana: w.weekStart,
           valorReal: w.actualValue,
           lineaBase: w.baseline,

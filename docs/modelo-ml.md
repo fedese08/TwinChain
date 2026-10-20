@@ -1,10 +1,10 @@
 # Modelo de ML de línea base: integración, auditoría de alineación y plan
 
 Estado al 19/10/2026. El modelo está en `twinchain-ml/` y se integra con la app a través de la pantalla **Modelo de
-línea base** (`/modelo`). **Estado actual (decisión posterior): todos los nodos, incluido el Vendedor, se alimentan con el generador
-sintético.** La Opción 1 (sección 7) se implementó y se verificó, pero el camino de Vendedor real quedó **inactivo**
-tras el interruptor `REAL_VENDEDORES_ENABLED` (`src/lib/domain/vendedor/config.ts`). El modelo sigue disponible en
-`/modelo` y como referencia de calibración. Las secciones 4 y 5 quedan como registro de la auditoría y de la decisión.
+línea base** (`/modelo`). **Estado actual: el modelo estima la línea base y las bandas de TODOS los nodos a partir del historial que reporta su
+sensor** (sección 8). Los nodos no usan datos reales de Olist: en una instalación real los daría un sensor IoT, y en la
+tesis los simula el generador sintético (RF009), en la misma métrica que mide el modelo (días de margen de despacho).
+El camino de Vendedor con vendedor real de Olist (sección 7) queda inactivo tras `REAL_VENDEDORES_ENABLED`. Las secciones 4 y 5 quedan como registro de la auditoría y de la decisión.
 
 ## 1. Qué es el modelo
 
@@ -183,10 +183,12 @@ la bitácora. El spec quedó desactualizado en este punto (y habla de Python 3.1
 | `src/app/(app)/modelo/`, `src/components/model/` | Pantalla "Modelo de línea base" |
 
 
-## 7. Opción 1 implementada (Fase E) — hoy inactiva
+## 7. Opción 1 implementada (Fase E) — camino de vendedor real, hoy inactivo
 
-> **Inactiva por decisión del proyecto:** los nodos Vendedor nuevos se generan de forma sintética. Lo que sigue describe
-> el camino que se activa con `REAL_VENDEDORES_ENABLED = true`.
+> **Inactivo por decisión del proyecto:** los nodos no usan vendedores reales; el historial lo simula un sensor
+> (sección 8). Lo que sigue describe el camino que se activa con `REAL_VENDEDORES_ENABLED = true`. La infraestructura
+> (unidades en días, adaptador del motor, bandas semanales, fuente de la línea base, respaldo provisorio) se comparte
+> con la sección 8.
 
 **Qué se hizo**
 
@@ -220,3 +222,70 @@ tsc/eslint, 80 tests Vitest, 22 pytest y `next build`.
 - La base de los nodos en % (~92) y la de los nodos en días (100 tras escalar) no coinciden; es una inconsistencia menor
   del adaptador.
 - Las cadenas ya existentes conservan sus Vendedores con datos sintéticos en %.
+
+
+## 8. Diseño vigente: el modelo sobre el historial de un sensor simulado
+
+**Idea de arquitectura.** Cada nodo tendría sensores IoT que le dan su historial de desempeño. El modelo (entrenado con
+Olist) recibe las primeras semanas de ese historial y devuelve la línea base y las bandas del nodo. El modelo **no sabe
+ni le importa** de dónde vienen los datos. Como la tesis no tiene sensores reales, el generador sintético
+(`src/lib/domain/synthetic`) los **simula**; es solo una fuente de datos y no conoce al modelo.
+
+**Flujo al crear una cadena o agregar un nodo**
+
+1. El generador emite, por nodo y semana, el **margen de despacho en días** y el **volumen** (envíos): lo que el modelo
+   espera. Perfiles por tipo calibrados con Olist (nivel 2,8–4,2 d, σ semanal 1,3–2,4 d, AR(1) 0,15, 1,5–6 envíos/sem).
+2. `prepareSensorBaselines` toma las **4 primeras semanas** (Fase I) de cada nodo y llama a `/predecir_desde_semanas`
+   **antes** de abrir la transacción. Recibe línea base, banda del promedio y banda semanal.
+3. La ingesta guarda las 28 semanas con esa línea base **congelada** (RF014) y marca `fuente_linea_base` (`ml`).
+4. Sin respuesta en 10 s: línea base **provisoria** (media de la Fase I ± IC 90 %), `fuente_linea_base = provisoria`,
+   sin banda semanal. Se mejora con `POST /api/cadenas/[id]/linea-base` o el botón "Actualizar con el modelo". Esa
+   actualización vuelve a calcular el volumen de la Fase I con el generador (no se guarda; es función de nodo y semana).
+5. `fuente_linea_base` marca además que el nodo mide en **días**; los nodos anteriores (null) siguen en 0–100.
+6. El motor recibe el desempeño relativo por `adaptForEngine`, igual que en la sección 7.
+7. Detección: banda semanal (2 de 3 = atención, 3 de 3 = crítico) y C24 sobre las 24 primeras semanas.
+
+**Cambios de código:** `synthetic/` (perfiles y series en días, `generateWeeklyItems`, `sensorPhase1`,
+`historyWeekStarts`), `ingestion/vendedor-setup.ts` (`prepareSensorBaselines`), `ingestion/ingest-history.ts`,
+`units.ts` (`unitOfNode` por fuente de línea base), rutas de cadenas/nodos/avance/linea-base, seed y backfill. Migración
+`0002` (relaja la restricción de `nodos`: la fuente de la línea base ya no exige un vendedor de Olist).
+
+**Medición** (`scripts/measure-sensor-model.ts`, 600 nodos simulados contra el modelo real; a diferencia de Olist, acá la
+línea base verdadera se conoce: es el nivel del perfil)
+
+| | Resultado |
+|---|---|
+| Error de la línea base (modelo / método ingenuo) | **0,51 d / 0,80 d** (mejora del 36 %); Cliente es el único tipo donde no mejora (0,68 / 0,66) |
+| Sesgo del modelo | **−0,45 d** (subestima el nivel; −0,26 en Proveedor, −0,68 en Cliente) |
+| La banda del promedio contiene el nivel verdadero | 100 % (la banda es muy ancha: ±0,9 d) |
+| Semanas estables por debajo de la banda semanal | 5,3 % (en Olist real, 7,7 %) |
+| Falsas alarmas: atención / crítico | 1,2 % / 0,0 % de las ventanas de 3 semanas (en Olist real, 3,3 % / 0,59 %) |
+| C24 sobre series estables en días | 0,03 % de falsas alarmas (1 de 4.000) |
+
+Detección de una caída sostenida de X días desde la semana 25, con 4 semanas para reaccionar:
+
+| Caída | Llega a atención | Llega a crítico |
+|---|---|---|
+| −1 d | 10 % | 1 % |
+| −2 d | 24 % | 4 % |
+| −3 d | 55 % | 19 % |
+| −4 d | 83 % | 44 % |
+
+**Problemas encontrados**
+
+1. **Sesgo negativo del modelo (−0,45 d).** Predice por debajo del nivel verdadero, más cuanto más alto es el nivel
+   (Cliente, 3,6–4,2 d, −0,68). Es el encogimiento hacia el centro ya señalado en el hallazgo 5, y probablemente refleja que
+   en Olist la Fase II es en promedio peor que la Fase I. Como la línea base queda baja, el déficit se subestima.
+2. **La banda semanal solo detecta degradaciones severas.** Mide ±2,8 d alrededor de una línea base de ~3 d, así que su
+   piso queda cerca de 0 d: una caída de 2 d (casi dos tercios del nivel) se detecta en 1 de cada 4 nodos. El
+   cambio de nivel que inyecta el interruptor de demo (−4 σ, ~7 d) sí se detecta. La banda es una propiedad del modelo
+   entrenado, no de la implementación.
+3. **Banda del promedio demasiado ancha para un nodo cuya serie es estable.** Cubre el 100 % porque fue calibrada para
+   vendedores reales, que cambian de nivel; un nodo estacionario no lo necesita. Las réplicas del motor barren una
+   incertidumbre mayor que la real.
+4. **El modelo solo ve 4 semanas.** Un nodo con una semana mala dentro de la Fase I recibe una línea base distorsionada y
+   congelada. Con la provisoria pasa igual.
+5. **Los cuatro tipos conceptuales** (Proveedor, Fábrica, Almacén, Cliente) se miden con la métrica del Vendedor. Es una
+   definición conceptual, no contrastable con Olist.
+6. **El volumen de la Fase I no se guarda**: se regenera del generador al actualizar la línea base. Funciona porque es
+   función pura de (nodo, semana), pero un sensor real tendría que persistirlo (columna `items_semana`, pendiente).

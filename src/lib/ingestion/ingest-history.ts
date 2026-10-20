@@ -1,11 +1,13 @@
 // Pipeline de ingesta (contenedor de la arquitectura C4): genera el historial de desempeño de los
 // nodos que todavía no lo tienen, lo guarda y corre la verificación de estabilidad (C24, decisión 14).
 //
-// Dos orígenes de datos, según el nodo:
-//   - nodos sintéticos (hoy TODOS, incluido el Vendedor): serie generada en escala 0-100 (`lib/domain/synthetic`);
-//   - nodos Vendedor con plan (camino inactivo, ver `lib/domain/vendedor/config.ts`): vendedores REALES de Olist, en
-//     DÍAS de margen, con la línea base del modelo de ML (`lib/domain/vendedor`). Su plan lo prepara quien llama
-//     ANTES de abrir la transacción, ver `vendedor-setup.ts`.
+// El historial de cada nodo lo reporta su sensor. En una instalación real serían sensores IoT; en esta tesis el
+// generador de `lib/domain/synthetic` los simula, en DÍAS de margen de despacho (la métrica del modelo de ML).
+// El modelo de ML estima la línea base y las bandas del nodo a partir de sus primeras semanas, sin saber de dónde
+// vienen. Esa estimación (`baselines`) la prepara quien llama ANTES de abrir la transacción: ver `vendedor-setup.ts`.
+//
+// Orígenes que quedan: nodos sin `baselines` (escala anterior, 0-100) y nodos Vendedor con plan de vendedor real de
+// Olist (camino inactivo, ver `lib/domain/vendedor/config.ts`).
 //
 // La base solo entra acá. Quien llama pasa su propia transacción, así que o queda todo (cadena, nodos e
 // historial) o no queda nada.
@@ -14,6 +16,7 @@ import { toWeeklyPerformance } from "@/lib/data/mappers";
 import { desempenoSemanal, nodos, type Database } from "@/lib/db";
 import type { NodeType, WeeklyPerformance } from "@/lib/domain/types";
 import { buildChainHistory, buildSingleNodeHistory, type BuildHistoryOptions, type ChainStability, type HistoryNode, type NewWeeklyRow } from "@/lib/domain/synthetic";
+import type { NodeBaseline } from "@/lib/domain/vendedor/baseline";
 import type { VendedorPlan } from "./vendedor-setup";
 
 /** Una transacción o la base misma. */
@@ -55,12 +58,20 @@ async function markVendedorNode(db: Executor, nodeId: string, plan: VendedorPlan
     .where(eq(nodos.id, nodeId));
 }
 
-function toHistoryNode(node: { id: string; tipo: NodeType }, plans: ReadonlyMap<string, VendedorPlan>): HistoryNode {
-  if (node.tipo !== "Vendedor") return { id: node.id, type: node.tipo };
-  const plan = plans.get(node.id);
-  // Sin plan, el Vendedor es sintético como cualquier otro tipo (ver `lib/domain/vendedor/config.ts`).
-  if (!plan) return { id: node.id, type: node.tipo };
-  return { id: node.id, type: node.tipo, vendedor: plan.setup };
+/** Deja asentado en el nodo de dónde salió su línea base (marca, además, que mide en días). */
+async function markBaselineSource(db: Executor, nodeId: string, baseline: NodeBaseline): Promise<void> {
+  await db.update(nodos).set({ fuenteLineaBase: baseline.source }).where(eq(nodos.id, nodeId));
+}
+
+function toHistoryNode(
+  node: { id: string; tipo: NodeType },
+  plans: ReadonlyMap<string, VendedorPlan>,
+  baselines: ReadonlyMap<string, NodeBaseline>,
+): HistoryNode {
+  const plan = node.tipo === "Vendedor" ? plans.get(node.id) : undefined;
+  if (plan) return { id: node.id, type: node.tipo, vendedor: plan.setup };
+  const baseline = baselines.get(node.id);
+  return baseline ? { id: node.id, type: node.tipo, baseline } : { id: node.id, type: node.tipo };
 }
 
 /**
@@ -76,6 +87,8 @@ async function chainLatestWeek(db: Executor, chainId: string): Promise<string | 
   return row?.latest ?? undefined;
 }
 
+export { chainLatestWeek };
+
 export interface IngestResult {
   weeklyPerformance: WeeklyPerformance[];
   /** `null` si no había nodos sintéticos sin historial para evaluar. */
@@ -89,7 +102,13 @@ export interface IngestResult {
 export async function ingestChainHistory(
   db: Executor,
   chainId: string,
-  options: Pick<BuildHistoryOptions, "withLevelShift"> & { vendedorPlans?: ReadonlyMap<string, VendedorPlan> } = {},
+  options: Pick<BuildHistoryOptions, "withLevelShift"> & {
+    vendedorPlans?: ReadonlyMap<string, VendedorPlan>;
+    /** Línea base de cada nodo, ya estimada por el modelo (`prepareSensorBaselines`). */
+    baselines?: ReadonlyMap<string, NodeBaseline>;
+    /** Última semana del historial; debe ser la misma con la que se prepararon `baselines`. */
+    endWeek?: string;
+  } = {},
 ): Promise<IngestResult> {
   const pending = await db
     .select({ id: nodos.id, tipo: nodos.tipo })
@@ -103,14 +122,17 @@ export async function ingestChainHistory(
   if (pending.length === 0) return { weeklyPerformance: [], stability: null };
 
   const plans = options.vendedorPlans ?? new Map<string, VendedorPlan>();
+  const baselines = options.baselines ?? new Map<string, NodeBaseline>();
   const history = buildChainHistory(
-    pending.map((n) => toHistoryNode({ id: n.id, tipo: n.tipo as NodeType }, plans)),
-    { withLevelShift: options.withLevelShift, endWeek: await chainLatestWeek(db, chainId) },
+    pending.map((n) => toHistoryNode({ id: n.id, tipo: n.tipo as NodeType }, plans, baselines)),
+    { withLevelShift: options.withLevelShift, endWeek: options.endWeek ?? (await chainLatestWeek(db, chainId)) },
   );
   const weeklyPerformance = await insertRows(db, history.rows);
   for (const node of pending) {
-    const plan = plans.get(node.id);
+    const plan = node.tipo === "Vendedor" ? plans.get(node.id) : undefined;
+    const baseline = baselines.get(node.id);
     if (plan) await markVendedorNode(db, node.id, plan);
+    else if (baseline) await markBaselineSource(db, node.id, baseline);
   }
   return { weeklyPerformance, stability: history.stability };
 }
@@ -120,11 +142,13 @@ export async function ingestNodeHistory(
   db: Executor,
   node: { id: string; tipo: NodeType },
   chainId: string,
-  plan?: VendedorPlan,
+  options: { plan?: VendedorPlan; baseline?: NodeBaseline; endWeek?: string } = {},
 ): Promise<WeeklyPerformance[]> {
-  const endWeek = await chainLatestWeek(db, chainId);
-  const historyNode = toHistoryNode(node, plan ? new Map([[node.id, plan]]) : new Map());
+  const { plan, baseline } = options;
+  const endWeek = options.endWeek ?? (await chainLatestWeek(db, chainId));
+  const historyNode = toHistoryNode(node, plan ? new Map([[node.id, plan]]) : new Map(), baseline ? new Map([[node.id, baseline]]) : new Map());
   const rows = await insertRows(db, buildSingleNodeHistory(historyNode, { endWeek }));
   if (plan) await markVendedorNode(db, node.id, plan);
+  else if (baseline) await markBaselineSource(db, node.id, baseline);
   return rows;
 }

@@ -47,19 +47,19 @@ const TYPE_NOTE: Record<string, string> = {
   Proveedor: "capacidad_suministro es el único atributo propio de este tipo — conceptual, no validado con datos reales.",
   Fabrica: "capacidad_produccion es el único atributo propio de este tipo.",
   Almacen: "capacidad_almacenamiento y nivel_stock_actual son sus atributos propios.",
-  Vendedor: "Corresponde al seller_id de Olist — el único tipo con datos reales. Este nodo es sintético (escala 0-100).",
+  Vendedor: "Corresponde al seller_id de Olist, el tipo que se puede contrastar con datos reales. Su historial lo reporta un sensor simulado.",
   Cliente: "Sin atributos propios identificados todavía.",
 };
 
 /**
- * Origen de los datos de un Vendedor con datos REALES de Olist y de dónde salió su línea base. Si quedó
- * provisoria (el modelo de ML no contestó al crearlo), se puede actualizar con el modelo.
+ * Origen de los datos de un nodo en días y de dónde salió su línea base. Si quedó provisoria (el modelo de ML no
+ * contestó al crearlo), se puede actualizar con el modelo.
  */
-function RealVendedorInfo({ node }: { node: SupplyChainNode }) {
+function BaselineInfo({ node }: { node: SupplyChainNode }) {
   const canWrite = useAppStore((s) => s.canWrite);
   const refreshBaselines = useAppStore((s) => s.refreshBaselines);
   const [refreshing, setRefreshing] = useState(false);
-  if (!node.olistSellerId) return null;
+  if (!node.olistSellerId && !node.baselineSource) return null;
   const provisional = node.baselineSource === "provisoria";
 
   async function handleRefresh() {
@@ -74,9 +74,17 @@ function RealVendedorInfo({ node }: { node: SupplyChainNode }) {
   return (
     <div className="flex flex-col gap-2 rounded-lg border border-border bg-muted/30 p-2.5 text-[11px] leading-relaxed">
       <div>
-        <span className="font-medium">Datos reales de Olist</span> · vendedor <span className="font-mono">{node.olistSellerId.slice(0, 8)}</span>. El
-        desempeño es su <b>margen de despacho en días</b> (positivo: despachó antes de su plazo). Si el monitoreo avanza más allá de sus semanas
-        reales, se simulan a su nivel.
+        {node.olistSellerId ? (
+          <>
+            <span className="font-medium">Datos reales de Olist</span> · vendedor <span className="font-mono">{node.olistSellerId.slice(0, 8)}</span>.
+            Si el monitoreo avanza más allá de sus semanas reales, se simulan a su nivel.{" "}
+          </>
+        ) : (
+          <>
+            <span className="font-medium">Sensor simulado</span>: el historial de este nodo lo genera la simulación de datos de sensores (RF009).{" "}
+          </>
+        )}
+        El desempeño es su <b>margen de despacho en días</b> (positivo: despachó antes de su plazo).
       </div>
       {provisional ? (
         <div className="rounded-md border border-[#f5c9a8] bg-[#fdf5ec] px-2 py-1.5 text-[#8a4313]">
@@ -94,7 +102,7 @@ function RealVendedorInfo({ node }: { node: SupplyChainNode }) {
         </div>
       ) : (
         <div className="text-muted-foreground">
-          Línea base del <b>modelo de ML</b>, estimada solo con las 4 primeras semanas del vendedor (RF017) y congelada.
+          Línea base del <b>modelo de ML</b>, estimada solo con las 4 primeras semanas del propio nodo (RF017) y congelada.
         </div>
       )}
     </div>
@@ -222,8 +230,8 @@ export function NodeInspector({ node, onClose }: { node: SupplyChainNode; onClos
             </div>
           ))}
         </div>
-        {node.olistSellerId ? (
-          <RealVendedorInfo node={node} />
+        {node.olistSellerId || node.baselineSource ? (
+          <BaselineInfo node={node} />
         ) : (
           <div className="text-[11px] leading-relaxed text-muted-foreground">{TYPE_NOTE[node.nodeType]}</div>
         )}

@@ -1,10 +1,11 @@
 // Unidades del desempeño de un nodo y adaptador hacia el motor de simulación.
 //
 // Hay DOS escalas en la misma cadena:
-//   - "pct":  nodos sintéticos, desempeño de 0 a 100.
-//   - "dias": nodos Vendedor con datos REALES de Olist, en días de margen (`margin_days`): positivo = despachó
-//             antes de su compromiso, negativo = despachó tarde. Es lo que define docs/modelo-datos.md y lo que
-//             predice el modelo de ML.
+//   - "pct":  nodos anteriores a la integración del modelo de ML, desempeño de 0 a 100.
+//   - "dias": nodos con línea base del modelo de ML (o provisoria): margen de despacho en días (`margin_days`),
+//             positivo = despachó antes de su compromiso, negativo = despachó tarde. Es lo que define
+//             docs/modelo-datos.md y lo que predice el modelo. Sus datos vienen del sensor simulado (o, en el camino
+//             inactivo, de vendedores reales de Olist).
 //
 // El motor propaga caídas RELATIVAS (`baseline × (1 − drop/100)`), pero después suma los déficits de todos los
 // nodos y los divide por 100 ("semanas malas equivalentes"). Sumar días con puntos porcentuales no tiene
@@ -15,7 +16,12 @@ import type { SupplyChainNode, WeeklyPerformance } from "@/lib/domain/types";
 
 export type PerformanceUnit = "pct" | "dias";
 
-export const unitOfNode = (node: Pick<SupplyChainNode, "olistSellerId">): PerformanceUnit => (node.olistSellerId ? "dias" : "pct");
+/**
+ * Un nodo está en días si su línea base salió de un estimador de días (`baselineSource`: modelo de ML o provisoria)
+ * o si respalda un vendedor real de Olist. Los nodos creados antes de que existiera esa marca quedan en 0-100.
+ */
+export const unitOfNode = (node: Pick<SupplyChainNode, "olistSellerId" | "baselineSource">): PerformanceUnit =>
+  node.olistSellerId || node.baselineSource ? "dias" : "pct";
 
 /**
  * Piso de la línea base (en días) para pasarla a escala relativa. Los vendedores crónicamente tarde tienen una
@@ -32,7 +38,7 @@ export interface EngineAdapter {
   unitOf: (nodeId: string) => PerformanceUnit;
 }
 
-export function adaptForEngine(nodes: Pick<SupplyChainNode, "id" | "olistSellerId">[], rows: WeeklyPerformance[]): EngineAdapter {
+export function adaptForEngine(nodes: Pick<SupplyChainNode, "id" | "olistSellerId" | "baselineSource">[], rows: WeeklyPerformance[]): EngineAdapter {
   const daysNodes = new Set(nodes.filter((n) => unitOfNode(n) === "dias").map((n) => n.id));
   const unitOf = (nodeId: string): PerformanceUnit => (daysNodes.has(nodeId) ? "dias" : "pct");
   if (daysNodes.size === 0) return { rows, toDisplay: (_nodeId, value) => value, unitOf };

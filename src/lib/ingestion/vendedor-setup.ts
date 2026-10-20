@@ -3,7 +3,8 @@
 //
 // Corre ANTES de abrir la transacción de base de datos: llamar al servicio de ML dentro de una transacción la
 // tendría abierta mientras espera la red (en Render gratis, hasta un minuto si el servicio estaba dormido).
-import { HISTORY_WEEKS } from "@/lib/domain/synthetic";
+import { HISTORY_WEEKS, historyWeekStarts, sensorPhase1 } from "@/lib/domain/synthetic";
+import type { NodeType } from "@/lib/domain/types";
 import { REAL_VENDEDORES_ENABLED } from "@/lib/domain/vendedor/config";
 import { assignSellers } from "@/lib/domain/vendedor/assign";
 import { baselineFromModel, PHASE1_WEEKS, provisionalVendedorBaseline, type VendedorBaseline } from "@/lib/domain/vendedor/baseline";
@@ -56,4 +57,24 @@ export async function prepareVendedorPlans(nodeIds: string[], usedSellerIds: Rea
     }),
   );
   return new Map(plans);
+}
+
+/**
+ * La línea base de cada nodo nuevo, estimada por el modelo de ML a partir de las primeras semanas que reportó su
+ * sensor (simulado): el modelo recibe el historial del nodo y devuelve línea base y bandas, sin saber de dónde viene.
+ * `endWeek` es la última semana del historial; tiene que ser la MISMA con la que después se arma el historial, porque
+ * el sensor es función de (nodo, semana). Nunca falla: sin el modelo, queda la provisoria. Corre ANTES de la transacción.
+ */
+export async function prepareSensorBaselines(
+  nodes: { id: string; tipo: NodeType }[],
+  endWeek: string,
+): Promise<Map<string, VendedorBaseline>> {
+  const weekStarts = historyWeekStarts(endWeek);
+  const entries = await Promise.all(
+    nodes.map(async (node): Promise<[string, VendedorBaseline]> => {
+      const phase1 = sensorPhase1({ id: node.id, type: node.tipo }, weekStarts);
+      return [node.id, await resolveVendedorBaseline(phase1)];
+    }),
+  );
+  return new Map(entries);
 }

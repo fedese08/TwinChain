@@ -10,7 +10,7 @@ en todo lo que choque. Leer ambos antes de tocar modelos, tipos o pantallas de s
 ## Dos capas de análisis (no confundirlas)
 
 1. **Monitoreo Digital Twin** — desempeño semanal real vs. línea base por nodo (`DesempenoSemanal`), medido a partir
-   de datos **sintéticos** para todos los tipos de nodo (generador por perfil de tipo); Olist calibra el perfil y entrena el modelo de ML, pero no alimenta los nodos.
+   de datos de **sensores simulados** para todos los tipos de nodo (generador por perfil de tipo, calibrado con Olist); el modelo de ML, entrenado con Olist, estima la línea base y las bandas de cada nodo a partir de ese historial.
 2. **Simulación hipotética** — un `Escenario` (fork conceptual, no altera la cadena viva) agrupa uno o más `Evento`
    (disrupciones) sobre nodos de una cadena, y produce un `Resultado` con una `tabla_k` (costo de reconfigurar en
    semanas malas equivalentes ↔ umbral de reconfiguración). El ML **no** corre sobre simulaciones.
@@ -116,18 +116,26 @@ actual y no con la de la corrida.
      entrenamiento. `POST/DELETE /api/cadenas/[id]/avance` es el monitoreo vivo (un tick = una semana; el reloj lo
      maneja el navegador porque Vercel no sostiene un proceso). `scripts/backfill-history.ts` completa cadenas ya
      existentes (simulacro por defecto, escribe solo con `--apply`).
-  8. **Modelo de ML (`twinchain-ml/`) — módulo de calibración/exploración; los nodos son TODOS sintéticos.** Microservicio
-     FastAPI con el modelo de línea base de vendedores (regresión de cuantiles + bandas CQR, entrenado con Olist; **no**
-     es el clasificador de backorder de `TwinChain-DEV.md`). Se consulta desde el servidor con `src/lib/ml-client` y se
-     muestra en `/modelo`. **Decisión del proyecto: todos los nodos, incluido el Vendedor, se alimentan con el generador
-     sintético** (`lib/domain/synthetic`, escala 0–100); Olist es fuente de calibración y de entrenamiento, no de los
-     nodos. Existe un camino de Vendedor real (Olist en días + línea base del modelo + `adaptForEngine` en
-     `src/lib/domain/units.ts` + banda semanal) que queda **inactivo** tras el interruptor
-     `REAL_VENDEDORES_ENABLED = false` (`src/lib/domain/vendedor/config.ts`); las cadenas que ya tengan Vendedores reales
-     siguen funcionando. **Todo lo que llame al motor pasa las filas por `adaptForEngine`** (identidad si no hay nodos en
-     días) — no llamar a `runScenarioSimulation` con filas crudas. Leer `docs/modelo-ml.md` (sección 7) y
-     `twinchain-ml/README.md`. Variables: `ML_SERVICE_URL`, `ML_API_KEY` (opcionales). El bundle `.joblib` es un pickle de
-     scikit-learn **1.9.1 exacto**: no actualizar la versión.
+  8. **Modelo de ML (`twinchain-ml/`) — estima la línea base y las bandas de TODOS los nodos a partir del historial que
+     reporta su sensor.** La arquitectura objetivo: cada nodo tendría sensores IoT que le dan su historial; el modelo,
+     entrenado con Olist, estima de las primeras semanas del nodo su línea base y sus bandas, **sin saber de dónde
+     vienen los datos**. Como no hay sensores reales, el generador de `lib/domain/synthetic` los **simula** (RF009) — y
+     solo eso: no conoce al modelo. Flujo: el generador emite el desempeño en **días de margen de despacho**
+     (`margin_days`, la métrica del modelo) y el volumen semanal; `prepareSensorBaselines`
+     (`ingestion/vendedor-setup.ts`) le pasa al modelo las **4 primeras semanas** (Fase I) del nodo ANTES de la
+     transacción y recibe línea base + banda del promedio + banda semanal; esa línea base queda congelada (RF014). Si el
+     servicio no contesta en 10 s, queda la **provisoria** (media de la Fase I ± IC 90 %), marcada en `fuente_linea_base`
+     (`ml` | `provisoria`) y actualizable con `POST /api/cadenas/[id]/linea-base`. **`fuente_linea_base` es también la
+     marca de que el nodo mide en días**: los nodos anteriores (null) siguen en 0–100 (`unitOfNode`,
+     `src/lib/domain/units.ts`). **Todo lo que llame al motor pasa las filas por `adaptForEngine`** (escala cada nodo
+     en días a línea base = 100; identidad si no hay nodos en días) — no llamar a `runScenarioSimulation` con filas
+     crudas. Detección: banda semanal del modelo (2 de las últimas 3 semanas por debajo = atención, 3 = crítico) y C24
+     (CUSUM) sobre la ventana de 24 semanas. Medido en `scripts/measure-sensor-model.ts` (ver `docs/modelo-ml.md`, sección 8):
+     el modelo supera al método ingenuo pero **subestima el nivel ~0,45 d**, y la banda semanal **detecta mal las caídas
+     chicas** (−2 d: 24 % llega a atención). El camino de Vendedor con vendedor REAL de Olist sigue en el código, inactivo
+     (`REAL_VENDEDORES_ENABLED = false`, `src/lib/domain/vendedor/config.ts`). El modelo no es el clasificador de backorder
+     de `TwinChain-DEV.md`. Variables: `ML_SERVICE_URL`, `ML_API_KEY` (opcionales: sin ellas todo queda provisorio). El
+     bundle `.joblib` es un pickle de scikit-learn **1.9.1 exacto**: no actualizar la versión.
   - **Reglas del backend (no romper):** (a) la sesión JWT guarda **solo la identidad**; organización y rol se leen
     de la base en cada request (`getCurrentUser` en `src/lib/auth/session.ts`). (b) toda query de negocio filtra por
     el `organizacionId` que devuelve `requireApiMember()` / `requirePageMember()` — **nunca** por uno que venga en
@@ -205,7 +213,7 @@ actual y no con la de la corrida.
     `domain/synthetic/cusum.ts`, hook `useChainStatuses`) y no se guarda. Ninguno de los dos es una entidad del
     modelo de datos ni debe convertirse en tabla: el job y el pipeline son contenedores de la arquitectura C4.
     Cuando exista el job real, `pendingRuns` lo reemplaza el job de Vercel.
-  - **Tests:** Vitest (`npm test`, 50) y, para el servicio de ML, pytest (`cd twinchain-ml && .venv/bin/pytest`, 22). Los de la ingesta sintética y el estado operativo incluyen las
+  - **Tests:** Vitest (`npm test`, 92) y, para el servicio de ML, pytest (`cd twinchain-ml && .venv/bin/pytest`, 22). Los de la ingesta sintética y el estado operativo incluyen las
     calibraciones de Monte Carlo del CUSUM y de los umbrales de atención/crítico: **no relajarlos para que
     pasen**, si fallan es que cambió algo que afecta la tasa de falsas alarmas.
 - **`ChainCanvas` necesita un padre con altura.** Su raíz es `flex h-full min-h-0 flex-1`: dentro de un padre

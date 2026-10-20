@@ -7,7 +7,8 @@ import { toChain, toEdge, toNode } from "@/lib/data/mappers";
 import { aristas, cadenas, getDb, nodos } from "@/lib/db";
 import { instantiateTemplate } from "@/lib/domain/templates";
 import { ingestChainHistory } from "@/lib/ingestion/ingest-history";
-import { prepareVendedorPlans } from "@/lib/ingestion/vendedor-setup";
+import { lastCompleteWeek } from "@/lib/domain/synthetic";
+import { prepareSensorBaselines, prepareVendedorPlans } from "@/lib/ingestion/vendedor-setup";
 import { chainFormSchema } from "@/lib/validators/chain";
 
 /**
@@ -29,10 +30,18 @@ export async function POST(request: Request) {
   const blueprint = instantiateTemplate(template, chainId, "tpl");
   const nodeIds = new Map(blueprint.nodes.map((n) => [n.id, randomUUID()]));
 
-  // Los nodos Vendedor usan datos reales de Olist y la línea base del modelo de ML. Se prepara ANTES de abrir la
-  // transacción: llamar al servicio de ML dentro de ella la dejaría abierta mientras espera la red.
+  // Se prepara ANTES de abrir la transacción: llamar al servicio de ML dentro de ella la dejaría abierta mientras
+  // espera la red. (Los planes de Vendedor real de Olist están inactivos, ver `lib/domain/vendedor/config.ts`.)
   const vendedorNodeIds = blueprint.nodes.filter((n) => n.nodeType === "Vendedor").map((n) => nodeIds.get(n.id)!);
   const vendedorPlans = await prepareVendedorPlans(vendedorNodeIds);
+
+  // La línea base de cada nodo la estima el modelo de ML a partir de las primeras semanas que reporta su sensor
+  // (simulado). `endWeek` se fija acá una vez: la misma semana arma el historial dentro de la transacción.
+  const endWeek = lastCompleteWeek();
+  const baselines = await prepareSensorBaselines(
+    blueprint.nodes.filter((n) => !vendedorPlans.has(nodeIds.get(n.id)!)).map((n) => ({ id: nodeIds.get(n.id)!, tipo: n.nodeType })),
+    endWeek,
+  );
 
   const created = await getDb().transaction(async (tx) => {
     const [chain] = await tx
@@ -75,7 +84,7 @@ export async function POST(request: Request) {
             )
             .returning();
 
-    const ingested = await ingestChainHistory(tx, chainId, { withLevelShift, vendedorPlans });
+    const ingested = await ingestChainHistory(tx, chainId, { withLevelShift, vendedorPlans, baselines, endWeek });
     // Releídos después de la ingesta: los nodos Vendedor ahora llevan su vendedor real y la fuente de su línea base.
     const finalNodeRows = nodeRows.length === 0 ? [] : await tx.select().from(nodos).where(eq(nodos.cadenaId, chainId));
 

@@ -10,16 +10,16 @@ import {
   TRAINING_WEEKS,
 } from "./config";
 import { evaluateChainStability, type ChainStability } from "./cusum";
-import { buildRows, estimateBaseline, type NewWeeklyRow } from "./estimate-baseline";
+import { buildRows, buildRowsWithBaseline, estimateBaseline, type NewWeeklyRow } from "./estimate-baseline";
 import { buildVendedorRows, type RealWeek } from "@/lib/domain/vendedor/history";
-import type { VendedorBaseline } from "@/lib/domain/vendedor/baseline";
-import { generateSeries, type LevelShift } from "./generate-series";
+import { PHASE1_WEEKS, type NodeBaseline } from "@/lib/domain/vendedor/baseline";
+import { generateSeries, generateWeeklyItems, type LevelShift } from "./generate-series";
 import { lastCompleteWeek, weekRange } from "./weeks";
 
 /** Datos reales de un nodo Vendedor: su historial en Olist (días) y su línea base ya resuelta (modelo o provisoria). */
 export interface VendedorSetup {
   realWeeks: RealWeek[];
-  baseline: VendedorBaseline;
+  baseline: NodeBaseline;
 }
 
 export interface HistoryNode {
@@ -27,6 +27,11 @@ export interface HistoryNode {
   type: NodeType;
   /** Si está, el nodo usa datos REALES en días en vez de la serie sintética 0-100. */
   vendedor?: VendedorSetup;
+  /**
+   * Si está, el nodo mide en DÍAS: el generador hace de sensor (margen de despacho) y la línea base y las bandas
+   * ya vienen resueltas (modelo de ML o provisoria), a partir de sus propias primeras semanas (`sensorPhase1`).
+   */
+  baseline?: NodeBaseline;
 }
 
 export interface BuildHistoryOptions {
@@ -68,6 +73,13 @@ export function buildNodeHistory(node: HistoryNode, weekStarts: string[], levelS
       training: null,
     };
   }
+  if (node.baseline) {
+    const values = generateSeries({ nodeId: node.id, nodeType: node.type, weekStarts, levelShift, unit: "dias" });
+    return {
+      rows: buildRowsWithBaseline({ nodeId: node.id, weekStarts, values, baseline: node.baseline }),
+      training: { weekStarts: weekStarts.slice(0, TRAINING_WEEKS), values: values.slice(0, TRAINING_WEEKS) },
+    };
+  }
   const values = generateSeries({ nodeId: node.id, nodeType: node.type, weekStarts, levelShift });
   const trainingValues = values.slice(0, TRAINING_WEEKS);
   const estimate = estimateBaseline(trainingValues);
@@ -103,4 +115,21 @@ export function buildChainHistory(nodes: HistoryNode[], options: BuildHistoryOpt
 export function buildSingleNodeHistory(node: HistoryNode, options: Pick<BuildHistoryOptions, "endWeek"> = {}): NewWeeklyRow[] {
   const weekStarts = weekRange(options.endWeek ?? lastCompleteWeek(), HISTORY_WEEKS);
   return buildNodeHistory(node, weekStarts).rows;
+}
+
+/** Las semanas (lunes ISO) del historial de un nodo que termina en `endWeek` (por defecto, la última semana completa). */
+export function historyWeekStarts(endWeek?: string): string[] {
+  return weekRange(endWeek ?? lastCompleteWeek(), HISTORY_WEEKS);
+}
+
+/**
+ * Lo que reportó el sensor del nodo en sus primeras semanas (Fase I): margen y volumen de cada una. Es el ÚNICO dato
+ * que el modelo de ML necesita para estimar la línea base del nodo; el modelo no sabe de dónde sale (un sensor real o
+ * este generador). Función pura de (nodo, semanas): las mismas primeras semanas que luego se guardan en el historial.
+ */
+export function sensorPhase1(node: { id: string; type: NodeType }, weekStarts: string[]): { margen: number; items: number }[] {
+  const first = weekStarts.slice(0, PHASE1_WEEKS);
+  const margins = generateSeries({ nodeId: node.id, nodeType: node.type, weekStarts: first, unit: "dias" });
+  const items = generateWeeklyItems({ nodeId: node.id, nodeType: node.type, weekStarts: first });
+  return first.map((_, i) => ({ margen: margins[i], items: items[i] }));
 }

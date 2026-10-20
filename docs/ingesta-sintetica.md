@@ -180,3 +180,12 @@ npm run db:seed                                           # siembra la demo con 
 **Cuidado:** esos scripts usan la base que digan las variables de entorno. Si `.env.local` apunta a producción,
 `--apply` y `db:seed` escriben en producción. Para desarrollar se usó un Postgres local descartable con las
 variables pisadas en la línea de comandos.
+
+## Escala en días y modelo de ML (actualización)
+
+Los nodos nuevos ya no usan la escala 0–100: el generador emite el **margen de despacho en días** (la métrica del modelo
+de ML) y el volumen semanal, con perfiles por tipo calibrados con Olist (`DAYS_RANGES` en `node-profiles.ts`). La línea
+base no la estima el estimador estadístico sino el **modelo de ML**, a partir de las 4 primeras semanas del nodo; el
+estimador de `estimate-baseline.ts` sigue vigente solo para los nodos anteriores en 0–100. El generador sigue siendo
+una fuente de datos que no conoce al modelo. Detalles y mediciones: `docs/modelo-ml.md`, sección 8.
+

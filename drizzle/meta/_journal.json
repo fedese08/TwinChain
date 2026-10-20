@@ -15,6 +15,13 @@
       "when": 1792417871739,
       "tag": "0001_smiling_rhodey",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792507024259,
+      "tag": "0002_thankful_retro_girl",
+      "breakpoints": true
     }
   ]
 }

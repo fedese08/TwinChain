@@ -18,7 +18,7 @@ import { getSellerWeeks } from "@/lib/olist/sample";
 import { advanceChainSchema } from "@/lib/validators/chain-api";
 
 async function loadChainRows(db: ReturnType<typeof getDb>, chainId: string) {
-  const nodeRows = await db.select({ id: nodos.id, tipo: nodos.tipo, olistSellerId: nodos.vendedorOlistId }).from(nodos).where(eq(nodos.cadenaId, chainId));
+  const nodeRows = await db.select({ id: nodos.id, tipo: nodos.tipo, olistSellerId: nodos.vendedorOlistId, fuente: nodos.fuenteLineaBase }).from(nodos).where(eq(nodos.cadenaId, chainId));
   const rows = nodeRows.length
     ? await db
         .select()
@@ -68,7 +68,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ cha
     const own = rowsByNode.get(node.id);
     if (!own || own.length === 0) return [];
     const last = own[own.length - 1];
-    if (node.olistSellerId) {
+    if (node.olistSellerId && getSellerWeeks(node.olistSellerId)) {
       // Vendedor con datos reales (días): sigue por sus semanas reales y, agotadas, por una simulación anclada a su nivel.
       const history = own.map((r) => r.valorReal);
       return advanceVendedor(
@@ -99,6 +99,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ cha
         baseline: last.lineaBase,
         baselineLowerBand: last.bandaInferior,
         baselineUpperBand: last.bandaSuperior,
+        weeklyBandLower: last.bandaSemanalInferior ?? undefined,
+        weeklyBandUpper: last.bandaSemanalSuperior ?? undefined,
+        // Los nodos con línea base del modelo (o provisoria) miden en días; los anteriores, en 0-100.
+        unit: node.fuente ? "dias" : "pct",
       },
       weeks,
     );

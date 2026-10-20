@@ -5,6 +5,7 @@
 // exactamente el mismo proceso (monitoreo vivo) sin guardar ninguna semilla.
 import { createRng, hashSeed } from "@/lib/domain/rng";
 import type { NodeType } from "@/lib/domain/types";
+import type { PerformanceUnit } from "@/lib/domain/units";
 import { BURN_IN_WEEKS, TRAINING_WEEKS } from "./config";
 import { detectInstability } from "./cusum";
 import { profileForNode, type NodeProfile } from "./node-profiles";
@@ -17,7 +18,8 @@ export interface LevelShift {
   sigmas: number;
 }
 
-const clamp = (value: number) => Math.min(100, Math.max(0, value));
+/** Rango válido del valor semanal: 0-100 en "pct"; en "dias", el dominio del modelo de ML (|margin_days| ≤ 60) acotado. */
+const clampTo = (unit: PerformanceUnit) => (value: number) => (unit === "dias" ? Math.min(15, Math.max(-15, value)) : Math.min(100, Math.max(0, value)));
 
 /** Las tres variables aleatorias de una semana de un nodo. */
 function weekNoise(nodeId: string, weekStart: string) {
@@ -44,9 +46,13 @@ export function generateSeries(input: {
   nodeType: NodeType;
   weekStarts: string[];
   levelShift?: LevelShift;
+  /** Escala de la serie: "pct" (0-100, nodos anteriores) o "dias" (margen de despacho, la métrica del modelo de ML). */
+  unit?: PerformanceUnit;
 }): number[] {
   const { nodeId, nodeType, weekStarts, levelShift } = input;
-  const profile = profileForNode(nodeId, nodeType);
+  const unit = input.unit ?? "pct";
+  const clamp = clampTo(unit);
+  const profile = profileForNode(nodeId, nodeType, unit);
 
   // Arranque descartado para que el proceso llegue a su régimen estacionario.
   let deviation = 0;
@@ -82,9 +88,12 @@ export function continueSeries(input: {
   history: number[];
   lastWeekStart: string;
   weeks: number;
+  unit?: PerformanceUnit;
 }): { weekStarts: string[]; values: number[] } {
   const { nodeId, nodeType, lastWeekStart, weeks } = input;
-  const profile = profileForNode(nodeId, nodeType);
+  const unit = input.unit ?? "pct";
+  const clamp = clampTo(unit);
+  const profile = profileForNode(nodeId, nodeType, unit);
   const known = [...input.history];
 
   // El cambio de nivel, si lo hubo, se decide una sola vez: depende solo de la ventana de entrenamiento.
@@ -106,4 +115,17 @@ export function continueSeries(input: {
     values.push(value);
   }
   return { weekStarts, values };
+}
+
+/**
+ * Volumen semanal (envíos) que reportaría el sensor del nodo: el segundo dato, junto con el margen, que el modelo de
+ * ML recibe de las primeras semanas. Determinístico por (nodo, semana), como la serie de desempeño.
+ */
+export function generateWeeklyItems(input: { nodeId: string; nodeType: NodeType; weekStarts: string[] }): number[] {
+  const profile = profileForNode(input.nodeId, input.nodeType, "dias");
+  return input.weekStarts.map((weekStart) => {
+    const rng = createRng(hashSeed(`items:${input.nodeId}:${weekStart}`));
+    const factor = Math.exp(0.4 * gaussian(rng(), rng()) - 0.08);
+    return Math.max(1, Math.round(profile.itemsPerWeek * factor));
+  });
 }

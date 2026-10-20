@@ -31,12 +31,11 @@ Son cosas que un evaluador atento puede contrastar con la demo. No las arreglé;
 2. **Neon no figura.** El PostgreSQL está alojado en Neon (región `sa-east-1`, São Paulo). Falta una fila.
 3. **DataCo.** El documento (4.1) lo presenta como dataset de estrés, pero **no se usa en ninguna parte del código**.
    Si no se va a usar, hay que decirlo ("relevado, no incorporado en esta versión") o sacarlo.
-4. **CUSUM sobre el residuo del modelo de ML (RF015, RF018 a RF020).** En la implementación, la línea base de cada nodo
-   se estima del propio historial sintético (media recortada con intervalo del 90 %) y el CUSUM (estandarizado, umbral
-   6,4, calibrado por Monte Carlo) corre sobre ese residuo. **El modelo de ML no alimenta a los nodos**: se consulta en
-   la pantalla "Modelo de línea base" y no interviene en la detección. El E90 dice (RF015, RF018) que la línea base la da
-   el modelo entrenado con Olist; hay que alinear el texto con esto o conectar el modelo (existe un camino ya
-   construido, inactivo, que lo hace para el Vendedor).
+4. **CUSUM sobre el residuo del modelo (RF018 a RF020).** El diseño vigente es el del E90: el modelo de ML estima la línea
+   base y las bandas de cada nodo a partir de su historial. Dos matices que conviene decir: (a) el modelo recibe solo las
+   **4 primeras semanas** del nodo (Fase I); (b) el monitoreo usa la **banda semanal** del modelo (2 de 3 semanas por debajo
+   = atención) y el CUSUM se aplica como verificación de estabilidad sobre las primeras 24 semanas. Hay que describir
+   las dos reglas, no solo el CUSUM.
 5. **Job en segundo plano.** El documento (4.4) dice que el motor corre "como job en segundo plano dentro del
    monolito". Hoy la simulación es **síncrona** dentro de la función (30 réplicas tardan milisegundos); el job real
    está pendiente (C36).
@@ -214,10 +213,13 @@ repositorio).
 > queda congelada.
 >
 > **Proporción frente a datos reales.** Los cinco tipos de nodo (Proveedor, Fábrica, Almacén, Vendedor y Cliente) se
-> alimentan **exclusivamente con datos sintéticos**: la proporción de datos reales dentro de las series de los nodos es
-> cero. Los datos reales de Olist cumplen otro papel: sirven para **entrenar y evaluar el modelo de machine learning**
-> de línea base y para fijar el nivel y la dispersión del perfil del nodo Vendedor, que es el único tipo que tiene un
-> equivalente real en el dataset. Los otros cuatro perfiles son conceptuales y no se pueden contrastar con Olist.
+> alimentan **exclusivamente con datos simulados**: la proporción de datos reales dentro de las series de los nodos es
+> cero. En una instalación real, cada nodo recibiría su historial de sensores IoT; como el proyecto no cuenta con ellos,
+> el generador los simula (RF009), en la misma métrica que mide el modelo de machine learning (margen de despacho en
+> días). Los datos reales de Olist cumplen otro papel: **entrenan y evalúan el modelo**, y fijan el nivel y la dispersión
+> de los perfiles simulados (nivel mediano 3,5 días, desvío semanal ~2 días, ~2,5 envíos por semana). El modelo recibe
+> el historial del nodo y no sabe si proviene de un sensor real o del generador. Los cuatro tipos distintos del
+> Vendedor se miden con la misma métrica por definición conceptual; no se pueden contrastar con Olist.
 >
 > **Riesgo de sobreajuste y cómo se acota.** El umbral del CUSUM (6,4) no se calibró con degradaciones inyectadas, sino
 > con simulaciones de Monte Carlo de series **estables**, fijando la tasa de falsas alarmas (0,16 % por nodo con 24
@@ -225,14 +227,18 @@ repositorio).
 > detector se calibró y se probó únicamente con la distribución sintética, de modo que su desempeño sobre datos
 > reales no está demostrado.
 >
-> **Lo que no está demostrado.** La capacidad del CUSUM para **detectar** una degradación real no se validó con datos
-> reales: los nodos sintéticos no tienen incidentes inyectados (el monitoreo vivo los avanza solo con ruido), y los
-> datos de Olist no traen degradaciones etiquetadas. Lo único medido contra datos reales es el modelo de línea base
-> (error medio 1,36 días frente a 1,83 del método ingenuo, en 292 vendedores no vistos). Se declara como limitación y
-> como trabajo futuro: inyectar incidentes en la serie sintética y contrastarlos con episodios reales de Olist.
+> **Qué se midió sobre los datos simulados.** Como en un nodo simulado la línea base verdadera se conoce (el nivel de su
+> perfil), se evaluó el modelo contra ella en 600 nodos (120 por tipo): el error medio es 0,51 días contra 0,80 del
+> método ingenuo (la media de la Fase I), el modelo subestima el nivel en 0,45 días de media, y en series estables la
+> regla de la banda semanal da 1,2 % de ventanas en atención y 0,0 % en crítico. La regla detecta bien las caídas grandes
+> y mal las chicas: una caída sostenida de 2 días llega a atención en el 24 % de los nodos, y una de 4 días en el 83 %.
+>
+> **Lo que no está demostrado.** El desempeño sobre datos reales de nodos que no sean vendedores de Olist. Los resultados
+> de arriba valen para la distribución simulada, que se calibró con Olist pero no es Olist. Se declara como limitación,
+> y como trabajo futuro la validación con datos de sensores reales.
 
-Fuente: `docs/ingesta-sintetica.md` y `docs/modelo-ml.md`. **Ojo con la última parte:** si el E90 afirma que el CUSUM
-detecta degradaciones reales (RF018), esa afirmación hoy no tiene respaldo en datos reales.
+Fuente: `docs/ingesta-sintetica.md` y `docs/modelo-ml.md` (sección 8); reproducible con `scripts/measure-sensor-model.ts`. **Ojo con la última parte:** si el E90 afirma que el CUSUM
+detecta degradaciones reales (RF018), esa afirmación solo está respaldada sobre datos simulados.
 
 ### 3.6. Cierre del marco normativo (enlaza con la observación 4)
 

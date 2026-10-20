@@ -7,12 +7,15 @@
 // monitoreando. Acá la línea base sigue siendo función de las mismas 4 semanas de Fase I; cambia el estimador
 // (de provisorio a modelo), una sola vez por nodo, y los nodos que ya tienen la del modelo no se tocan.
 import { NextResponse } from "next/server";
-import { and, eq, isNotNull, sql } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
 import { isUuid, notFound } from "@/lib/api/http";
 import { requireApiMember } from "@/lib/auth/session";
 import { findVisibleChain } from "@/lib/data/access";
 import { toNode, toWeeklyPerformance } from "@/lib/data/mappers";
 import { desempenoSemanal, getDb, nodos } from "@/lib/db";
+import { generateWeeklyItems } from "@/lib/domain/synthetic";
+import type { NodeType } from "@/lib/domain/types";
+import { PHASE1_WEEKS } from "@/lib/domain/vendedor/baseline";
 import { resolveVendedorBaseline } from "@/lib/ingestion/vendedor-setup";
 import { CALL_TIMEOUT_MS } from "@/lib/ml-client";
 import { getSellerWeeks } from "@/lib/olist/sample";
@@ -30,14 +33,26 @@ export async function POST(_request: Request, { params }: { params: Promise<{ ch
   if (!(await findVisibleChain(db, access.user, chainId))) return notFound("Cadena no encontrada");
 
   const provisional = await db
-    .select({ id: nodos.id, sellerId: nodos.vendedorOlistId })
+    .select({ id: nodos.id, tipo: nodos.tipo, sellerId: nodos.vendedorOlistId })
     .from(nodos)
-    .where(and(eq(nodos.cadenaId, chainId), eq(nodos.fuenteLineaBase, "provisoria"), isNotNull(nodos.vendedorOlistId)));
+    .where(and(eq(nodos.cadenaId, chainId), eq(nodos.fuenteLineaBase, "provisoria")));
 
   const resolved = await Promise.all(
     provisional.map(async (node) => {
-      const weeks = node.sellerId ? getSellerWeeks(node.sellerId) : undefined;
-      return { node, baseline: weeks ? await resolveVendedorBaseline(weeks, CALL_TIMEOUT_MS) : null };
+      // La Fase I del nodo: sus primeras semanas, tal como quedaron guardadas (margen del sensor y volumen).
+      const realWeeks = node.sellerId ? getSellerWeeks(node.sellerId) : undefined;
+      let phase1 = realWeeks?.slice(0, PHASE1_WEEKS);
+      if (!phase1) {
+        const first = await db
+          .select({ semana: desempenoSemanal.semana, valorReal: desempenoSemanal.valorReal })
+          .from(desempenoSemanal)
+          .where(eq(desempenoSemanal.nodoId, node.id))
+          .orderBy(asc(desempenoSemanal.semana))
+          .limit(PHASE1_WEEKS);
+        const items = generateWeeklyItems({ nodeId: node.id, nodeType: node.tipo as NodeType, weekStarts: first.map((r) => r.semana) });
+        phase1 = first.map((r, i) => ({ margen: r.valorReal, items: items[i] }));
+      }
+      return { node, baseline: phase1.length === PHASE1_WEEKS ? await resolveVendedorBaseline(phase1, CALL_TIMEOUT_MS) : null };
     }),
   );
   const upgraded = resolved.flatMap((r) => (r.baseline?.source === "ml" ? [{ id: r.node.id, baseline: r.baseline }] : []));
