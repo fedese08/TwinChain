@@ -31,6 +31,9 @@ import { cn } from "@/lib/utils";
 
 type View = "answer" | "detail";
 
+/** Costo que supone la respuesta, en semanas de operar como ahora: lo que se perdería en 3 semanas con el problema actual. */
+const DEFAULT_RECONFIGURATION_COST_WEEKS = 3;
+
 /** Franjas de impacto sobre el horizonte proyectado — para traducir el déficit a algo legible. */
 function classifyImpact(badWeeks: number, horizonWeeks: number) {
   const share = horizonWeeks > 0 ? badWeeks / horizonWeeks : 0;
@@ -185,8 +188,6 @@ export default function ScenarioResultPage({
   const [weekIndex, setWeekIndex] = useState(peakWeekIndex);
   const [playing, setPlaying] = useState(false);
   const effectiveWeekIndex = Math.min(weekIndex, (scenario?.projectionHorizonWeeks ?? 1) - 1);
-  /** Costo de reconfigurar que asume el usuario, en semanas malas equivalentes (k). */
-  const [assumedK, setAssumedK] = useState(3);
   /** Fracción de propagación `c` cuya tabla k se muestra en el detalle. */
   const [kFraction, setKFraction] = useState<number>(CENTRAL_PROPAGATION_FRACTION);
 
@@ -287,10 +288,10 @@ export default function ScenarioResultPage({
   const d0 = outcome.d0;
   const avoidableNow = weekly.avoidableFromWeek[0] ?? 0;
   const breakEvenK = outcome.breakEvenKs[Math.floor(outcome.breakEvenKs.length / 2)] ?? 0;
-  // El tope del control escala con el k_max del propio escenario: con uno fijo, un escenario que pierde mucho
-  // quedaba clavado en "sí conviene" para cualquier posición.
-  const kMax = Math.max(10, Math.ceil(breakEvenK * 1.5));
-  const effectiveK = Math.min(assumedK, kMax);
+  // La pantalla no le pide el costo al usuario: responde con un costo supuesto de DEFAULT_RECONFIGURATION_COST_WEEKS
+  // semanas de operar como ahora, lo dice en voz alta, y muestra la regla general (conviene mientras el cambio cueste menos
+  // que lo que evita). El detalle técnico trae la tabla para otros costos.
+  const effectiveK = DEFAULT_RECONFIGURATION_COST_WEEKS;
   const worthShare = shareWorthwhile(outcome.breakEvenKs, effectiveK);
   const worthReconfiguring = worthShare > 0.5;
   const costNow = effectiveK * d0;
@@ -449,37 +450,12 @@ export default function ScenarioResultPage({
               </div>
             </div>
 
-            {/* 2. Qué hacer: el usuario pone su costo y el sistema responde sí o no. */}
+            {/* 2. Qué hacer: una respuesta clara, sin pedirle nada al usuario. */}
             <div className="rounded-2xl border border-border bg-card p-5">
               <div className="text-[15px] font-medium">¿Conviene reconfigurar la red?</div>
-              <div className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
-                Decinos cuánto te cuesta hacerlo y te respondemos. El costo se mide en semanas de operar como ahora: 1 semana es lo
-                que perderías en una semana con el problema actual.
-              </div>
 
-              <div className="mt-4 flex items-center gap-3">
-                <span className="flex-none text-[12px] text-muted-foreground">Reconfigurar me cuesta</span>
-                <input
-                  type="range"
-                  min={1}
-                  max={kMax}
-                  value={effectiveK}
-                  onChange={(e) => setAssumedK(Number(e.target.value))}
-                  className="h-1.5 min-w-0 flex-1 accent-primary"
-                />
-                <span className="w-24 flex-none text-right font-mono text-[12.5px] font-medium">
-                  {effectiveK} {effectiveK === 1 ? "semana" : "semanas"}
-                </span>
-              </div>
-              {breakEvenK >= 1 && (
-                <div className="mt-1.5 text-[11px] text-muted-foreground">
-                  Mientras cueste menos de <span className="font-mono">{breakEvenK.toFixed(1)}</span> semanas, conviene.
-                </div>
-              )}
-
-              {/* El color acompaña a la acción recomendada (hacelo / no lo hagas), no a la gravedad. */}
               <div
-                className="mt-4 flex items-start gap-3 rounded-xl border p-4"
+                className="mt-3 flex items-start gap-3 rounded-xl border p-4"
                 style={
                   worthReconfiguring
                     ? { borderColor: "rgba(59, 130, 246, 0.35)", background: "rgba(59, 130, 246, 0.1)" }
@@ -487,45 +463,64 @@ export default function ScenarioResultPage({
                 }
               >
                 <span
-                  className="mt-0.5 flex h-6 w-6 flex-none items-center justify-center rounded-full text-white"
+                  className="mt-0.5 flex h-7 w-7 flex-none items-center justify-center rounded-full text-white"
                   style={{ background: worthReconfiguring ? "#3b82f6" : "#8c96a6" }}
                 >
-                  {worthReconfiguring ? <Check size={14} /> : <X size={14} />}
+                  {worthReconfiguring ? <Check size={15} /> : <X size={15} />}
                 </span>
                 <div className="min-w-0 flex-1">
-                  <div className="text-[14.5px] font-medium">
+                  <div className="text-[16px] font-medium">
                     {worthReconfiguring ? "Sí, conviene reconfigurar" : "No conviene reconfigurar"}
                   </div>
-                  <div className="mt-0.5 text-[12.5px] leading-relaxed text-muted-foreground">
+                  <div className="mt-1 text-[13px] leading-relaxed text-muted-foreground">
                     {worthReconfiguring ? (
                       <>
-                        Evitarías <span className="font-medium text-foreground">{avoidableNow.toFixed(1)}</span> semanas de pérdida y el
-                        cambio te cuesta <span className="font-medium text-foreground">{costNow.toFixed(1)}</span>.
-                        {threshold.median !== null && (
-                          <>
-                            {" "}
-                            Se paga si el problema dura{" "}
-                            <span className="font-medium text-foreground">{plural(threshold.median, "semana", "semanas")}</span> o más desde
-                            la decisión
-                            {observedWeeks > 0 && <> ({plural(observedWeeks + threshold.median, "semana", "semanas")} desde que empezó)</>}.
-                          </>
-                        )}
-                        {lastWorthwhileWeek >= 0 && lastWorthwhileWeek + 1 < scenario.projectionHorizonWeeks && (
-                          <>
-                            {" "}
-                            Cuanto antes, mejor: a partir de la semana {lastWorthwhileWeek + 2} ya no se paga solo.
-                          </>
-                        )}
+                        Reconfigurando ahora evitás{" "}
+                        <span className="font-medium text-foreground">{avoidableNow.toFixed(1)} semanas</span> de operación perdidas.
                       </>
                     ) : (
                       <>
-                        Reconfigurar cuesta <span className="font-medium text-foreground">{costNow.toFixed(1)}</span> y en todo el horizonte
-                        solo evitarías <span className="font-medium text-foreground">{avoidableNow.toFixed(1)}</span>.
-                        {worthShare > 0 && <> Aun así, se paga en el {Math.round(worthShare * 100)} % de las simulaciones.</>}
+                        Reconfigurando solo evitarías <span className="font-medium text-foreground">{avoidableNow.toFixed(1)} semanas</span> de
+                        operación: no alcanza para cubrir lo que cuesta el cambio.
                       </>
                     )}
                   </div>
                 </div>
+              </div>
+
+              <div className="mt-4">
+                <div className="font-mono text-[9.5px] font-medium uppercase tracking-wider text-muted-foreground">Qué hacer</div>
+                <div className="mt-1.5 text-[13px] leading-relaxed">
+                  {worthReconfiguring ? (
+                    <>
+                      <span className="font-medium">Reconfigurá cuanto antes.</span> Cada semana que esperes evitás menos
+                      {lastWorthwhileWeek >= 0 && lastWorthwhileWeek + 1 < scenario.projectionHorizonWeeks && (
+                        <>: pasada la semana {lastWorthwhileWeek + 1} ya no se paga</>
+                      )}
+                      .
+                      {threshold.median !== null && (
+                        <>
+                          {" "}
+                          El cambio se paga si el problema dura{" "}
+                          <span className="font-medium">{plural(threshold.median, "semana", "semanas")}</span> o más
+                          {observedWeeks > 0 && <> desde la decisión (ya lleva {plural(observedWeeks, "semana", "semanas")})</>}.
+                        </>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <span className="font-medium">Mantené la red como está y seguí el monitoreo.</span> Si el problema se prolonga o se agrava,
+                      volvé a simular.
+                    </>
+                  )}
+                </div>
+              </div>
+
+              <div className="mt-4 rounded-lg bg-muted/50 px-3 py-2.5 text-[11.5px] leading-relaxed text-muted-foreground">
+                En general, conviene reconfigurar mientras el cambio te cueste menos de{" "}
+                <span className="font-medium text-foreground">{avoidableNow.toFixed(1)} semanas de operación</span>, que es lo que evitás. Esta
+                respuesta supone que te cuesta {costNow.toFixed(1)}: lo que perderías en {DEFAULT_RECONFIGURATION_COST_WEEKS} semanas con el problema
+                actual.
               </div>
 
               <div className="mt-3 flex flex-wrap items-center gap-2.5">
