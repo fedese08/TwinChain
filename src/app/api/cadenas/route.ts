@@ -5,7 +5,8 @@ import { requireApiMember } from "@/lib/auth/session";
 import { readJson } from "@/lib/api/http";
 import { toChain, toEdge, toNode } from "@/lib/data/mappers";
 import { aristas, cadenas, getDb, nodos } from "@/lib/db";
-import { instantiateTemplate } from "@/lib/domain/templates";
+import { assertChainCapacity, lockOrganization, PlanLimitError, planLimitResponse } from "@/lib/data/plan-limits";
+import { instantiateTemplate, templateNodeCount } from "@/lib/domain/templates";
 import { ingestChainHistory } from "@/lib/ingestion/ingest-history";
 import { lastCompleteWeek } from "@/lib/domain/synthetic";
 import { prepareSensorBaselines, prepareVendedorPlans } from "@/lib/ingestion/vendedor-setup";
@@ -25,6 +26,15 @@ export async function POST(request: Request) {
   if (!body.ok) return body.response;
   const { name, visibility, template, withLevelShift } = body.data;
 
+  // Plan de la organización: una cadena por organización y los nodos de la plantilla tienen que entrar en el tope de
+  // nodos. Se mira ANTES de llamar al modelo de ML (trabajo caro) y se vuelve a mirar dentro de la transacción.
+  try {
+    await assertChainCapacity(getDb(), user, templateNodeCount(template));
+  } catch (error) {
+    if (error instanceof PlanLimitError) return planLimitResponse(error);
+    throw error;
+  }
+
   const chainId = randomUUID();
   // La plantilla nace con ids de mentira ("tpl-node-0"); se reemplazan por uuids reales antes de insertar.
   const blueprint = instantiateTemplate(template, chainId, "tpl");
@@ -43,7 +53,29 @@ export async function POST(request: Request) {
     endWeek,
   );
 
-  const created = await getDb().transaction(async (tx) => {
+  let created: Awaited<ReturnType<typeof createChain>>;
+  try {
+    created = await createChain();
+  } catch (error) {
+    if (error instanceof PlanLimitError) return planLimitResponse(error);
+    throw error;
+  }
+
+  return NextResponse.json(
+    {
+      chain: toChain(created.chain),
+      nodes: created.nodeRows.map(toNode),
+      edges: created.edgeRows.map(toEdge),
+      weeklyPerformance: created.ingested.weeklyPerformance,
+      stability: created.ingested.stability,
+    },
+    { status: 201 },
+  );
+
+  function createChain() {
+    return getDb().transaction(async (tx) => {
+    await lockOrganization(tx, user.organizacionId);
+    await assertChainCapacity(tx, user, templateNodeCount(template));
     const [chain] = await tx
       .insert(cadenas)
       .values({ id: chainId, nombre: name, organizacionId: user.organizacionId, visibilidad: visibility, creadaPor: user.id })
@@ -89,16 +121,6 @@ export async function POST(request: Request) {
     const finalNodeRows = nodeRows.length === 0 ? [] : await tx.select().from(nodos).where(eq(nodos.cadenaId, chainId));
 
     return { chain, nodeRows: finalNodeRows, edgeRows, ingested };
-  });
-
-  return NextResponse.json(
-    {
-      chain: toChain(created.chain),
-      nodes: created.nodeRows.map(toNode),
-      edges: created.edgeRows.map(toEdge),
-      weeklyPerformance: created.ingested.weeklyPerformance,
-      stability: created.ingested.stability,
-    },
-    { status: 201 },
-  );
+    });
+  }
 }

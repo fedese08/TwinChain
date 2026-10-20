@@ -4,6 +4,7 @@ import { use, useMemo, useState } from "react";
 import Link from "next/link";
 import { Trash2 } from "lucide-react";
 import { DeleteScenarioDialog } from "@/components/scenario/delete-scenario-dialog";
+import { usePlanUsage } from "@/hooks/use-plan-usage";
 import { useAppStore } from "@/stores/app-store";
 
 export default function ScenarioListPage({ params }: { params: Promise<{ chainId: string }> }) {
@@ -16,6 +17,7 @@ export default function ScenarioListPage({ params }: { params: Promise<{ chainId
   const pendingRuns = useAppStore((s) => s.pendingRuns);
   const nodes = useAppStore((s) => s.nodes);
   const canRun = useAppStore((s) => s.canRun);
+  const { definition, usage, scenariosAtLimit } = usePlanUsage();
   const [toDelete, setToDelete] = useState<{ id: string; name: string } | null>(null);
 
   if (!chain) {
@@ -34,14 +36,27 @@ export default function ScenarioListPage({ params }: { params: Promise<{ chainId
           <div className="text-[12.5px] text-muted-foreground">
             {chain.name} · cada simulación es un fork con uno o más eventos. La cadena viva nunca se altera.
           </div>
+          <div className="text-[11.5px] text-muted-foreground">
+            Escenarios guardados: {usage.scenarios} de {definition.maxScenarios} del plan {definition.name}. Las ejecuciones
+            sobre ellos no tienen límite.
+          </div>
         </div>
         <div className="flex-1" />
-        <Link
-          href={`/cadenas/${chainId}`}
-          className="flex-none whitespace-nowrap rounded-lg bg-foreground px-3.5 py-2 text-[12.5px] font-medium text-background hover:bg-foreground/85"
-        >
-          ⑂ Nueva simulación
-        </Link>
+        {scenariosAtLimit ? (
+          <span
+            title="Borrá un escenario o cambiá de plan para crear otro"
+            className="flex-none cursor-not-allowed whitespace-nowrap rounded-lg bg-foreground/40 px-3.5 py-2 text-[12.5px] font-medium text-background"
+          >
+            ⑂ Nueva simulación
+          </span>
+        ) : (
+          <Link
+            href={`/cadenas/${chainId}`}
+            className="flex-none whitespace-nowrap rounded-lg bg-foreground px-3.5 py-2 text-[12.5px] font-medium text-background hover:bg-foreground/85"
+          >
+            ⑂ Nueva simulación
+          </Link>
+        )}
       </div>
 
       <div className="flex-1 overflow-auto px-5 pb-6">

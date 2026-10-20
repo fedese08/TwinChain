@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useAppStore } from "@/stores/app-store";
 import { NODE_TYPE_COLOR } from "@/lib/domain/node-visuals";
 import { useChainStatuses } from "@/hooks/use-chain-status";
+import { usePlanUsage } from "@/hooks/use-plan-usage";
 import type { ChainStability } from "@/lib/domain/synthetic";
 
 /**
@@ -33,6 +34,7 @@ export default function ChainsPage() {
   const edges = useAppStore((s) => s.edges);
   const scenarios = useAppStore((s) => s.scenarios);
   const statuses = useChainStatuses();
+  const { chainsAtLimit } = usePlanUsage();
 
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-background">
@@ -44,12 +46,21 @@ export default function ChainsPage() {
           </div>
         </div>
         <div className="flex-1" />
-        <Link
-          href="/cadenas/nueva"
-          className="flex-none whitespace-nowrap rounded-lg bg-foreground px-3.5 py-2 text-[12.5px] font-medium text-background hover:bg-foreground/85"
-        >
-          + Nueva cadena
-        </Link>
+        {chainsAtLimit ? (
+          <span
+            title="Cada organización puede tener una cadena"
+            className="flex-none cursor-not-allowed whitespace-nowrap rounded-lg bg-foreground/40 px-3.5 py-2 text-[12.5px] font-medium text-background"
+          >
+            + Nueva cadena
+          </span>
+        ) : (
+          <Link
+            href="/cadenas/nueva"
+            className="flex-none whitespace-nowrap rounded-lg bg-foreground px-3.5 py-2 text-[12.5px] font-medium text-background hover:bg-foreground/85"
+          >
+            + Nueva cadena
+          </Link>
+        )}
       </div>
 
       <div className="grid flex-1 grid-cols-[repeat(auto-fill,minmax(292px,1fr))] content-start gap-3.5 overflow-auto p-5">
@@ -110,14 +121,21 @@ export default function ChainsPage() {
           );
         })}
 
-        <Link
-          href="/cadenas/nueva"
-          className="flex min-h-[200px] flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border text-muted-foreground hover:border-foreground/30 hover:text-foreground"
-        >
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-border font-mono text-[18px]">+</div>
-          <div className="text-[13.5px]">Nueva cadena</div>
-          <div className="text-[11.5px]">en blanco o desde plantilla</div>
-        </Link>
+        {chainsAtLimit ? (
+          <div className="flex min-h-[200px] flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border px-6 text-center text-muted-foreground">
+            <div className="text-[13.5px]">Tu organización ya tiene su cadena</div>
+            <div className="text-[11.5px]">Los tres planes admiten una cadena por organización. Borrá la actual para crear otra.</div>
+          </div>
+        ) : (
+          <Link
+            href="/cadenas/nueva"
+            className="flex min-h-[200px] flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border text-muted-foreground hover:border-foreground/30 hover:text-foreground"
+          >
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-border font-mono text-[18px]">+</div>
+            <div className="text-[13.5px]">Nueva cadena</div>
+            <div className="text-[11.5px]">en blanco o desde plantilla</div>
+          </Link>
+        )}
       </div>
     </div>
   );

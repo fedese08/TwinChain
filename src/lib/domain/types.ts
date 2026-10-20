@@ -5,8 +5,6 @@
 export const NODE_TYPES = ["Proveedor", "Fabrica", "Almacen", "Vendedor", "Cliente"] as const;
 export type NodeType = (typeof NODE_TYPES)[number];
 
-export const MAX_NODES_PER_CHAIN = 50;
-
 export interface Organization {
   id: string;
   name: string;

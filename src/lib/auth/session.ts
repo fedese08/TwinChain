@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { auth } from "@/auth";
 import { getDb, organizaciones, rolesUsuario, usuarios } from "@/lib/db";
+import { DEFAULT_PLAN, isPlanId, type PlanId } from "@/lib/plans";
 
 export interface CurrentUser {
   id: string;
@@ -11,6 +12,8 @@ export interface CurrentUser {
   email: string;
   organizacionId: string | null;
   organizacionNombre: string | null;
+  /** Plan de la organización (define los topes de nodos y escenarios); `null` si todavía no tiene organización. */
+  plan: PlanId | null;
   rolId: string | null;
   rolNombre: string | null;
   permisos: string[];
@@ -20,6 +23,7 @@ export interface CurrentUser {
 export type Member = CurrentUser & {
   organizacionId: string;
   organizacionNombre: string;
+  plan: PlanId;
   rolId: string;
   rolNombre: string;
 };
@@ -40,6 +44,7 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
       email: usuarios.email,
       organizacionId: usuarios.organizacionId,
       organizacionNombre: organizaciones.nombre,
+      plan: organizaciones.plan,
       rolId: usuarios.rolId,
       rolNombre: rolesUsuario.nombre,
       permisos: rolesUsuario.permisos,
@@ -51,7 +56,7 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
     .limit(1);
 
   if (!row) return null;
-  return { ...row, permisos: row.permisos ?? [] };
+  return { ...row, plan: row.organizacionId ? (isPlanId(row.plan) ? row.plan : DEFAULT_PLAN) : null, permisos: row.permisos ?? [] };
 });
 
 export function isMember(user: CurrentUser): user is Member {

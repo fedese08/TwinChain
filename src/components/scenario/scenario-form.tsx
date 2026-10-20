@@ -1,6 +1,7 @@
 "use client";
 
 import { forwardRef, useEffect, useImperativeHandle } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Controller, useFieldArray, useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -15,6 +16,7 @@ import {
   scenarioFormSchema,
   type ScenarioFormValues,
 } from "@/lib/validators/scenario";
+import { usePlanUsage } from "@/hooks/use-plan-usage";
 import { useAppStore } from "@/stores/app-store";
 import type { SupplyChainNode } from "@/lib/domain/types";
 
@@ -43,6 +45,7 @@ export const ScenarioForm = forwardRef<ScenarioFormHandle, ScenarioFormProps>(fu
   const router = useRouter();
   const createScenario = useAppStore((s) => s.createScenario);
   const canRun = useAppStore((s) => s.canRun);
+  const { definition, usage, scenariosAtLimit } = usePlanUsage();
 
   const {
     register,
@@ -229,9 +232,19 @@ export const ScenarioForm = forwardRef<ScenarioFormHandle, ScenarioFormProps>(fu
             Tu rol no puede correr simulaciones.
           </p>
         )}
+        {scenariosAtLimit && (
+          <p className="rounded-lg bg-muted px-2.5 py-2 text-[11px] leading-relaxed text-muted-foreground">
+            Tu plan {definition.name} admite hasta {definition.maxScenarios} escenarios guardados y ya tenés {usage.scenarios}.
+            Borrá uno o{" "}
+            <Link href="/organizacion" className="text-primary underline-offset-2 hover:underline">
+              cambiá de plan
+            </Link>{" "}
+            para crear otro.
+          </p>
+        )}
         <Button
           type="submit"
-          disabled={isSubmitting || !canRun}
+          disabled={isSubmitting || !canRun || scenariosAtLimit}
           className="bg-foreground text-background hover:bg-foreground/85"
         >
           ▶ Correr simulación

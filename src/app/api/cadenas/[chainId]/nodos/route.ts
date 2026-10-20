@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
-import { count, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { isUuid, notFound, readJson } from "@/lib/api/http";
 import { requireApiMember } from "@/lib/auth/session";
 import { findVisibleChain } from "@/lib/data/access";
 import { toNode } from "@/lib/data/mappers";
 import { getDb, nodos } from "@/lib/db";
 import { isUniqueViolation } from "@/lib/db/errors";
-import { MAX_NODES_PER_CHAIN } from "@/lib/domain/types";
+import { assertNodeCapacity, lockOrganization, PlanLimitError, planLimitResponse } from "@/lib/data/plan-limits";
 import { chainLatestWeek, ingestNodeHistory } from "@/lib/ingestion/ingest-history";
 import { prepareSensorBaselines, prepareVendedorPlans, type VendedorPlan } from "@/lib/ingestion/vendedor-setup";
 import { lastCompleteWeek } from "@/lib/domain/synthetic";
@@ -25,9 +25,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ cha
   const db = getDb();
   if (!(await findVisibleChain(db, access.user, chainId))) return notFound("Cadena no encontrada");
 
-  const [{ total }] = await db.select({ total: count() }).from(nodos).where(eq(nodos.cadenaId, chainId));
-  if (total >= MAX_NODES_PER_CHAIN) {
-    return NextResponse.json({ error: `Una cadena admite hasta ${MAX_NODES_PER_CHAIN} nodos` }, { status: 409 });
+  // Tope de nodos del plan de la organización (se vuelve a verificar dentro de la transacción).
+  try {
+    await assertNodeCapacity(db, access.user);
+  } catch (error) {
+    if (error instanceof PlanLimitError) return planLimitResponse(error);
+    throw error;
   }
 
   // Un Vendedor usa datos reales de Olist y la línea base del modelo de ML: se prepara ANTES de la transacción
@@ -47,6 +50,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ cha
   try {
     // El nodo y su historial se guardan juntos: un nodo nunca queda sin datos de desempeño.
     const created = await db.transaction(async (tx) => {
+      await lockOrganization(tx, access.user.organizacionId);
+      await assertNodeCapacity(tx, access.user);
       await tx.insert(nodos).values({ id, tipo, cadenaId: chainId, etiqueta, posX: x, posY: y });
       const weeklyPerformance = await ingestNodeHistory(tx, { id, tipo }, chainId, { plan: vendedorPlan, baseline, endWeek });
       const [row] = await tx.select().from(nodos).where(eq(nodos.id, id));
@@ -54,6 +59,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ cha
     });
     return NextResponse.json({ node: toNode(created.row), weeklyPerformance: created.weeklyPerformance }, { status: 201 });
   } catch (error) {
+    if (error instanceof PlanLimitError) return planLimitResponse(error);
     if (isUniqueViolation(error)) return NextResponse.json({ error: "Ese nodo ya existe" }, { status: 409 });
     throw error;
   }

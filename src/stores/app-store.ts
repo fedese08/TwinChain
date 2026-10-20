@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { toast } from "sonner";
 import type { AppSnapshot } from "@/lib/data/snapshot-types";
+import { DEFAULT_PLAN, type PlanId } from "@/lib/plans";
 import type {
   Chain,
   DisruptionEvent,
@@ -114,6 +115,8 @@ const nullify = (values: Record<string, unknown>) =>
 interface AppState {
   userId: string;
   organizationName: string;
+  /** Plan de la organización (topes de nodos y escenarios guardados). El servidor es quien los hace cumplir. */
+  plan: PlanId;
   canWrite: boolean;
   canRun: boolean;
   chains: Chain[];
@@ -128,6 +131,8 @@ interface AppState {
 
   /** Reemplaza la copia de trabajo con lo que el servidor leyó de la base. */
   hydrate: (snapshot: AppSnapshot) => void;
+  /** Refleja en el cliente un cambio de plan ya confirmado por el servidor. */
+  setPlan: (plan: PlanId) => void;
   /**
    * Suma al store una cadena que el servidor acaba de crear, con el historial de desempeño que el
    * pipeline de ingesta le cargó a cada nodo.
@@ -246,6 +251,7 @@ export const useAppStore = create<AppState>()((set, get) => {
   return {
     userId: "",
     organizationName: "",
+    plan: DEFAULT_PLAN,
     canWrite: false,
     canRun: false,
     chains: [],
@@ -257,10 +263,13 @@ export const useAppStore = create<AppState>()((set, get) => {
     results: [],
     pendingRuns: [],
 
+    setPlan: (plan) => set({ plan }),
+
     hydrate: (snapshot) => {
       set({
         userId: snapshot.userId,
         organizationName: snapshot.organizationName,
+        plan: snapshot.plan,
         canWrite: snapshot.canWrite,
         canRun: snapshot.canRun,
         chains: snapshot.chains,

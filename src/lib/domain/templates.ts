@@ -107,6 +107,9 @@ const BLUEPRINTS: Record<ChainTemplateId, TemplateBlueprint> = {
   complex: buildComplex(),
 };
 
+/** Cantidad de nodos que suma una plantilla (para validarla contra el tope del plan sin instanciarla). */
+export const templateNodeCount = (templateId: ChainTemplateId): number => BLUEPRINTS[templateId].nodes.length;
+
 /** Instancia un template en nodos/aristas concretos para una cadena recién creada. */
 export function instantiateTemplate(
   templateId: ChainTemplateId,

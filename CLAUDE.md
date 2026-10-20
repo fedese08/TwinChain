@@ -32,7 +32,8 @@ en todo lo que choque. Leer ambos antes de tocar modelos, tipos o pantallas de s
   hay costo total, nivel de servicio % ni TTR como tales — esos conceptos vienen del mockup viejo y ya no aplican.
 - **DesempenoSemanal**: `valor_real`, `linea_base` (ML, congelada), `deficit = max(linea_base - valor_real, 0)`,
   nunca negativo.
-- Multi-tenant: cadenas pertenecen a la organización. Límite de 50 nodos por cadena. 3 plantillas (lineal 5,
+- Multi-tenant: cadenas pertenecen a la organización. **Plan de suscripción por organización** (Freemium, Pro, Max; ver
+  "Planes" más abajo): los nodos y los escenarios guardados tienen tope por plan, y hay una cadena por organización. 3 plantillas (lineal 5,
   bifurcada 10, compleja 20+). Un nodo debe desconectarse antes de eliminarse. Sin versionado, sin exportación, sin
   notificaciones externas.
 - **Alertas ML** (probabilidad de backorder por umbral) y **Sugerencias** (heurísticas de grafo) del spec funcional
@@ -146,6 +147,17 @@ actual y no con la de la corrida.
     Visualizador ve el canvas en modo solo lectura). Un nodo usado por una simulación no se puede borrar. (d) un usuario es miembro de **una** organización con un rol, o de
     ninguna (CHECK en `usuarios`). (e) aceptar una invitación exige token **y** que el email de la cuenta coincida,
     porque todavía no se verifica el email al registrarse. (f) contraseñas: bcryptjs, máx. 72 caracteres.
+  - **Planes (`src/lib/plans.ts`, única fuente de los topes).** `organizaciones.plan` (`freemium` | `pro` | `max`) y
+    `plan_desde`. Topes: Freemium 6 nodos / 3 escenarios guardados (US$0), Pro 15 / 6 (US$29/mes), Max 100 / 30
+    (US$99/mes), netos de IVA; una cadena por organización en los tres. Los topes son de **nodos y escenarios
+    guardados**; las ejecuciones (corridas) son ilimitadas y sin retención. Se hacen cumplir **en el servidor**
+    (`src/lib/data/plan-limits.ts`: `assertNodeCapacity` / `assertScenarioCapacity` / `assertChainCapacity`, con un
+    candado `pg_advisory_xact_lock` por organización y recheck dentro de la transacción) y responden 409 con
+    `code: "plan_limit"`. El plan viaja en `Member.plan` (se lee de la base en cada request, como el rol) y en el
+    snapshot; la UI (`usePlanUsage`) solo anticipa el bloqueo. Cambiar de plan: `PUT /api/organizacion/plan`
+    (`organization:manage`), sin cobro; un downgrade que deje más nodos/escenarios que el tope se rechaza (409
+    `plan_overage`): no hay purga ni archivado. Reemplazó al viejo `MAX_NODES_PER_CHAIN = 50`. La landing lee los
+    mismos topes de `plans.ts`.
   - **Variables de entorno** (`.env.local`, ver `.env.example`): `DATABASE_URL` (pooler de Neon, runtime),
     `DIRECT_URL` (conexión directa, migraciones y seed), `AUTH_SECRET`.
   - Las decisiones metodológicas del motor (`tabla_k` invertida, `MIN_PROPAGATED_MAGNITUDE`) **no** se tocan al

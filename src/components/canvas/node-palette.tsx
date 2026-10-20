@@ -2,19 +2,13 @@
 
 import { NODE_TYPES } from "@/lib/domain/types";
 import { NODE_TYPE_CODE, NODE_TYPE_COLOR } from "@/lib/domain/node-visuals";
-import { MAX_NODES_PER_CHAIN } from "@/lib/domain/types";
+import Link from "next/link";
+import { usePlanUsage } from "@/hooks/use-plan-usage";
 import type { NodeType } from "@/lib/domain/types";
 
-export function NodePalette({
-  nodeCount,
-  edgeCount,
-  onAddNode,
-}: {
-  nodeCount: number;
-  edgeCount: number;
-  onAddNode: (type: NodeType) => void;
-}) {
-  const atLimit = nodeCount >= MAX_NODES_PER_CHAIN;
+export function NodePalette({ edgeCount, onAddNode }: { edgeCount: number; onAddNode: (type: NodeType) => void }) {
+  // El tope de nodos es el del PLAN de la organización, no de la cadena.
+  const { definition, usage, nodesAtLimit: atLimit } = usePlanUsage();
 
   return (
     <div className="flex w-[204px] flex-none flex-col overflow-auto border-r border-border bg-card">
@@ -43,12 +37,23 @@ export function NodePalette({
         <div className="flex justify-between text-[11.5px] text-muted-foreground">
           <span>Nodos</span>
           <span className="font-mono text-foreground">
-            {nodeCount} / {MAX_NODES_PER_CHAIN}
+            {usage.nodes} / {definition.maxNodes}
           </span>
         </div>
         <div className="h-1 rounded-full bg-muted">
-          <div className="h-1 rounded-full bg-primary" style={{ width: `${Math.min(100, (nodeCount / MAX_NODES_PER_CHAIN) * 100)}%` }} />
+          <div
+            className={`h-1 rounded-full ${atLimit ? "bg-destructive" : "bg-primary"}`}
+            style={{ width: `${Math.min(100, (usage.nodes / definition.maxNodes) * 100)}%` }}
+          />
         </div>
+        {atLimit && (
+          <div className="text-[11px] leading-snug text-muted-foreground">
+            Llegaste al tope del plan {definition.name}.{" "}
+            <Link href="/organizacion" className="text-primary underline-offset-2 hover:underline">
+              Cambiar de plan
+            </Link>
+          </div>
+        )}
         <div className="flex justify-between text-[11.5px] text-muted-foreground">
           <span>Aristas</span>
           <span className="font-mono text-foreground">{edgeCount}</span>

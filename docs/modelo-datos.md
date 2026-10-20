@@ -263,3 +263,11 @@ Ver `CLAUDE.md` para el estado de avance del código frente a este modelo.
   Un nodo con `vendedor_olist_id` mide en **días**; el resto, en 0–100.
 - `desempeno_semanal.banda_semanal_inferior/superior` (nullable, ambas o ninguna): banda del modelo para una semana
   puntual, usada para alertar; distinta de `banda_inferior/superior`, que es la banda del promedio (línea base).
+
+## Columnas `app:` de planes de suscripción (migración 0003)
+
+- `organizaciones.plan` (text, `freemium` | `pro` | `max`, default `freemium`, CHECK) y `organizaciones.plan_desde`
+  (timestamptz): plan vigente de la organización y desde cuándo. Define los topes de nodos y de escenarios guardados
+  (`src/lib/plans.ts`). El plan es por organización —el cliente que paga—; los usuarios lo heredan al pertenecer a ella.
+  No hay entidad de facturación: es un prototipo y no hay cobro real.
+

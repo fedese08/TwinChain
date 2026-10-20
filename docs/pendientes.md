@@ -169,4 +169,14 @@ funcionalidad que todavía no existe.
   declararlo en el E90.
 - **[deuda] El volumen de la Fase I no se guarda** (se regenera al actualizar la línea base). Columna `items_semana`
   pendiente si se quiere que la ingesta sea fiel a un sensor real.
+- **[acción] Aplicar la migración `0003` a Neon** (`npm run db:migrate`): agrega `organizaciones.plan` y `plan_desde`. Las
+  organizaciones que ya existían quedan en **Max** (así no quedan por encima de un tope que nunca eligieron); las nuevas
+  nacen en Freemium. Hasta aplicarla, el código nuevo falla en producción (consulta una columna que no existe).
+- **[decisión] Plan por organización, no por usuario.** El modelo de negocio habla de "la red de un cliente" y "una
+  cadena por organización"; los usuarios heredan el plan de su organización. Cambiarlo es de un administrador y no hay
+  cobro (no hay pasarela de pago).
+- **[deuda] El conteo de la interfaz ve solo lo que el usuario ve** (no las cadenas privadas de otras personas de la
+  organización); el servidor cuenta todo, así que el bloqueo real siempre es correcto aunque el contador subestime.
+- **[deuda] Las cadenas existentes con más de una cadena o por encima del tope** (por ejemplo la demo en Freemium)
+  no se recortan: el tope se aplica al crear, no retroactivamente.
 

@@ -242,7 +242,7 @@ el motor:
 
 - el canvas de React Flow con 300 nodos en el navegador;
 - el snapshot que el layout carga entero en cada página (ver `pendientes.md`);
-- que el límite de nodos de la API (`MAX_NODES_PER_CHAIN = 50`) pase a depender del plan.
+- que el límite de nodos de la API pase a depender del plan. **Hecho**: `MAX_NODES_PER_CHAIN` ya no existe; el tope sale del plan de la organización (`src/lib/plans.ts`).
 
 ## Cambios que salieron de esta medición
 

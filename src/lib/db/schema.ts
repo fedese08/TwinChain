@@ -37,11 +37,20 @@ export interface TablaKRow {
 const pk = () => uuid("id").primaryKey().defaultRandom();
 const creadoEn = () => timestamp("creado_en", { withTimezone: true }).notNull().defaultNow();
 
-export const organizaciones = pgTable("organizaciones", {
-  id: pk(),
-  nombre: text("nombre").notNull(),
-  creadoEn: creadoEn(),
-});
+export const organizaciones = pgTable(
+  "organizaciones",
+  {
+    id: pk(),
+    nombre: text("nombre").notNull(),
+    // app: plan de suscripción vigente de la organización (freemium | pro | max). Define los topes de nodos y de
+    // escenarios guardados (ver `lib/plans.ts`). No hay cobro real: el cambio de plan lo hace un administrador.
+    plan: text("plan").notNull().default("freemium"),
+    // app: desde cuándo rige el plan actual.
+    planDesde: timestamp("plan_desde", { withTimezone: true }).notNull().defaultNow(),
+    creadoEn: creadoEn(),
+  },
+  (t) => [check("organizaciones_plan_valido", sql`${t.plan} IN ('freemium', 'pro', 'max')`)],
+);
 
 export const rolesUsuario = pgTable("roles_usuario", {
   id: pk(),

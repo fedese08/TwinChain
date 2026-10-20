@@ -1,12 +1,19 @@
 import { and, asc, desc, eq, gt, isNull } from "drizzle-orm";
 import { InviteMembers } from "@/components/organization/invite-members";
+import { PlanManager } from "@/components/organization/plan-manager";
+import { organizationUsage } from "@/lib/data/plan-limits";
 import { can, requirePageMember } from "@/lib/auth/session";
-import { getDb, invitaciones, rolesUsuario, usuarios } from "@/lib/db";
+import { getDb, invitaciones, organizaciones, rolesUsuario, usuarios } from "@/lib/db";
 
 export default async function OrganizationPage() {
   const member = await requirePageMember();
   const db = getDb();
   const canManage = can(member, "organization:manage");
+
+  const [[org], usage] = await Promise.all([
+    db.select({ planDesde: organizaciones.planDesde }).from(organizaciones).where(eq(organizaciones.id, member.organizacionId)),
+    organizationUsage(db, member.organizacionId),
+  ]);
 
   const members = await db
     .select({ id: usuarios.id, nombre: usuarios.nombre, email: usuarios.email, rol: rolesUsuario.nombre })
@@ -44,6 +51,8 @@ export default async function OrganizationPage() {
             {members.length} {members.length === 1 ? "miembro" : "miembros"}
           </div>
         </div>
+
+        <PlanManager plan={member.plan} since={org.planDesde.toISOString()} usage={usage} canManage={canManage} />
 
         <div className="flex flex-col divide-y divide-border rounded-2xl border border-border bg-card">
           {members.map((m) => (

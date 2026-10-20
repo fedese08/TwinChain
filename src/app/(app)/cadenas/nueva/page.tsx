@@ -6,7 +6,8 @@ import { useRouter } from "next/navigation";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { chainFormSchema, type ChainFormValues } from "@/lib/validators/chain";
-import { CHAIN_TEMPLATES, CHAIN_TEMPLATE_LABELS } from "@/lib/domain/templates";
+import { CHAIN_TEMPLATES, CHAIN_TEMPLATE_LABELS, templateNodeCount } from "@/lib/domain/templates";
+import { usePlanUsage } from "@/hooks/use-plan-usage";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -19,6 +20,7 @@ export default function NewChainPage() {
   const organizationName = useAppStore((s) => s.organizationName);
   const canWrite = useAppStore((s) => s.canWrite);
   const [serverError, setServerError] = useState<string | null>(null);
+  const { definition, usage, nodesLeft, chainsAtLimit } = usePlanUsage();
 
   const {
     register,
@@ -77,7 +79,7 @@ export default function NewChainPage() {
         <div className="flex flex-col gap-1.5">
           <div className="text-[19px] font-semibold tracking-tight">Crear una cadena</div>
           <div className="text-[12.5px] leading-relaxed text-muted-foreground">
-            La cadena pertenece a la organización. Máximo 50 nodos.
+            La cadena pertenece a la organización. Tu plan {definition.name} admite hasta {definition.maxNodes} nodos (usás {usage.nodes}).
           </div>
         </div>
 
@@ -131,14 +133,18 @@ export default function NewChainPage() {
                 {CHAIN_TEMPLATES.map((templateId) => {
                   const label = CHAIN_TEMPLATE_LABELS[templateId];
                   const active = field.value === templateId;
+                  // Una plantilla que no entra en el tope de nodos del plan no se puede elegir.
+                  const nodes = templateNodeCount(templateId);
+                  const fits = nodes <= nodesLeft;
                   return (
                     <button
                       type="button"
                       key={templateId}
+                      disabled={!fits}
                       onClick={() => field.onChange(templateId)}
                       className={cn(
-                        "flex items-center gap-2.5 rounded-lg border px-3 py-2.5 text-left",
-                        active ? "border-primary/50 bg-accent" : "border-border hover:border-primary/30",
+                        "flex items-center gap-2.5 rounded-lg border px-3 py-2.5 text-left disabled:cursor-not-allowed disabled:opacity-45",
+                        active ? "border-primary/50 bg-accent" : "border-border enabled:hover:border-primary/30",
                       )}
                     >
                       <span
@@ -151,7 +157,9 @@ export default function NewChainPage() {
                       </span>
                       <span className="flex flex-col leading-tight">
                         <span className="text-[13px]">{label.name}</span>
-                        <span className="text-[11px] text-muted-foreground">{label.note}</span>
+                        <span className="text-[11px] text-muted-foreground">
+                          {fits ? label.note : `${nodes} nodos: supera el tope de tu plan ${definition.name}`}
+                        </span>
                       </span>
                       {active && <span className="ml-auto text-[12px] text-primary">✓</span>}
                     </button>
@@ -195,6 +203,11 @@ export default function NewChainPage() {
         />
 
         {serverError && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-[12.5px] text-destructive">{serverError}</p>}
+        {chainsAtLimit && (
+          <p className="rounded-lg bg-muted px-3 py-2 text-[12.5px] text-muted-foreground">
+            Tu organización ya tiene una cadena. Los tres planes admiten una por organización: borrá la actual para crear otra.
+          </p>
+        )}
         {!canWrite && (
           <p className="rounded-lg bg-muted px-3 py-2 text-[12.5px] text-muted-foreground">
             Tu rol es de solo lectura: pedile a un administrador que cree la cadena.
@@ -210,7 +223,7 @@ export default function NewChainPage() {
           </Link>
           <Button
             type="submit"
-            disabled={isSubmitting || !canWrite}
+            disabled={isSubmitting || !canWrite || chainsAtLimit}
             className="flex-1 bg-foreground text-background hover:bg-foreground/85"
           >
             Crear y abrir canvas

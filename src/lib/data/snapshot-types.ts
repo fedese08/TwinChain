@@ -1,3 +1,4 @@
+import type { PlanId } from "@/lib/plans";
 import type {
   Chain,
   DisruptionEvent,
@@ -16,6 +17,8 @@ import type {
 export interface AppSnapshot {
   userId: string;
   organizationName: string;
+  /** Plan de la organización: define los topes de nodos y de escenarios guardados (`lib/plans.ts`). */
+  plan: PlanId;
   /** Puede crear y editar cadenas (permiso `chain:write`). */
   canWrite: boolean;
   /** Puede correr simulaciones (permiso `scenario:run`). */

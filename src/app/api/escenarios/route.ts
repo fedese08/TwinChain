@@ -4,6 +4,7 @@ import { notFound, readJson } from "@/lib/api/http";
 import { requireApiMember } from "@/lib/auth/session";
 import { findVisibleChain } from "@/lib/data/access";
 import { toEvent, toResult, toScenario } from "@/lib/data/mappers";
+import { assertScenarioCapacity, lockOrganization, PlanLimitError, planLimitResponse } from "@/lib/data/plan-limits";
 import { escenarios, eventos, getDb, nodos, resultados } from "@/lib/db";
 import { isUniqueViolation } from "@/lib/db/errors";
 import { runScenarioOnChain, SimulationTooLargeError, simulationTooLargeBody } from "@/lib/simulation/run-scenario";
@@ -29,6 +30,14 @@ export async function POST(request: Request) {
 
   const db = getDb();
   if (!(await findVisibleChain(db, user, input.chainId))) return notFound("Cadena no encontrada");
+
+  // Tope de escenarios guardados del plan: se mira ANTES de correr la simulación y otra vez dentro de la transacción.
+  try {
+    await assertScenarioCapacity(db, user);
+  } catch (error) {
+    if (error instanceof PlanLimitError) return planLimitResponse(error);
+    throw error;
+  }
 
   // El nodo afectado tiene que ser de ESTA cadena (no alcanza con que sea de la organización).
   const [node] = await db
@@ -63,6 +72,8 @@ export async function POST(request: Request) {
 
   try {
     const created = await db.transaction(async (tx) => {
+      await lockOrganization(tx, user.organizacionId);
+      await assertScenarioCapacity(tx, user);
       const [scenario] = await tx
         .insert(escenarios)
         .values({
@@ -95,6 +106,7 @@ export async function POST(request: Request) {
       { status: 201 },
     );
   } catch (error) {
+    if (error instanceof PlanLimitError) return planLimitResponse(error);
     if (isUniqueViolation(error)) return NextResponse.json({ error: "Ese escenario ya existe" }, { status: 409 });
     throw error;
   }

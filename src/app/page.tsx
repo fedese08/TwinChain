@@ -4,6 +4,7 @@ import { Activity, Check, GitCompare, Waypoints } from "lucide-react";
 import { auth } from "@/auth";
 import { buttonVariants } from "@/components/ui/button";
 import { NetworkIllustration } from "@/components/landing/network-illustration";
+import { PLAN_DEFINITIONS, type PlanId } from "@/lib/plans";
 
 const FEATURES = [
   {
@@ -26,50 +27,44 @@ const FEATURES = [
   },
 ] as const;
 
+// Los topes salen de `lib/plans.ts`, la misma definición que hace cumplir el servidor: la landing no puede prometer
+// algo distinto de lo que el sistema aplica.
+const planFeatures = (id: PlanId) => [
+  `Hasta ${PLAN_DEFINITIONS[id].maxNodes} nodos`,
+  `Hasta ${PLAN_DEFINITIONS[id].maxScenarios} escenarios guardados`,
+  "Ejecuciones ilimitadas, sin límite de retención",
+  "Monitoreo de desempeño semanal",
+];
+
 const PLANS = [
   {
-    name: "Freemium",
+    name: PLAN_DEFINITIONS.freemium.name,
     price: "US$0",
     period: "para siempre",
     description: "Para conocer TwinChain con una red chica. No es una prueba: el plan es permanente.",
-    features: [
-      "Hasta 6 nodos",
-      "Hasta 3 escenarios guardados",
-      "Ejecuciones ilimitadas, sin límite de retención",
-      "Monitoreo de desempeño semanal",
-    ],
+    features: planFeatures("freemium"),
     cta: "Empezar gratis",
     highlighted: false,
   },
   {
-    name: "Pro",
-    price: "US$29",
+    name: PLAN_DEFINITIONS.pro.name,
+    price: `US$${PLAN_DEFINITIONS.pro.priceUsd}`,
     period: "por mes + IVA",
     description: "Para equipos que ya modelan una red mediana y comparan alternativas.",
-    features: [
-      "Hasta 15 nodos",
-      "Hasta 6 escenarios guardados",
-      "Ejecuciones ilimitadas, sin límite de retención",
-      "Monitoreo de desempeño semanal",
-    ],
+    features: planFeatures("pro"),
     cta: "Empezar con Pro",
     highlighted: true,
   },
   {
-    name: "Max",
-    price: "US$99",
+    name: PLAN_DEFINITIONS.max.name,
+    price: `US$${PLAN_DEFINITIONS.max.priceUsd}`,
     period: "por mes + IVA",
     description: "Para operaciones con redes extensas y muchos frentes de riesgo.",
-    features: [
-      "Hasta 100 nodos",
-      "Hasta 30 escenarios guardados",
-      "Ejecuciones ilimitadas, sin límite de retención",
-      "Monitoreo de desempeño semanal",
-    ],
+    features: planFeatures("max"),
     cta: "Empezar con Max",
     highlighted: false,
   },
-] as const;
+];
 
 export default async function LandingPage() {
   // Solo se decodifica el JWT de la cookie (sin tocar la base): alcanza para saber si hay sesión.

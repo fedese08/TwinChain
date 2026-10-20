@@ -231,7 +231,7 @@ function CanvasInner({ chainId, mode, selectedNodeIds, onNodeSelect, severityByN
     // cadena) como dentro de una caja de alto fijo (red fork del resultado), donde `flex-1` no
     // aplica y sin altura propia colapsaria a 0.
     <div className="flex h-full min-h-0 flex-1">
-      {isEdit && <NodePalette nodeCount={chainNodes.length} edgeCount={chainEdges.length} onAddNode={handleAddNode} />}
+      {isEdit && <NodePalette edgeCount={chainEdges.length} onAddNode={handleAddNode} />}
       <div className="relative min-w-0 flex-1">
         <ReactFlow
           nodes={rfNodes}

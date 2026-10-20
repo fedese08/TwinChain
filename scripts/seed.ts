@@ -85,7 +85,12 @@ async function main() {
       // --- Organización y usuario ---------------------------------------------------------
       const orgId = randomUUID();
       const userId = randomUUID();
-      await tx.insert(schema.organizaciones).values({ id: orgId, nombre: seedOrganization.name });
+      await tx.insert(schema.organizaciones).values({
+        id: orgId,
+        nombre: seedOrganization.name,
+        // La demo tiene dos cadenas, 14 nodos y 3 escenarios: solo entra en Max (el resto de las organizaciones nace en Freemium).
+        plan: "max",
+      });
       await tx.insert(schema.usuarios).values({
         id: userId,
         nombre: "Federico Sena",
