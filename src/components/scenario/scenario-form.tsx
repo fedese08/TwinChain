@@ -18,6 +18,7 @@ import {
 } from "@/lib/validators/scenario";
 import { usePlanUsage } from "@/hooks/use-plan-usage";
 import { useAppStore } from "@/stores/app-store";
+import type { AlertScenarioInputs } from "@/lib/domain/detection";
 import type { SupplyChainNode } from "@/lib/domain/types";
 
 function todayIso(): string {
@@ -36,10 +37,13 @@ interface ScenarioFormProps {
   chainId: string;
   chainNodes: SupplyChainNode[];
   onSelectedNodeChange?: (nodeId: string | null) => void;
+  /** Simulación desde una alerta: entradas derivadas de lo que observó el monitoreo. */
+  alertSeed?: AlertScenarioInputs | null;
+  onClearAlert?: () => void;
 }
 
 export const ScenarioForm = forwardRef<ScenarioFormHandle, ScenarioFormProps>(function ScenarioForm(
-  { chainId, chainNodes, onSelectedNodeChange },
+  { chainId, chainNodes, onSelectedNodeChange, alertSeed, onClearAlert },
   ref,
 ) {
   const router = useRouter();
@@ -53,6 +57,7 @@ export const ScenarioForm = forwardRef<ScenarioFormHandle, ScenarioFormProps>(fu
     handleSubmit,
     getValues,
     setValue,
+    reset,
     formState: { errors, isSubmitting },
   } = useForm<ScenarioFormValues>({
     resolver: zodResolver(scenarioFormSchema),
@@ -61,6 +66,18 @@ export const ScenarioForm = forwardRef<ScenarioFormHandle, ScenarioFormProps>(fu
 
   const { fields, append, remove } = useFieldArray({ control, name: "events" });
   const selectedNodeId = useWatch({ control, name: "nodeId" });
+
+  // Con una alerta, el formulario arranca con lo observado: nodo, inicio del desvío y caída media.
+  useEffect(() => {
+    if (!alertSeed) return;
+    const label = chainNodes.find((n) => n.id === alertSeed.nodeId)?.label ?? "nodo";
+    reset({
+      name: `Cómo sigue ${label}`,
+      projectionHorizonWeeks: 16,
+      nodeId: alertSeed.nodeId,
+      events: [{ eventType: "degradacion_detectada", startDate: alertSeed.startDate, magnitude: alertSeed.magnitudePct }],
+    });
+  }, [alertSeed, chainNodes, reset]);
 
   useEffect(() => {
     onSelectedNodeChange?.(selectedNodeId || null);
@@ -89,6 +106,7 @@ export const ScenarioForm = forwardRef<ScenarioFormHandle, ScenarioFormProps>(fu
       values.projectionHorizonWeeks,
       values.nodeId,
       values.events,
+      alertSeed?.decisionWeek,
     );
     router.push(`/cadenas/${chainId}/escenarios/${scenarioId}`);
   }
@@ -101,6 +119,21 @@ export const ScenarioForm = forwardRef<ScenarioFormHandle, ScenarioFormProps>(fu
       </div>
 
       <div className="flex flex-col gap-4 p-3.5">
+        {alertSeed && (
+          <div className="rounded-lg border border-[#f5c9a8] bg-[#fdf5ec] p-2.5 text-[11px] leading-relaxed text-[#8a4313]">
+            <div className="font-medium">Simulación desde una alerta</div>
+            <div className="mt-0.5">
+              El nodo lleva {alertSeed.observedWeeks} {alertSeed.observedWeeks === 1 ? "semana" : "semanas"} con desvío (desde{" "}
+              {alertSeed.startDate}). La decisión de reconfigurar se evalúa desde la semana del {alertSeed.decisionWeek}; las semanas
+              observadas son pasado y no cuentan para el umbral.
+            </div>
+            {onClearAlert && (
+              <button type="button" onClick={onClearAlert} className="mt-1 underline underline-offset-2">
+                Armarla a mano
+              </button>
+            )}
+          </div>
+        )}
         <div className="flex flex-col gap-1.5">
           <Label className="font-mono text-[9.5px] uppercase tracking-wider text-muted-foreground">Nombre del escenario</Label>
           <Input placeholder="ej. Corte de suministro en FAB-02" {...register("name")} />

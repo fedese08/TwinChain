@@ -10,17 +10,27 @@ funcionalidad que todavía no existe.
 
 ## Metodología del motor (no parchear por cuenta propia)
 
-- **[metodología] `tabla_k` / `computeReplicaThresholds` tiene la fórmula invertida.** El umbral baja cuando k sube
-  ("cuanto más caro reconfigurar, más conviene"), y el "no existe umbral" de los k altos se dispara porque el umbral
-  se hace muy chico, no porque el costo sea inalcanzable. Marcado con ⚠️ en `src/lib/domain/simulate.ts`. Por eso la
-  recomendación de la pantalla NO sale de `tabla_k` sino de comparar la pérdida evitable contra k. Definir bien el
-  umbral es parte de la tesis.
-- **[metodología] `MIN_PROPAGATED_MAGNITUDE = 3` corta la dispersión con magnitudes bajas.** Cada salto multiplica por
-  0.45–0.65 *antes* de comparar contra el piso, así que un evento de ~1–4 % nunca sale del nodo de origen. Detectado
-  en una demo (1 % no se dispersaba). Mientras no se recalibre, usar ≥ 15–20 % en las demos. Marcado con ⚠️ en
-  `simulate.ts`.
-- **[metodología] Número de réplicas.** El mock corre 30; la recomendación registrada para producción es 200–300
-  (sin confirmar). Ver también "Simulación síncrona" más abajo.
+- **[hecho] Umbral `tabla_k` y piso de propagación.** La fórmula invertida del umbral y `MIN_PROPAGATED_MAGNITUDE` se
+  reemplazaron por las definiciones de la tesis (`docs/definiciones-motor.md`): `N(k) = min { t : E(t) ≥ k·d0 }` y
+  propagación por recurrencia semanal sin piso. Las corridas **guardadas antes** de este cambio conservan su `tabla_k`
+  vieja (sin `fraccion`); la pantalla de resultado muestra entonces la tabla recalculada con el motor nuevo. Para
+  refrescar una, volver a correr el escenario.
+- **[metodología] Número de réplicas de producción.** 30 por fracción hoy; la recomendación registrada es 200–300 por
+  fracción (sin confirmar). Criterio del texto: la menor R tal que mediana, p10 y p90 de N(k) no cambien más de una
+  semana entre R/2 y R. Falta aplicarlo (con la entrada de la simulación manual la dispersión entre réplicas es nula,
+  así que el criterio es trivial ahí; importa en la simulación desde una alerta).
+- **[metodología] Cobertura de las bandas.** Medida: banda del promedio 61,7 %, semanal 85,9 % (nominal 80 %) sobre
+  semanas normales. Según el criterio del texto, aceptar y declarar; falta la decisión del autor. Ver
+  `docs/definiciones-motor.md`.
+- **[acción] Aplicar la migración `0004` a Neon** (`npm run db:migrate`): agrega `escenarios.semana_decision`. Sin ella
+  la app falla al cargar (el snapshot pide esa columna).
+- **[metodología] "Desde cuándo" de una alerta (t0).** Regla provisoria en `src/lib/domain/detection.ts`; HU2 no la
+  fija. Una caída que lleva el margen a 0 días o menos cuenta como 100 % de pérdida (el motor trunca en 0).
+- **[deuda] El nivel normal sorteado solo importa en la simulación desde una alerta.** Con magnitud proporcional se
+  cancela en la simulación manual (ver `docs/definiciones-motor.md`, diferencia 3). Si se quiere que la banda de
+  incertidumbre influya en lo manual, hay que definir una magnitud absoluta o una incertidumbre sobre `d0`.
+- **[deuda] `docs/rendimiento-motor*.md` describen el motor anterior (BFS con poda).** El banco nuevo está en
+  `scripts/bench-engine.ts` (300 nodos conectados todos con todos: 0,25 s; antes 4,7 s). Falta medir en Vercel.
 - **[falta] Alertas ML y Sugerencias** del spec original no tienen entidad en el modelo de datos real. Quedan para
   cuando se aborde el microservicio ML (Fases 5/6) y se definan contra el modelo real.
 

@@ -9,6 +9,7 @@ export const EVENT_TYPE_LABELS: Record<string, string> = {
   demora: "Demora en la entrega",
   pico_demanda: "Pico de demanda",
   falla_calidad: "Falla de calidad",
+  degradacion_detectada: "Degradación detectada",
 };
 
 // tipo es una lista abierta según el modelo de datos — el schema solo exige que no esté vacío.

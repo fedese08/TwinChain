@@ -18,9 +18,9 @@ const mean = (x: number[]) => x.reduce((a, b) => a + b, 0) / x.length;
 const pct = (n: number, d: number) => `${((100 * n) / d).toFixed(1)} %`;
 
 async function main() {
-  const acc = new Map<NodeType | "todos", { n: number; errModel: number; errNaive: number; bias: number; covered: number; weeks: number; below: number; windows: number; attention: number; critical: number; lvlShrink: number[] }>();
+  const acc = new Map<NodeType | "todos", { n: number; errModel: number; errNaive: number; bias: number; covered: number; weeks: number; below: number; windows: number; attention: number; critical: number; lvlShrink: number[]; avgIn: number; weeklyIn: number }>();
   const get = (k: NodeType | "todos") => {
-    if (!acc.has(k)) acc.set(k, { n: 0, errModel: 0, errNaive: 0, bias: 0, covered: 0, weeks: 0, below: 0, windows: 0, attention: 0, critical: 0, lvlShrink: [] });
+    if (!acc.has(k)) acc.set(k, { n: 0, errModel: 0, errNaive: 0, bias: 0, covered: 0, weeks: 0, below: 0, windows: 0, attention: 0, critical: 0, lvlShrink: [], avgIn: 0, weeklyIn: 0 });
     return acc.get(k)!;
   };
 
@@ -41,6 +41,10 @@ async function main() {
         if (level >= prediction.banda_inferior && level <= prediction.banda_superior) a.covered++;
         // Monitoreo: de la semana 5 en adelante, estable (sin incidentes inyectados).
         const flags = values.map((v, w) => w >= 4 && v < prediction.banda_semanal_inferior);
+        for (let w = 4; w < values.length; w++) {
+          if (values[w] >= prediction.banda_inferior && values[w] <= prediction.banda_superior) a.avgIn++;
+          if (values[w] >= prediction.banda_semanal_inferior && values[w] <= prediction.banda_semanal_superior) a.weeklyIn++;
+        }
         for (let w = 4; w < values.length; w++) {
           a.weeks++;
           if (flags[w]) a.below++;
@@ -89,6 +93,12 @@ async function main() {
     console.log(
       `${key.padEnd(10)} | ${(a.errModel / a.n).toFixed(2).padStart(8)} d | ${(a.errNaive / a.n).toFixed(2).padStart(9)} d | ${(a.bias / a.n).toFixed(2).padStart(5)} | ${pct(a.covered, a.n).padStart(17)} | ${pct(a.below, a.weeks).padStart(14)} | ${pct(a.attention, a.windows).padStart(8)} | ${pct(a.critical, a.windows).padStart(7)}`,
     );
+  }
+  console.log("\nCobertura de las bandas sobre semanas normales (semanas 5 a 28, no vistas por el modelo):");
+  console.log("tipo       | banda del promedio | banda semanal   (nominal 80 %)");
+  for (const key of [...TYPES, "todos"] as const) {
+    const a = acc.get(key)!;
+    console.log(`${key.padEnd(10)} | ${pct(a.avgIn, a.weeks).padStart(18)} | ${pct(a.weeklyIn, a.weeks).padStart(14)}`);
   }
   console.log("\nDetección de una caída sostenida (desde la semana 25, 4 semanas de margen para reaccionar):");
   console.log("caída    | llega a atención | llega a crítico");

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Trash2 } from "lucide-react";
 import { DeleteScenarioDialog } from "@/components/scenario/delete-scenario-dialog";
 import { usePlanUsage } from "@/hooks/use-plan-usage";
+import { centralRows } from "@/lib/domain/k-table";
 import { useAppStore } from "@/stores/app-store";
 
 export default function ScenarioListPage({ params }: { params: Promise<{ chainId: string }> }) {
@@ -65,8 +66,8 @@ export default function ScenarioListPage({ params }: { params: Promise<{ chainId
             <div>Escenario</div>
             <div>Eventos</div>
             <div>Horizonte</div>
-            <div>Umbral k=1 (mediana)</div>
-            <div>Sin umbral desde</div>
+            <div>Umbral k=1 (semanas)</div>
+            <div>No cruza desde</div>
             <div>Corridas</div>
           </div>
           {scenarios.map((scenario) => {
@@ -74,8 +75,10 @@ export default function ScenarioListPage({ params }: { params: Promise<{ chainId
             const scenarioRuns = results.filter((r) => r.scenarioId === scenario.id);
             // La última corrida es la que se muestra en el listado; las anteriores se conservan (RF030).
             const result = scenarioRuns[scenarioRuns.length - 1];
-            const k1 = result?.kTable.find((r) => r.k === 1);
-            const firstNull = result?.kTable.find((r) => r.thresholdMedian === null)?.k ?? null;
+            // El listado resume con la fracción de propagación central; el detalle muestra las tres.
+            const summaryRows = result ? centralRows(result.kTable) : [];
+            const k1 = summaryRows.find((r) => r.k === 1);
+            const firstNull = summaryRows.find((r) => r.thresholdMedian === null)?.k ?? null;
             const running = pendingRuns.some((r) => r.scenarioId === scenario.id);
 
             return (

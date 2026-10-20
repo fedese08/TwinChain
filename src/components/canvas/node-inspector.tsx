@@ -1,12 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { toast } from "sonner";
 import { Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { WeeklyPerformanceChart } from "@/components/charts/weekly-performance-chart";
+import { deriveAlertScenario } from "@/lib/domain/detection";
 import { NODE_TYPE_CODE, NODE_TYPE_COLOR } from "@/lib/domain/node-visuals";
 import { unitOfNode } from "@/lib/domain/units";
 import { useAppStore } from "@/stores/app-store";
@@ -140,6 +142,10 @@ export function NodeInspector({ node, onClose }: { node: SupplyChainNode; onClos
     .filter((w) => w.nodeId === node.id)
     .sort((a, b) => a.weekStart.localeCompare(b.weekStart));
 
+  // Si el monitoreo marcó el nodo, se ofrece simular cómo sigue (entradas derivadas de lo observado).
+  const canRun = useAppStore((s) => s.canRun);
+  const alert = useMemo(() => deriveAlertScenario(history), [history]);
+
   function handleLabelChange(value: string) {
     setLabel(value);
     const trimmed = value.trim();
@@ -234,6 +240,26 @@ export function NodeInspector({ node, onClose }: { node: SupplyChainNode; onClos
           <BaselineInfo node={node} />
         ) : (
           <div className="text-[11px] leading-relaxed text-muted-foreground">{TYPE_NOTE[node.nodeType]}</div>
+        )}
+
+        {alert && (
+          <div className="rounded-lg border border-[#f5c9a8] bg-[#fdf5ec] p-2.5 text-[11px] leading-relaxed text-[#8a4313]">
+            <div className="font-medium">
+              {alert.level === "critico" ? "Nodo en estado crítico" : "Nodo en atención"} · desvío desde {alert.startDate}
+            </div>
+            <div className="mt-0.5">
+              Lleva {alert.observedWeeks} {alert.observedWeeks === 1 ? "semana" : "semanas"} por debajo de lo esperado, con una caída
+              media del {alert.magnitudePct} %. Podés simular cómo sigue y si conviene reconfigurar.
+            </div>
+            {canRun && (
+              <Link
+                href={`/cadenas/${node.chainId}?alerta=${node.id}`}
+                className="mt-1.5 inline-block rounded-md border border-[#f5c9a8] bg-card px-2 py-1 font-medium text-foreground hover:bg-muted"
+              >
+                Simular cómo sigue
+              </Link>
+            )}
+          </div>
         )}
 
         <div>

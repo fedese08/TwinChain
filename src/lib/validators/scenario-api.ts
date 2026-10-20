@@ -16,6 +16,8 @@ export const createScenarioSchema = z.object({
   // Un escenario afecta un único nodo (todos sus eventos caen sobre él).
   nodeId: z.uuid(),
   events: z.array(eventSchema).min(1, "Agregá al menos un evento").max(20),
+  // Simulación desde una alerta: semana de la decisión de reconfigurar (s_r). Sin ella, s_r es el inicio del primer evento.
+  decisionWeek: z.iso.date().optional(),
 });
 
 export const rerunScenarioSchema = z.object({

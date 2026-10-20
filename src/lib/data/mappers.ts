@@ -69,6 +69,7 @@ export const toScenario = (r: EscenarioRow): Scenario => ({
   projectionHorizonWeeks: r.horizonteProyeccion,
   name: r.nombre,
   createdAt: r.creadoEn.toISOString().slice(0, 10),
+  ...(r.semanaDecision ? { decisionWeek: r.semanaDecision } : {}),
 });
 
 export const toEvent = (r: EventoRow): DisruptionEvent => ({
@@ -86,6 +87,8 @@ export const toResult = (r: ResultadoRow): ScenarioResult => ({
   runDate: r.fechaCorrida,
   kTable: r.tablaK.map((row) => ({
     k: row.k,
+    ...(row.fraccion !== undefined ? { propagationFraction: row.fraccion } : {}),
+    ...(row.cruzan !== undefined ? { crossingShare: row.cruzan } : {}),
     thresholdMedian: row.umbral_mediana,
     thresholdLow: row.umbral_min,
     thresholdHigh: row.umbral_max,
@@ -99,6 +102,8 @@ export const toResult = (r: ResultadoRow): ScenarioResult => ({
 export const toKTableRows = (rows: KTableRow[]): TablaKRow[] =>
   rows.map((row) => ({
     k: row.k,
+    ...(row.propagationFraction !== undefined ? { fraccion: row.propagationFraction } : {}),
+    ...(row.crossingShare !== undefined ? { cruzan: row.crossingShare } : {}),
     umbral_mediana: row.thresholdMedian,
     umbral_min: row.thresholdLow,
     umbral_max: row.thresholdHigh,

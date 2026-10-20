@@ -44,6 +44,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ sce
       horizonWeeks: escenario.horizonteProyeccion,
       events: eventRows.map(toEvent),
       reconfigurationWeekIndex,
+      decisionWeek: escenario.semanaDecision,
     });
   } catch (error) {
     // Puede pasar si la cadena creció desde la primera corrida (más nodos o aristas).

@@ -187,6 +187,8 @@ interface AppState {
     /** Único nodo afectado por el escenario — todos los eventos caen sobre él. */
     nodeId: string,
     events: NewEventInput[],
+    /** Simulación desde una alerta: semana de la decisión de reconfigurar (s_r). Ausente = simulación manual. */
+    decisionWeek?: string,
   ) => string;
   /**
    * Vuelve a correr un escenario y guarda una corrida NUEVA sin pisar las anteriores (RF030).
@@ -500,7 +502,7 @@ export const useAppStore = create<AppState>()((set, get) => {
       return { ok: true };
     },
 
-    createScenario: (chainId, name, projectionHorizonWeeks, nodeId, newEvents) => {
+    createScenario: (chainId, name, projectionHorizonWeeks, nodeId, newEvents, decisionWeek) => {
       // Los ids los genera el cliente: el escenario se ve al instante (la pantalla de resultado
       // arranca su animación de espera) mientras el servidor corre la simulación y la guarda.
       const scenarioId = crypto.randomUUID();
@@ -519,6 +521,7 @@ export const useAppStore = create<AppState>()((set, get) => {
         projectionHorizonWeeks,
         name,
         createdAt: new Date().toISOString().slice(0, 10),
+        ...(decisionWeek ? { decisionWeek } : {}),
       };
       const pendingId = genId("run");
 
@@ -535,6 +538,7 @@ export const useAppStore = create<AppState>()((set, get) => {
           name,
           projectionHorizonWeeks,
           nodeId,
+          ...(decisionWeek ? { decisionWeek } : {}),
           events: events.map((e) => ({
             id: e.id,
             eventType: e.eventType,

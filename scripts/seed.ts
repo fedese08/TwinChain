@@ -18,6 +18,7 @@ loadEnvConfig(process.cwd());
 
 import * as schema from "../src/lib/db/schema";
 import { ensureRoles } from "../src/lib/db/roles";
+import { toKTableRows } from "../src/lib/data/mappers";
 import {
   seedChains,
   seedEdges,
@@ -179,12 +180,7 @@ async function main() {
         seedResults.map((r, i) => ({
           escenarioId: scenarioIds.get(r.scenarioId)!,
           fechaCorrida: r.runDate,
-          tablaK: r.kTable.map((row) => ({
-            k: row.k,
-            umbral_mediana: row.thresholdMedian,
-            umbral_min: row.thresholdLow,
-            umbral_max: row.thresholdHigh,
-          })),
+          tablaK: toKTableRows(r.kTable),
           replicas: r.replications,
           semilla: r.seed,
           semanaReconfiguracion: r.reconfigurationWeekIndex,

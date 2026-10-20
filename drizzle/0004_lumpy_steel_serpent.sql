@@ -1,0 +1,1 @@
+ALTER TABLE "escenarios" ADD COLUMN "semana_decision" date;

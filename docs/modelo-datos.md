@@ -271,3 +271,12 @@ Ver `CLAUDE.md` para el estado de avance del código frente a este modelo.
   (`src/lib/plans.ts`). El plan es por organización —el cliente que paga—; los usuarios lo heredan al pertenecer a ella.
   No hay entidad de facturación: es un prototipo y no hay cobro real.
 
+## Columnas `app:` agregadas por el motor de la tesis (migración 0004)
+
+- `escenarios.semana_decision` (date, nullable): la semana de la decisión de reconfigurar (`s_r`). Null = simulación
+  manual (`s_r` es el inicio del primer evento); con valor = simulación desde una alerta (`s_r` es la semana siguiente a
+  la detección, y las semanas observadas entre el inicio del desvío y `s_r` no entran en el umbral).
+- `resultados.tabla_k` (JSONB) ahora lleva una fila por **fracción de propagación** y por costo `k`:
+  `{k, fraccion, cruzan, umbral_mediana, umbral_min (p10), umbral_max (p90)}`; `null` en el umbral = "no cruza". Las
+  filas anteriores (sin `fraccion`) siguen siendo válidas.
+

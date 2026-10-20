@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { ScenarioComparisonChart } from "@/components/charts/scenario-comparison-chart";
 import { adaptForEngine } from "@/lib/domain/units";
-import { runScenarioSimulation } from "@/lib/domain/simulate";
+import { replayRun } from "@/lib/domain/simulate";
 import { EVENT_TYPE_LABELS } from "@/lib/validators/scenario";
 import { useAppStore } from "@/stores/app-store";
 import { cn } from "@/lib/utils";
@@ -55,28 +55,20 @@ export default function CompareScenariosPage() {
       // Los Vendedor con datos reales están en días: el motor los recibe en escala relativa (domain/units.ts).
       const adapter = adaptForEngine(chainNodes, weeklyPerformance);
       const outcome = lastRun
-        ? runScenarioSimulation(
-            chainNodes,
-            chainEdges,
-            scenarioEvents,
-            adapter.rows,
-            scenario.projectionHorizonWeeks,
-            {
-              seed: lastRun.seed,
-              replications: lastRun.replications,
-              reconfigurationWeekIndex: lastRun.reconfigurationWeekIndex,
-            },
-          )
+        ? replayRun({
+            nodes: chainNodes,
+            edges: chainEdges,
+            events: scenarioEvents,
+            rows: adapter.rows,
+            horizonWeeks: scenario.projectionHorizonWeeks,
+            decisionWeek: scenario.decisionWeek,
+            run: lastRun,
+          })
         : null;
 
-      const perWeek: number[] = [];
-      for (let w = 0; w < scenario.projectionHorizonWeeks; w++) {
-        let total = 0;
-        for (const weeks of outcome?.projectionByNode.values() ?? []) total += weeks[w]?.deficit ?? 0;
-        perWeek.push(total / 100);
-      }
-
-      const badWeeks = (outcome?.totalDeficit.median ?? 0) / 100;
+      // Pérdida de operación por semana, en semanas equivalentes (la suma de los déficits relativos de la red).
+      const perWeek = outcome?.weeklyLoss ?? [];
+      const badWeeks = outcome?.totalDeficit.median ?? 0;
       const firstAffectedWeek = perWeek.findIndex((v) => v > 0);
       const peakWeek = perWeek.reduce((best, v, idx) => (v > perWeek[best] ? idx : best), 0);
 
@@ -89,8 +81,8 @@ export default function CompareScenariosPage() {
         events: scenarioEvents,
         affectedNode,
         badWeeks,
-        badWeeksLow: (outcome?.totalDeficit.low ?? 0) / 100,
-        badWeeksHigh: (outcome?.totalDeficit.high ?? 0) / 100,
+        badWeeksLow: outcome?.totalDeficit.low ?? 0,
+        badWeeksHigh: outcome?.totalDeficit.high ?? 0,
         perWeek,
         firstAffectedWeek,
         peakWeek,

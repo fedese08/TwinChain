@@ -116,22 +116,34 @@ export interface Scenario {
   /** Identificador legible en listados. Metadata de UI, no del modelo formal. */
   name: string;
   createdAt: string;
+  /**
+   * Semana de la decisión de reconfigurar (s_r). Ausente = simulación manual: s_r es el inicio del primer evento.
+   * Presente = simulación desde una alerta: s_r es la semana siguiente a la detección, y las semanas observadas
+   * entre el inicio del desvío y s_r son pasado que no entra en el umbral.
+   */
+  decisionWeek?: string;
 }
 
 /**
- * Una fila de tabla_k. El umbral no es un valor único sino la mediana sobre las réplicas
- * estocásticas de la corrida, acompañada del rango observado (RF029: mediana y rango, nunca
- * un valor puntual). `null` en los tres campos = a partir de este k ya no existe umbral.
+ * Una fila de tabla_k: para un costo de reconfigurar `k` (en semanas de operar como ahora) y una fracción de
+ * propagación `c`, cuántas semanas de persistencia hacen falta para que reconfigurar se pague (N(k)).
+ * El umbral no es un valor único sino la mediana sobre las réplicas, con el rango entre los percentiles 10 y 90
+ * (RF029). Una réplica en la que la pérdida evitable nunca alcanza el costo se ordena como +∞.
+ * `thresholdMedian = null` = la mediana es +∞, es decir, "no cruza" en el horizonte.
  */
 export interface KTableRow {
-  /** k — costo de reconfigurar, en semanas malas equivalentes. */
+  /** k — costo de reconfigurar, en semanas de operar como ahora. */
   k: number;
-  /** Mediana del umbral sobre las réplicas. */
+  /** Fracción de propagación `c` de esta fila. Ausente en las corridas anteriores a la tabla por fracción. */
+  propagationFraction?: number;
+  /** Mediana de N(k) sobre las réplicas, en semanas desde la decisión. `null` = no cruza. */
   thresholdMedian: number | null;
-  /** Extremo inferior del rango observado entre réplicas. */
+  /** Percentil 10 de N(k). `null` si ya es +∞. */
   thresholdLow: number | null;
-  /** Extremo superior del rango observado entre réplicas. */
+  /** Percentil 90 de N(k). `null` si es +∞ (hay réplicas que no cruzan). */
   thresholdHigh: number | null;
+  /** Fracción (0 a 1) de las réplicas en que la pérdida evitable sí alcanza el costo dentro del horizonte. */
+  crossingShare?: number;
 }
 
 /**

@@ -1,5 +1,11 @@
 # Rendimiento del motor de simulación
 
+> **Nota (octubre de 2026):** este documento mide el motor anterior (recorrido de caminos con poda por dominancia). El
+> motor actual propaga con una recurrencia semanal (`docs/definiciones-motor.md`) y es mucho más liviano: con
+> `scripts/bench-engine.ts --quick`, 300 nodos conectados todos con todos y 16 semanas tardan 0,25 s (antes 4,7 s), y
+> una red en capas de 300 nodos con 52 semanas, 0,23 s. `MAX_SIMULATION_WORK` se recalibró a 1.000 M de unidades. Las
+> cifras de abajo ya no valen para el código actual; quedan como registro del hallazgo y del arreglo.
+
 Respuesta al pedido "Prueba de rendimiento del motor": hasta cuántos nodos corre el motor sin romperse y cuánto cuesta
 una ejecución, para fijar el tope de nodos de Max y el costo de cada tier.
 

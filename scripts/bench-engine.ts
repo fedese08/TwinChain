@@ -14,6 +14,7 @@
 import { spawnSync } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
+import { toKTableRows } from "../src/lib/data/mappers";
 import { createRng } from "../src/lib/domain/rng";
 import { runScenarioSimulation } from "../src/lib/domain/simulate";
 import type { DisruptionEvent, SupplyChainEdge, WeeklyPerformance } from "../src/lib/domain/types";
@@ -108,7 +109,7 @@ function buildNetwork(config: Config) {
     }
   }
 
-  // Peor caso: magnitud máxima sobre la raíz, para que el piso de propagación corte lo más tarde posible.
+  // Peor caso: magnitud máxima sobre la raíz, para que el golpe llegue a toda la red.
   const events: DisruptionEvent[] = [
     { id: "e0", scenarioId: "s0", nodeId: ids[0], eventType: "corte", startDate: mondayIso(0), magnitude: 100 },
   ];
@@ -134,12 +135,7 @@ function runChild(config: Config): Measurement {
     id: crypto.randomUUID(),
     escenarioId: crypto.randomUUID(),
     fechaCorrida: "2026-10-05",
-    tablaK: outcome.kTable.map((r) => ({
-      k: r.k,
-      umbral_mediana: r.thresholdMedian,
-      umbral_min: r.thresholdLow,
-      umbral_max: r.thresholdHigh,
-    })),
+    tablaK: toKTableRows(outcome.kTable),
     replicas: outcome.replications,
     semilla: outcome.seed,
     semanaReconfiguracion: outcome.reconfigurationWeekIndex,

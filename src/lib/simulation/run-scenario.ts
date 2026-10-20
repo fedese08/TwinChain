@@ -6,21 +6,22 @@ import { asc, eq, inArray } from "drizzle-orm";
 import { toEdge, toKTableRows, toNode, toWeeklyPerformance } from "@/lib/data/mappers";
 import { aristas, desempenoSemanal, nodos, type Database, type ResultadoRow } from "@/lib/db";
 import { hashSeed } from "@/lib/domain/rng";
-import { estimateSimulationWork, runScenarioSimulation } from "@/lib/domain/simulate";
+import { estimateSimulationWork, observedForScenario, runScenarioSimulation } from "@/lib/domain/simulate";
 import type { DisruptionEvent } from "@/lib/domain/types";
 import { adaptForEngine } from "@/lib/domain/units";
 
 /**
- * Tope de trabajo de una corrida, en las unidades de `estimateSimulationWork`.
+ * Tope de trabajo de una corrida, en las unidades de `estimateSimulationWork`
+ * (réplicas × fracciones × 3 pasadas × semanas × (aristas + nodos alcanzados)).
  *
- * Calibrado en docs/rendimiento-motor.md: localmente cada unidad cuesta entre 74 y 730 ns según
- * la topología. 50 M unidades son ≤ ~37 s en esa máquina y, suponiendo una CPU de Vercel hasta 3
- * veces más lenta, ≤ ~110 s: por debajo de la mitad de `maxDuration` (300 s, plan Hobby), que es el
- * margen que pide el criterio del tope de Max. Con los límites actuales (50 nodos, 20 eventos, 52
- * semanas, 30 réplicas) el peor caso posible ronda los 3 M: este tope no se dispara hoy, protege
- * para cuando suban los nodos por plan o las réplicas (200-300, C36).
+ * Calibrado con `scripts/bench-engine.ts` sobre el motor de recurrencia semanal: una unidad cuesta ~1,3 ns en una
+ * Apple M4 (300 nodos conectados todos con todos, 16 semanas: 195 M unidades en 0,25 s) y ~3,3 veces más en Vercel
+ * (docs/rendimiento-motor-vercel.md). Con 1.000 M de unidades el peor caso admitido son ~1,3 s locales y ~4,3 s en
+ * Vercel: muy por debajo de la mitad de `maxDuration` (300 s, plan Hobby). Con los topes del plan Max (100 nodos,
+ * 52 semanas) el peor caso posible ronda los 140 M: este control no se dispara hoy, protege contra una red
+ * desproporcionada y contra los topes que suban después.
  */
-export const MAX_SIMULATION_WORK = 50_000_000;
+export const MAX_SIMULATION_WORK = 1_000_000_000;
 
 /** La corrida se rechaza ANTES de ejecutarla porque costaría más de lo que admite el servidor. */
 export class SimulationTooLargeError extends Error {
@@ -55,6 +56,8 @@ export async function runScenarioOnChain(
     horizonWeeks: number;
     events: DisruptionEvent[];
     reconfigurationWeekIndex: number | null;
+    /** Semana de la decisión (s_r) de una simulación desde una alerta; ausente = simulación manual. */
+    decisionWeek?: string | null;
   },
 ): Promise<NewResult> {
   const nodeRows = await db.select().from(nodos).where(eq(nodos.cadenaId, input.chainId));
@@ -68,7 +71,10 @@ export async function runScenarioOnChain(
     : [[], []];
 
   const edges = edgeRows.map(toEdge);
-  if (estimateSimulationWork(edges, input.events, input.horizonWeeks) > MAX_SIMULATION_WORK) {
+  const decisionWeek = input.decisionWeek ?? undefined;
+  // Las semanas observadas antes de s_r también se propagan: cuentan para el costo de la corrida.
+  const pastWeeks = decisionWeek ? Math.max(0, ...input.events.map((e) => Math.round((Date.parse(decisionWeek) - Date.parse(e.startDate)) / (7 * 86400000)))) : 0;
+  if (estimateSimulationWork(edges, input.events, input.horizonWeeks, undefined, pastWeeks) > MAX_SIMULATION_WORK) {
     throw new SimulationTooLargeError();
   }
 
@@ -88,7 +94,12 @@ export async function runScenarioOnChain(
     input.events,
     adapter.rows,
     input.horizonWeeks,
-    { seed, reconfigurationWeekIndex: input.reconfigurationWeekIndex },
+    {
+      seed,
+      reconfigurationWeekIndex: input.reconfigurationWeekIndex,
+      decisionWeek,
+      observed: observedForScenario(adapter.rows, input.events, decisionWeek),
+    },
   );
 
   return {
@@ -96,7 +107,7 @@ export async function runScenarioOnChain(
     escenarioId: input.scenarioId,
     fechaCorrida: new Date().toISOString().slice(0, 10),
     tablaK: toKTableRows(outcome.kTable),
-    replicas: outcome.replications,
+    replicas: outcome.replications, // por fracción de propagación
     semilla: seed,
     semanaReconfiguracion: outcome.reconfigurationWeekIndex,
   };

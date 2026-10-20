@@ -1,12 +1,13 @@
 "use client";
 
-import { use, useCallback, useMemo, useRef, useState } from "react";
+import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { ChainCanvas } from "@/components/canvas/chain-canvas";
 import { DeleteChainButton } from "@/components/canvas/delete-chain-dialog";
 import { LiveMonitorControl } from "@/components/canvas/live-monitor-control";
 import { ScenarioForm, type ScenarioFormHandle } from "@/components/scenario/scenario-form";
 import { useChainStatus } from "@/hooks/use-chain-status";
+import { deriveAlertScenario, type AlertScenarioInputs } from "@/lib/domain/detection";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/stores/app-store";
 
@@ -23,6 +24,24 @@ export default function ChainDetailPage({ params }: { params: Promise<{ chainId:
   const canWrite = useAppStore((s) => s.canWrite);
   const nodes = useAppStore((s) => s.nodes);
   const chainNodes = useMemo(() => nodes.filter((n) => n.chainId === chainId), [nodes, chainId]);
+
+  // Llegar con ?alerta=<nodo> (desde el inspector de un nodo marcado) abre la simulación con las entradas derivadas.
+  const weeklyPerformance = useAppStore((s) => s.weeklyPerformance);
+  const [alertNodeId, setAlertNodeId] = useState<string | null>(null);
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get("alerta");
+    if (id) {
+      setAlertNodeId(id);
+      setMode("simulate");
+    }
+  }, []);
+  // Las entradas se fijan una vez: si el monitoreo avanza mientras se arma la simulación, no se pisa lo cargado.
+  const [alertSeed, setAlertSeed] = useState<AlertScenarioInputs | null>(null);
+  useEffect(() => {
+    if (!alertNodeId) return setAlertSeed(null);
+    if (alertSeed?.nodeId === alertNodeId) return;
+    setAlertSeed(deriveAlertScenario(weeklyPerformance.filter((w) => w.nodeId === alertNodeId)));
+  }, [alertNodeId, alertSeed, weeklyPerformance]);
 
   const handleNodeSelect = useCallback((nodeId: string) => {
     scenarioFormRef.current?.selectNode(nodeId);
@@ -118,6 +137,8 @@ export default function ChainDetailPage({ params }: { params: Promise<{ chainId:
             chainId={chainId}
             chainNodes={chainNodes}
             onSelectedNodeChange={setSelectedNodeId}
+            alertSeed={alertSeed}
+            onClearAlert={() => setAlertNodeId(null)}
           />
           <div className="flex min-w-0 flex-1">
             <ChainCanvas chainId={chainId} mode="select" selectedNodeIds={highlightedNodeIds} onNodeSelect={handleNodeSelect} />

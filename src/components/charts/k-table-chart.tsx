@@ -3,18 +3,20 @@
 import { Bar, BarChart, CartesianGrid, Cell, ErrorBar, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import type { KTableRow } from "@/lib/domain/types";
 
+/** Umbral N(k) por costo k, de UNA fracción de propagación: mediana y rango entre los percentiles 10 y 90 (RF029). */
 export function KTableChart({ rows }: { rows: KTableRow[] }) {
   const data = rows.map((r) => ({
     k: `k=${r.k}`,
     umbral: r.thresholdMedian ?? 0,
     existe: r.thresholdMedian !== null,
-    // Offsets hacia cada extremo del rango observado entre réplicas (RF029).
+    // Offsets hacia cada extremo del rango entre réplicas. Si el p90 no cruza, solo se dibuja el tramo inferior.
     rango:
-      r.thresholdMedian !== null && r.thresholdLow !== null && r.thresholdHigh !== null
-        ? ([r.thresholdMedian - r.thresholdLow, r.thresholdHigh - r.thresholdMedian] as [number, number])
+      r.thresholdMedian !== null && r.thresholdLow !== null
+        ? ([r.thresholdMedian - r.thresholdLow, r.thresholdHigh !== null ? r.thresholdHigh - r.thresholdMedian : 0] as [number, number])
         : ([0, 0] as [number, number]),
     low: r.thresholdLow,
     high: r.thresholdHigh,
+    share: r.crossingShare,
   }));
 
   return (
@@ -25,14 +27,15 @@ export function KTableChart({ rows }: { rows: KTableRow[] }) {
         <YAxis tick={{ fontSize: 10, fill: "#9aa4b3" }} width={28} axisLine={false} tickLine={false} />
         <Tooltip
           contentStyle={{ fontSize: 11, borderRadius: 8, border: "1px solid #e4e8ef" }}
-          formatter={(value, _name, item) =>
-            item?.payload?.existe
-              ? [
-                  `${Number(value).toFixed(1)} (rango ${Number(item.payload.low).toFixed(1)}–${Number(item.payload.high).toFixed(1)})`,
-                  "umbral mediano",
-                ]
-              : ["no existe umbral", ""]
-          }
+          formatter={(value, _name, item) => {
+            const p = item?.payload;
+            if (!p?.existe) {
+              const share = p?.share !== undefined ? ` (cruza en el ${Math.round(p.share * 100)} % de las réplicas)` : "";
+              return [`no cruza en el horizonte${share}`, ""];
+            }
+            const range = `${p.low !== null ? Number(p.low).toFixed(1) : "—"}–${p.high !== null ? Number(p.high).toFixed(1) : "no cruza"}`;
+            return [`semana ${Number(value).toFixed(1)} (p10–p90: ${range})`, "umbral mediano"];
+          }}
         />
         <Bar dataKey="umbral" radius={[3, 3, 0, 0]}>
           {data.map((d, i) => (

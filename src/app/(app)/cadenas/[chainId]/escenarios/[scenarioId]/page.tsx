@@ -12,7 +12,17 @@ import { SimulationIntro } from "@/components/scenario/simulation-intro";
 import { KTableChart } from "@/components/charts/k-table-chart";
 import { ChainCanvas } from "@/components/canvas/chain-canvas";
 import { Button } from "@/components/ui/button";
-import { classifySeverity, runScenarioSimulation, type ProjectedWeek, type Severity } from "@/lib/domain/simulate";
+import {
+  classifySeverity,
+  observedForScenario,
+  replayRun,
+  runScenarioSimulation,
+  shareWorthwhile,
+  thresholdAtK,
+  type ProjectedWeek,
+  type Severity,
+} from "@/lib/domain/simulate";
+import { CENTRAL_PROPAGATION_FRACTION, fractionsOf, PROPAGATION_FRACTIONS, rowsForFraction } from "@/lib/domain/k-table";
 import { formatWeekLabel } from "@/lib/domain/dates";
 import { adaptForEngine, type EngineAdapter } from "@/lib/domain/units";
 import { hashSeed } from "@/lib/domain/rng";
@@ -105,10 +115,14 @@ export default function ScenarioResultPage({
   // mismo resultado que el que quedó registrado.
   const outcome = useMemo(() => {
     if (!scenario || !result) return null;
-    return runScenarioSimulation(chainNodes, chainEdges, events, adapter.rows, scenario.projectionHorizonWeeks, {
-      seed: result.seed,
-      replications: result.replications,
-      reconfigurationWeekIndex: result.reconfigurationWeekIndex,
+    return replayRun({
+      nodes: chainNodes,
+      edges: chainEdges,
+      events,
+      rows: adapter.rows,
+      horizonWeeks: scenario.projectionHorizonWeeks,
+      decisionWeek: scenario.decisionWeek,
+      run: result,
     });
   }, [chainNodes, chainEdges, events, adapter, scenario, result]);
 
@@ -133,6 +147,8 @@ export default function ScenarioResultPage({
     return runScenarioSimulation(chainNodes, chainEdges, events, adapter.rows, scenario.projectionHorizonWeeks, {
       seed: hashSeed(scenario.id),
       replications: 12,
+      decisionWeek: scenario.decisionWeek,
+      observed: observedForScenario(adapter.rows, events, scenario.decisionWeek),
     });
   }, [chainNodes, chainEdges, events, adapter, scenario, playingIntro]);
 
@@ -145,27 +161,14 @@ export default function ScenarioResultPage({
   );
 
   /**
-   * Déficit total de la red semana a semana y, para cada semana, cuánta pérdida te AHORRA
-   * reconfigurar en ese momento (la que todavía no ocurrió). Es la magnitud que se compara
-   * contra el costo de reconfigurar: ambas están en semanas malas equivalentes.
+   * Pérdida de la red semana a semana (suma de los déficits relativos, en semanas equivalentes) y, para cada
+   * semana, cuánta pérdida se puede todavía evitar reconfigurando en ese momento. Es la magnitud que se compara
+   * contra el costo de reconfigurar: ambas están en las mismas unidades (K = k·d0).
    */
-  const weekly = useMemo(() => {
-    const horizon = scenario?.projectionHorizonWeeks ?? 0;
-    const perWeek: number[] = [];
-    for (let i = 0; i < horizon; i++) {
-      let total = 0;
-      for (const weeks of propagation.values()) total += weeks[i]?.deficit ?? 0;
-      perWeek.push(total);
-    }
-
-    const avoidableFromWeek: number[] = new Array(horizon).fill(0);
-    let remaining = 0;
-    for (let i = horizon - 1; i >= 0; i--) {
-      remaining += perWeek[i];
-      avoidableFromWeek[i] = remaining / 100;
-    }
-    return { perWeek, avoidableFromWeek };
-  }, [propagation, scenario]);
+  const weekly = useMemo(
+    () => ({ perWeek: outcome?.weeklyLoss ?? [], avoidableFromWeek: outcome?.avoidableFromWeek ?? [] }),
+    [outcome],
+  );
 
   const peakWeekIndex = useMemo(() => {
     let bestIndex = 0;
@@ -184,6 +187,8 @@ export default function ScenarioResultPage({
   const effectiveWeekIndex = Math.min(weekIndex, (scenario?.projectionHorizonWeeks ?? 1) - 1);
   /** Costo de reconfigurar que asume el usuario, en semanas malas equivalentes (k). */
   const [assumedK, setAssumedK] = useState(3);
+  /** Fracción de propagación `c` cuya tabla k se muestra en el detalle. */
+  const [kFraction, setKFraction] = useState<number>(CENTRAL_PROPAGATION_FRACTION);
 
   const severityByNode = useMemo(() => {
     const map: Record<string, Severity> = {};
@@ -226,7 +231,7 @@ export default function ScenarioResultPage({
     const anyProjection = [...propagation.values()][0] ?? [];
     return weekly.perWeek.map((total, i) => ({
       weekStart: anyProjection[i]?.weekStart ?? "",
-      lost: total / 100,
+      lost: total,
     }));
   }, [weekly, propagation]);
 
@@ -267,42 +272,47 @@ export default function ScenarioResultPage({
     );
   }
 
-  const badWeeks = outcome.totalDeficit.median / 100;
-  const badWeeksLow = outcome.totalDeficit.low / 100;
-  const badWeeksHigh = outcome.totalDeficit.high / 100;
+  const badWeeks = outcome.totalDeficit.median;
+  const badWeeksLow = outcome.totalDeficit.low;
+  const badWeeksHigh = outcome.totalDeficit.high;
   const impact = classifyImpact(badWeeks, scenario.projectionHorizonWeeks);
   const reconfigured = result.reconfigurationWeekIndex !== null;
 
   const firstAffectedWeek = weekly.perWeek.findIndex((total) => total > 0);
   const weeksInDeficit = weekly.perWeek.filter((total) => total > 0).length;
 
-  // ¿Conviene reconfigurar con el costo que asume el usuario? Comparación directa, en la misma
-  // unidad: lo que te ahorra reconfigurar ahora contra lo que cuesta hacerlo (k).
-  //
-  // No se usa `tabla_k` para esto a propósito: su fórmula actual (mock) hace que el umbral BAJE
-  // cuando k sube, así que dispararía la recomendación al revés. Ver la nota en simulate.ts.
+  // ¿Conviene reconfigurar con el costo que asume el usuario? k es el costo en SEMANAS DE OPERAR COMO AHORA; en las
+  // unidades de la pérdida vale K = k·d0, con d0 el déficit semanal del nodo afectado. Reconfigurar se paga si la
+  // pérdida evitable acumulada E(H) alcanza K. La misma regla define el umbral N(k) de la tabla (docs/definiciones-motor.md).
+  const d0 = outcome.d0;
   const avoidableNow = weekly.avoidableFromWeek[0] ?? 0;
-  // El tope del costo escala con la pérdida del propio escenario. Con un máximo fijo (10), en un
-  // escenario que pierde más que eso el veredicto quedaba clavado en "sí conviene" para cualquier
-  // posición del slider: nunca se podía plantear un costo mayor a la pérdida evitable.
-  const kMax = Math.max(10, Math.ceil(avoidableNow * 1.5));
+  const breakEvenK = outcome.breakEvenKs[Math.floor(outcome.breakEvenKs.length / 2)] ?? 0;
+  // El tope del control escala con el k_max del propio escenario: con uno fijo, un escenario que pierde mucho
+  // quedaba clavado en "sí conviene" para cualquier posición.
+  const kMax = Math.max(10, Math.ceil(breakEvenK * 1.5));
   const effectiveK = Math.min(assumedK, kMax);
-  const worthReconfiguring = avoidableNow >= effectiveK;
-  // Último momento en que reconfigurar todavía se paga solo: después, lo que queda por evitar
-  // ya no alcanza a cubrir el costo.
+  const worthShare = shareWorthwhile(outcome.breakEvenKs, effectiveK);
+  const worthReconfiguring = worthShare > 0.5;
+  const costNow = effectiveK * d0;
+  const threshold = thresholdAtK(outcome.replicaCurves, effectiveK, CENTRAL_PROPAGATION_FRACTION);
+  // Último momento en que reconfigurar todavía se paga solo: después, lo que queda por evitar ya no alcanza el costo.
   const lastWorthwhileWeek = weekly.avoidableFromWeek.reduce(
-    (last, avoidable, i) => (avoidable >= effectiveK ? i : last),
+    (last, avoidable, i) => (avoidable >= costNow ? i : last),
     -1,
   );
-  // Qué porción de la pérdida evitable se lleva el costo de reconfigurar. Se prefiere a
-  // `avoidableNow / effectiveK`, que saturaba en 100% apenas convenía y dejaba la barra siempre
-  // llena: así se ve cuánto margen queda.
-  const costShareOfAvoidable = avoidableNow > 0 ? Math.min(1, effectiveK / avoidableNow) : 1;
-  // Posición del punto de equilibrio sobre el riel del slider. Solo se dibuja si cae dentro del
-  // rango: con una pérdida menor a 1 semana no hay nada que señalar.
-  const showBreakEven = avoidableNow >= 1 && avoidableNow <= kMax;
-  const breakEvenPct = ((avoidableNow - 1) / Math.max(1, kMax - 1)) * 100;
+  // Qué porción de la pérdida evitable se lleva el costo de reconfigurar, para ver cuánto margen queda.
+  const costShareOfAvoidable = avoidableNow > 0 ? Math.min(1, costNow / avoidableNow) : 1;
+  // Posición de k_max sobre el riel del slider; solo se dibuja si cae dentro del rango.
+  const showBreakEven = breakEvenK >= 1 && breakEvenK <= kMax;
+  const breakEvenPct = ((breakEvenK - 1) / Math.max(1, kMax - 1)) * 100;
   const breakEvenLeft = `calc(${breakEvenPct}% + ${(8 - (breakEvenPct / 100) * 16).toFixed(2)}px)`;
+  const observedWeeks = outcome.observedWeeks;
+
+  // La tabla guardada con la corrida; las corridas anteriores a la tabla por fracción no la traen y se recalcula.
+  const storedFractions = fractionsOf(result.kTable);
+  const sourceTable = storedFractions.length > 0 ? result.kTable : outcome.kTable;
+  const tableFractions = fractionsOf(sourceTable);
+  const tableRows = rowsForFraction(sourceTable, tableFractions.includes(kFraction) ? kFraction : CENTRAL_PROPAGATION_FRACTION);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-background">
@@ -383,7 +393,7 @@ export default function ScenarioResultPage({
                   {badWeeks.toFixed(1)}
                 </span>
                 <span className="text-[17px] leading-snug font-medium">
-                  semanas de operación perdidas en {scenario.projectionHorizonWeeks} semanas
+                  semanas de operación perdidas, sumando todos los nodos, en {scenario.projectionHorizonWeeks} semanas
                 </span>
               </div>
 
@@ -420,9 +430,18 @@ export default function ScenarioResultPage({
             <div className="rounded-2xl border border-border bg-card p-5">
               <div className="text-[15px] font-medium">¿Conviene reconfigurar?</div>
               <div className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
-                Depende de cuánto te cueste hacerlo. Ese costo se mide en la misma unidad que la pérdida: semanas de
-                operación equivalentes.
+                Depende de cuánto te cueste hacerlo. Ese costo se mide en semanas de operar como ahora: reconfigurar
+                cuesta lo que perderías en esas semanas con el problema actual.
               </div>
+              {observedWeeks > 0 && (
+                <div className="mt-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-[11.5px] leading-relaxed text-muted-foreground">
+                  Esta simulación parte de una alerta: el desvío ya lleva{" "}
+                  <span className="font-medium text-foreground">
+                    {observedWeeks} {observedWeeks === 1 ? "semana" : "semanas"}
+                  </span>{" "}
+                  observadas. Son pasado: no cuentan para el umbral, que se mide desde la decisión.
+                </div>
+              )}
 
               <div className="mt-4 flex items-start gap-3">
                 <span className="mt-0.5 flex-none font-mono text-[10.5px] text-muted-foreground">
@@ -451,7 +470,7 @@ export default function ScenarioResultPage({
                         className="pointer-events-none absolute top-[19px] -translate-x-1/2 whitespace-nowrap font-mono text-[9.5px] text-muted-foreground"
                         style={{ left: breakEvenLeft }}
                       >
-                        deja de convenir en {avoidableNow.toFixed(1)}
+                        deja de convenir en {breakEvenK.toFixed(1)}
                       </span>
                     </>
                   )}
@@ -486,7 +505,27 @@ export default function ScenarioResultPage({
                       <>
                         Reconfigurando ahora evitás{" "}
                         <span className="font-medium text-foreground">{avoidableNow.toFixed(1)} semanas</span> de
-                        pérdida, contra un costo de {effectiveK}.
+                        pérdida, contra un costo de {costNow.toFixed(1)} ({effectiveK}{" "}
+                        {effectiveK === 1 ? "semana" : "semanas"} de operar como ahora).
+                        {threshold.median !== null && (
+                          <>
+                            {" "}
+                            Se paga si el problema dura{" "}
+                            <span className="font-medium text-foreground">
+                              {threshold.median.toFixed(1)} {threshold.median === 1 ? "semana" : "semanas"}
+                            </span>{" "}
+                            o más desde la decisión
+                            {threshold.low !== null && threshold.high !== null && threshold.low !== threshold.high && (
+                              <> (entre {threshold.low.toFixed(1)} y {threshold.high.toFixed(1)} según las réplicas)</>
+                            )}
+                            {observedWeeks > 0 && threshold.median !== null && (
+                              <>
+                                ; desde que empezó el desvío, {(observedWeeks + threshold.median).toFixed(1)} semanas en total
+                              </>
+                            )}
+                            .
+                          </>
+                        )}
                         {lastWorthwhileWeek >= 0 && lastWorthwhileWeek + 1 < scenario.projectionHorizonWeeks && (
                           <>
                             {" "}
@@ -498,10 +537,13 @@ export default function ScenarioResultPage({
                       </>
                     ) : (
                       <>
-                        Reconfigurar cuesta {effectiveK}{" "}
-                        {effectiveK === 1 ? "semana" : "semanas"} y en todo el horizonte solo evitarías{" "}
-                        <span className="font-mono">{avoidableNow.toFixed(1)}</span>. Sale más caro el remedio que la
-                        enfermedad.
+                        Reconfigurar cuesta {costNow.toFixed(1)} ({effectiveK}{" "}
+                        {effectiveK === 1 ? "semana" : "semanas"} de operar como ahora) y en todo el horizonte solo
+                        evitarías <span className="font-mono">{avoidableNow.toFixed(1)}</span>. Sale más caro el
+                        remedio que la enfermedad.
+                        {worthShare > 0 && (
+                          <> Aun así, se paga en el {Math.round(worthShare * 100)} % de las réplicas.</>
+                        )}
                       </>
                     )}
                   </div>
@@ -520,7 +562,7 @@ export default function ScenarioResultPage({
                       />
                     </div>
                     <div className="mt-1 flex justify-between font-mono text-[9.5px] text-muted-foreground">
-                      <span>cuesta {effectiveK.toFixed(1)}</span>
+                      <span>cuesta {costNow.toFixed(1)}</span>
                       <span>evitás {avoidableNow.toFixed(1)}</span>
                     </div>
                   </div>
@@ -575,7 +617,7 @@ export default function ScenarioResultPage({
                   {
                     label: "Peor momento",
                     value: `semana ${peakWeekIndex + 1}`,
-                    note: `se pierde ${((weekly.perWeek[peakWeekIndex] ?? 0) / 100).toFixed(2)} de semana`,
+                    note: `se pierde ${(weekly.perWeek[peakWeekIndex] ?? 0).toFixed(2)} de semana`,
                   },
                   {
                     label: "Cuánto dura",
@@ -625,7 +667,7 @@ export default function ScenarioResultPage({
               <div className="mb-2.5 text-[13.5px] font-medium">Ficha de la corrida</div>
               <div className="grid grid-cols-4 gap-2 font-mono text-[11px]">
                 {[
-                  { k: "réplicas", v: `${result.replications}` },
+                  { k: "réplicas", v: `${result.replications} × ${PROPAGATION_FRACTIONS.length} fracciones` },
                   { k: "semilla", v: `${result.seed}` },
                   { k: "fecha", v: result.runDate },
                   {
@@ -640,9 +682,12 @@ export default function ScenarioResultPage({
                 ))}
               </div>
               <div className="mt-2.5 text-[11px] leading-relaxed text-muted-foreground">
-                Cada corrida barre {result.replications} réplicas variando la línea base dentro de su banda de
-                incertidumbre y la fracción de déficit que se traslada por arista. Lo que se reporta es la mediana y
-                el rango observado, nunca un valor puntual. La semilla permite reproducir esta corrida exactamente.
+                Cada corrida barre {result.replications} réplicas por cada una de las {PROPAGATION_FRACTIONS.length}{" "}
+                fracciones de déficit que se traslada por arista (supuesto del modelo, sin calibrar), sorteando en cada
+                réplica una posición dentro de la banda de incertidumbre de la línea base (la misma para todos los nodos y
+                para mantener o reconfigurar). Lo que se reporta es la mediana y el rango
+                entre los percentiles 10 y 90, nunca un valor puntual. La semilla permite reproducir esta corrida
+                exactamente.
               </div>
               {runs.length > 1 && (
                 <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t border-border pt-3">
@@ -686,13 +731,35 @@ export default function ScenarioResultPage({
             </div>
 
             <div className="rounded-xl border border-border bg-card p-4">
-              <div className="mb-2 flex items-baseline justify-between">
+              <div className="mb-1 flex items-baseline justify-between gap-3">
                 <span className="text-[13.5px] font-medium">Tabla k — costo de reconfigurar vs. umbral</span>
-                <span className="font-mono text-[10.5px] text-muted-foreground">mediana y rango sobre réplicas</span>
+                <span className="font-mono text-[10.5px] text-muted-foreground">mediana y p10–p90 sobre réplicas</span>
               </div>
-              <KTableChart rows={result.kTable} />
+              <div className="mb-2 text-[11px] leading-relaxed text-muted-foreground">
+                Cada celda es N(k): las semanas de persistencia, contadas desde la decisión, a partir de las cuales la
+                pérdida evitable alcanza el costo k (en semanas de operar como ahora). &quot;No cruza&quot; = el costo no
+                se recupera dentro del horizonte.
+              </div>
+              <div className="mb-2 flex flex-wrap items-center gap-1.5">
+                <span className="font-mono text-[10px] text-muted-foreground">fracción de propagación c</span>
+                {tableFractions.map((c) => (
+                  <button
+                    key={c}
+                    onClick={() => setKFraction(c)}
+                    className={cn(
+                      "rounded border px-2 py-0.5 font-mono text-[10px]",
+                      Math.abs(c - kFraction) < 1e-9
+                        ? "border-primary/50 bg-accent text-accent-foreground"
+                        : "border-border text-muted-foreground hover:bg-muted",
+                    )}
+                  >
+                    {c.toFixed(2)}
+                  </button>
+                ))}
+              </div>
+              <KTableChart rows={tableRows} />
               <div className="mt-3 grid grid-cols-5 gap-1.5 border-t border-border pt-3 font-mono text-[11px]">
-                {result.kTable.map((row) => (
+                {tableRows.map((row) => (
                   <div
                     key={row.k}
                     className={cn(
@@ -701,11 +768,13 @@ export default function ScenarioResultPage({
                     )}
                   >
                     <span className="text-muted-foreground">k={row.k}</span>
-                    <span className="font-medium">{row.thresholdMedian !== null ? row.thresholdMedian.toFixed(1) : "—"}</span>
+                    <span className="font-medium">{row.thresholdMedian !== null ? row.thresholdMedian.toFixed(1) : "no cruza"}</span>
                     <span className="text-[9.5px] text-muted-foreground">
-                      {row.thresholdLow !== null && row.thresholdHigh !== null
-                        ? `${row.thresholdLow.toFixed(1)}–${row.thresholdHigh.toFixed(1)}`
-                        : "sin umbral"}
+                      {row.thresholdMedian === null
+                        ? row.crossingShare !== undefined
+                          ? `cruza en ${Math.round(row.crossingShare * 100)} %`
+                          : "sin umbral"
+                        : `${row.thresholdLow !== null ? row.thresholdLow.toFixed(1) : "—"}–${row.thresholdHigh !== null ? row.thresholdHigh.toFixed(1) : "no cruza"}`}
                     </span>
                   </div>
                 ))}
@@ -715,7 +784,8 @@ export default function ScenarioResultPage({
             {[...directlyAffectedNodeIds, ...propagatedNodeIds].map((nodeId) => {
               const node = chainNodes.find((n) => n.id === nodeId);
               const projection = propagation.get(nodeId) ?? [];
-              const nodeDeficit = projection.reduce((sum, w) => sum + w.deficit, 0);
+              // Déficit relativo acumulado del nodo, en semanas equivalentes (Σ déficit / nivel normal).
+              const nodeDeficit = projection.reduce((sum, w) => sum + w.deficit, 0) / (projection[0]?.baseline || 100);
               const isDirect = directlyAffectedNodeIds.includes(nodeId);
               return (
                 <div key={nodeId} className="rounded-xl border border-border bg-card p-4">
@@ -725,7 +795,7 @@ export default function ScenarioResultPage({
                       {!isDirect && <span className="ml-1.5 font-mono text-[10px] text-muted-foreground">(propagado)</span>}
                     </span>
                     <span className="font-mono text-[10.5px] text-muted-foreground">
-                      acumulado {(nodeDeficit / 100).toFixed(1)} sem. malas
+                      acumulado {nodeDeficit.toFixed(1)} sem. equivalentes
                     </span>
                   </div>
                   <WeeklyPerformanceChart

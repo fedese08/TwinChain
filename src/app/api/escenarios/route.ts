@@ -64,6 +64,7 @@ export async function POST(request: Request) {
       horizonWeeks: input.projectionHorizonWeeks,
       events,
       reconfigurationWeekIndex: null,
+      decisionWeek: input.decisionWeek,
     });
   } catch (error) {
     if (error instanceof SimulationTooLargeError) return NextResponse.json(simulationTooLargeBody(error), { status: 422 });
@@ -82,6 +83,7 @@ export async function POST(request: Request) {
           horizonteProyeccion: input.projectionHorizonWeeks,
           usuarioId: user.id,
           cadenaId: input.chainId,
+          semanaDecision: input.decisionWeek ?? null,
         })
         .returning();
       const eventRows = await tx

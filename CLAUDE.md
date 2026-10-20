@@ -13,7 +13,8 @@ en todo lo que choque. Leer ambos antes de tocar modelos, tipos o pantallas de s
    de datos de **sensores simulados** para todos los tipos de nodo (generador por perfil de tipo, calibrado con Olist); el modelo de ML, entrenado con Olist, estima la línea base y las bandas de cada nodo a partir de ese historial.
 2. **Simulación hipotética** — un `Escenario` (fork conceptual, no altera la cadena viva) agrupa uno o más `Evento`
    (disrupciones) sobre nodos de una cadena, y produce un `Resultado` con una `tabla_k` (costo de reconfigurar en
-   semanas malas equivalentes ↔ umbral de reconfiguración). El ML **no** corre sobre simulaciones.
+   semanas de operar como ahora ↔ umbral de persistencia N(k), por fracción de propagación). El ML **no** corre sobre
+   simulaciones. Las definiciones del motor están en `docs/definiciones-motor.md`.
 
 ## El modelo de datos real (`docs/modelo-datos.md`) — manda sobre cualquier mockup
 
@@ -28,8 +29,9 @@ en todo lo que choque. Leer ambos antes de tocar modelos, tipos o pantallas de s
   perturbación por simulación" — se le pueden acumular varios eventos al mismo nodo. `nodo_id` sigue viviendo en
   Evento (no en Escenario): el modelo soporta multi-nodo, la restricción se valida en la app, así que habilitar C29
   más adelante no requiere migrar nada.
-- **Resultado** = `tabla_k`: array de `{k, umbral}` (k = costo de reconfigurar en semanas malas equivalentes). No
-  hay costo total, nivel de servicio % ni TTR como tales — esos conceptos vienen del mockup viejo y ya no aplican.
+- **Resultado** = `tabla_k`: array de `{k, fraccion, umbral (mediana, p10, p90 o "no cruza")}` (k = costo de reconfigurar
+  en semanas de operar como ahora, `K = k·d0`). No hay costo total, nivel de servicio % ni TTR como tales — esos
+  conceptos vienen del mockup viejo y ya no aplican.
 - **DesempenoSemanal**: `valor_real`, `linea_base` (ML, congelada), `deficit = max(linea_base - valor_real, 0)`,
   nunca negativo.
 - Multi-tenant: cadenas pertenecen a la organización. **Plan de suscripción por organización** (Freemium, Pro, Max; ver
@@ -65,9 +67,9 @@ cambió en nada, solo la implementación.
 ## Pendientes y mejoras futuras
 
 **Leer `docs/pendientes.md` al retomar trabajo** y **agregarle** cualquier corrección o mejora que se detecte y no se
-resuelva en el momento (con contexto para retomarla en frío). Ahí están, entre otros, los dos bugs metodológicos del
-motor que NO se parchean por cuenta propia y el hallazgo de que las curvas del resultado se recalculan con la cadena
-actual y no con la de la corrida.
+resuelva en el momento (con contexto para retomarla en frío). Ahí están, entre otros, el hallazgo de que las curvas del
+resultado se recalculan con la cadena actual y no con la de la corrida, y las decisiones del motor que siguen abiertas
+(réplicas de producción, cobertura de las bandas).
 
 ## Estado de avance
 
@@ -162,8 +164,7 @@ actual y no con la de la corrida.
     (`PlanManager`); se abre desde el menú de usuario de la barra lateral (`UserMenu`).
   - **Variables de entorno** (`.env.local`, ver `.env.example`): `DATABASE_URL` (pooler de Neon, runtime),
     `DIRECT_URL` (conexión directa, migraciones y seed), `AUTH_SECRET`.
-  - Las decisiones metodológicas del motor (`tabla_k` invertida, `MIN_PROPAGATED_MAGNITUDE`) **no** se tocan al
-    migrar `simulate.ts` al servidor: se mueve tal cual.
+  - Las decisiones metodológicas del motor son las de `docs/definiciones-motor.md`; no se cambian por cuenta propia.
 - **Frontend: completo para el recorrido principal, incluida edición de atributos y propagación por el grafo.** Se
   construyó primero con datos mock y hoy corre contra la base (ver los pasos del backend arriba): `src/lib/domain/`
   (tipos + motor de simulación placeholder) y `src/stores/app-store.ts` (zustand). Pantallas:
@@ -180,41 +181,43 @@ actual y no con la de la corrida.
     interactiva de reconfigurar según el costo k que asume el usuario, y la red de propagación) y **"Detalle
     técnico"** (ficha de la corrida con réplicas/semilla, corridas guardadas, eventos, tabla_k completa y los
     gráficos por nodo). Toda la jerga metodológica vive en la segunda; la primera no la menciona.
-  - **La recomendación NO sale de `tabla_k`** — sale de comparar la pérdida evitable contra k directamente. Motivo:
-    la fórmula actual de `computeReplicaThresholds` está **invertida** (el umbral baja cuando k sube, así que
-    "cuanto más caro reconfigurar, más conviene"), y el "no existe umbral" de los k altos se dispara porque el
-    umbral se hace muy chico, no porque el costo sea inalcanzable. Está marcado con ⚠️ en `simulate.ts`. **Definir
-    bien el umbral es metodología de la tesis** — no parchearlo por cuenta propia.
-  - **`MIN_PROPAGATED_MAGNITUDE` (piso de propagación) corta la dispersión con magnitudes bajas y realistas.**
-    Cada salto multiplica por `PROPAGATION_FRACTION` (0.45–0.65) antes de comparar contra el piso (3), así que un
-    evento de ~1–4% de magnitud nunca llega ni al primer vecino — queda encerrado en el nodo de origen, sin
-    importar cuán conectada esté la red. Marcado con ⚠️ en `simulate.ts`. Detectado en una demo (magnitud 1% no se
-    dispersaba); mientras no se recalibre, usar magnitudes de al menos ~15–20% para que la propagación se vea.
+  - **El umbral y la recomendación salen de la misma función.** `N(k) = min { t : E(t) ≥ k·d0 }`, con `E(t)` la pérdida
+    evitable acumulada al reconfigurar en `s_r`. "Conviene reconfigurar" con el costo `k` que asume el usuario es
+    `E(H) ≥ k·d0` en más de la mitad de las réplicas. La fórmula anterior de `tabla_k` estaba invertida y se reemplazó
+    (ver `docs/definiciones-motor.md`). **No hay piso de propagación**: el viejo `MIN_PROPAGATED_MAGNITUDE` se sacó.
   - `/comparar` — comparación de 2+ escenarios (tabla_k lado a lado, mediana + rango, última corrida de cada uno).
   - `/biblioteca` — referencia de tipos de nodo/arista/plantillas.
-  - `src/lib/domain/simulate.ts` es **explícitamente un placeholder** (comentado como MOCK) — no es la propuesta
-    metodológica de la tesis. Su API es `runScenarioSimulation(...)`: corre N réplicas (default 30) y devuelve
-    `projectionByNode` (mediana + rango por semana), `totalDeficit` y `kTable`. Internamente hace BFS aguas abajo
-    por las Aristas trasladando una fracción del déficit por salto y retrasando el onset según `tiempo_transito`.
-    El BFS **poda las llegadas dominadas** (mismo nodo y evento, llegada más tardía, magnitud menor o igual, saltos
-    mayores o iguales). Sin eso el costo crecía con la cantidad de caminos y una red de 26 nodos muy conectados
-    colgaba el motor. **No reemplazarla por un "visitados" plano: cambia resultados** (se probó, 135/600 casos).
-    Cualquier cambio de rendimiento del motor se valida con `npx tsx scripts/verify-engine-equivalence.ts` (compara
-    bit a bit contra una versión de git) y se mide con `scripts/bench-engine.ts` — ver `docs/rendimiento-motor.md`.
-    Las rutas de simulación rechazan con 422 una corrida cuyo trabajo estimado supere `MAX_SIMULATION_WORK`.
+  - `src/lib/domain/simulate.ts` implementa las definiciones de la tesis (`docs/definiciones-motor.md`). Su API es
+    `runScenarioSimulation(...)` (y `replayRun` para reproducir una corrida guardada con su semilla). Por cada fracción
+    de propagación `c` de `PROPAGATION_FRACTIONS` ([0.45, 0.55, 0.65]) corre `replications` réplicas (30 por defecto);
+    cada réplica propaga con la **recurrencia semanal** `d_j(s) = min(1, max(e_j(s), max c·d_i(s − τ_ij)))` para
+    mantener (A) y para reconfigurar al decidir (B), y de ahí sale `E(t)`. Devuelve `projectionByNode` (mediana + p10–p90
+    por semana), `totalDeficit` y `weeklyLoss` (semanas equivalentes, la suma de los déficits relativos de la red),
+    `kTable` (30 filas), `replicaCurves` (para N(k) con cualquier k), `breakEvenKs` y `d0`. Ya **no** hay BFS con poda por
+    dominancia: la recurrencia cuesta lo mismo sin importar cuántos caminos tenga la red (300 nodos conectados todos con
+    todos, 16 semanas: 0,25 s). El déficit es una **proporción del nivel normal**, así que en una simulación manual el
+    sorteo de la banda no mueve el resultado. Cualquier cambio del motor se valida con `src/lib/domain/simulate.test.ts`
+    (compara contra una enumeración de caminos independiente) y se mide con `scripts/bench-engine.ts`. Las rutas de
+    simulación rechazan con 422 una corrida cuyo trabajo estimado supere `MAX_SIMULATION_WORK` (1.000 M de unidades).
     **Despliegue (Vercel, plan Hobby):** `maxDuration = 300` (máximo de Hobby; con 800 el build falla) y las
     funciones corren en `gru1` por `vercel.json`, junto a Neon (`sa-east-1`). No sacar el `vercel.json`: en `iad1`
-    cada simulación sumaba ~3,3 s de espera a la base. El motor en Vercel es ~3,3× más lento que en un M4. Mediciones
-    en `docs/rendimiento-motor-vercel.md`.
+    cada simulación sumaba ~3,3 s de espera a la base. Mediciones en `docs/rendimiento-motor-vercel.md` (del motor
+    anterior; el costo de cómputo bajó, la latencia a la base no).
+  - **Simulación desde una alerta.** Un nodo en atención o crítico ofrece "Simular cómo sigue" (inspector del nodo →
+    `/cadenas/[id]?alerta=<nodo>`). `deriveAlertScenario` (`src/lib/domain/detection.ts`) deriva nodo, inicio del desvío
+    t0, `s_r` = semana siguiente a la detección y d0; el escenario guarda `s_r` en `escenarios.semana_decision`. Las
+    semanas observadas entre t0 y `s_r` son pasado y no entran en el umbral.
   - `ChainCanvas` tiene tres modos (`edit`/`select`/`display`) en vez de un `readOnly` booleano — ver
     `src/components/canvas/chain-canvas.tsx`.
 - **RF corregidos de la bitácora, ya implementados en el mock** (no son "placeholder libre": el cálculo es de
   mentira, pero la *forma* del resultado respeta las decisiones cerradas):
   - **RF012** — `WeeklyPerformance` lleva `baselineLowerBand`/`baselineUpperBand`; los gráficos la sombrean.
-  - **RF023 / C36** — cada corrida barre 30 réplicas variando la posición dentro de esa banda y la fracción de
-    propagación. En producción la recomendación registrada es 200-300, todavía sin confirmar.
-  - **RF027** — la fracción trasladada por arista no es fija: se barre en el rango 0.45–0.65 entre réplicas.
-  - **RF029** — `KTableRow` es `{k, thresholdMedian, thresholdLow, thresholdHigh}`. Nunca un valor puntual.
+  - **RF023 / C36** — cada corrida barre 30 réplicas por fracción de propagación, sorteando una posición dentro de la
+    banda de la línea base. En producción la recomendación registrada es 200-300, todavía sin confirmar.
+  - **RF027** — la fracción trasladada por arista no es fija: se barre en {0.45, 0.55, 0.65} y el umbral se reporta
+    para cada una.
+  - **RF029** — `KTableRow` es `{k, propagationFraction, thresholdMedian, thresholdLow (p10), thresholdHigh (p90),
+    crossingShare}`; `null` = "no cruza". Nunca un valor puntual.
   - **RF030** — `rerunScenario` agrega una fila de `ScenarioResult` sin pisar las anteriores; la pantalla de
     resultado tiene selector de corridas. Cada corrida guarda `seed` y `replications` para poder reproducirla.
   - **RF022 / C23** — la reconfiguración es un **escalón**: desde `reconfigurationWeekIndex` el déficit cae a cero
@@ -227,7 +230,7 @@ actual y no con la de la corrida.
     `domain/synthetic/cusum.ts`, hook `useChainStatuses`) y no se guarda. Ninguno de los dos es una entidad del
     modelo de datos ni debe convertirse en tabla: el job y el pipeline son contenedores de la arquitectura C4.
     Cuando exista el job real, `pendingRuns` lo reemplaza el job de Vercel.
-  - **Tests:** Vitest (`npm test`, 92) y, para el servicio de ML, pytest (`cd twinchain-ml && .venv/bin/pytest`, 22). Los de la ingesta sintética y el estado operativo incluyen las
+  - **Tests:** Vitest (`npm test`, 121) y, para el servicio de ML, pytest (`cd twinchain-ml && .venv/bin/pytest`, 22). Los de la ingesta sintética y el estado operativo incluyen las
     calibraciones de Monte Carlo del CUSUM y de los umbrales de atención/crítico: **no relajarlos para que
     pasen**, si fallan es que cambió algo que afecta la tasa de falsas alarmas.
 - **`ChainCanvas` necesita un padre con altura.** Su raíz es `flex h-full min-h-0 flex-1`: dentro de un padre

@@ -26,9 +26,16 @@ export const tipoNodoEnum = pgEnum("tipo_nodo", NODE_TYPE_VALUES);
 
 export const visibilidadCadenaEnum = pgEnum("visibilidad_cadena", ["shared", "private"]);
 
-/** Forma de cada fila de `resultados.tabla_k` (RF029): mediana y rango, nunca un valor puntual. */
+/**
+ * Forma de cada fila de `resultados.tabla_k` (RF029): mediana y rango (percentiles 10 y 90), nunca un valor puntual.
+ * `null` en el umbral = "no cruza" dentro del horizonte. `fraccion` es la fracción de propagación de la fila
+ * (ausente en las corridas anteriores a la tabla por fracción) y `cruzan` la fracción de réplicas que sí cruzan.
+ * Los nombres `umbral_min`/`umbral_max` se conservan por compatibilidad con las filas ya guardadas: hoy son p10/p90.
+ */
 export interface TablaKRow {
   k: number;
+  fraccion?: number;
+  cruzan?: number;
   umbral_mediana: number | null;
   umbral_min: number | null;
   umbral_max: number | null;
@@ -232,6 +239,9 @@ export const escenarios = pgTable(
     cadenaId: uuid("cadena_id")
       .notNull()
       .references(() => cadenas.id, { onDelete: "cascade" }),
+    // app: semana de la decisión de reconfigurar (s_r). Null = simulación manual (s_r es el inicio del primer
+    // evento); con valor = simulación desde una alerta (s_r es la semana siguiente a la detección).
+    semanaDecision: date("semana_decision", { mode: "string" }),
     creadoEn: creadoEn(),
   },
   (t) => [
