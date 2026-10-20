@@ -112,7 +112,7 @@ tiempo termina en la **misma semana** que el resto.
 - `DELETE` vuelve a las 28 semanas originales. Como la serie es determinista, repetir el avance da exactamente lo mismo.
 - Tope de 156 semanas por nodo (`409 max_weeks`).
 - **El reloj lo maneja el navegador:** Vercel no sostiene un proceso continuo, así que no hay "ticks de 1 segundo"
-  en el servidor. El control **▶ Tiempo real** arranca solo al abrir la cadena y pide una semana nueva cada 1, 5 o 10 minutos (a elección, 1 por defecto; la primera llega al cumplirse el intervalo) y los nodos del canvas
+  en el servidor. El control **▶ Tiempo real** pide una semana por segundo (×1, ×2 o ×4) y los nodos del canvas
   cambian de estado solos.
 
 ### Estado operativo (`monitoring.ts`)

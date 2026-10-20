@@ -1,37 +1,19 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Pause, Play, RotateCcw } from "lucide-react";
 import { formatWeekLabel } from "@/lib/domain/dates";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/stores/app-store";
 
-/** Cada cuánto llega un dato nuevo de los sensores simulados: un tick = una semana simulada. */
-const INTERVALS_MIN = [1, 5, 10] as const;
-type IntervalMin = (typeof INTERVALS_MIN)[number];
-const DEFAULT_INTERVAL: IntervalMin = 1;
-const STORAGE_KEY = "twinchain:monitor-interval-min";
-
-function readStoredInterval(): IntervalMin {
-  try {
-    const stored = Number(window.localStorage.getItem(STORAGE_KEY));
-    return (INTERVALS_MIN as readonly number[]).includes(stored) ? (stored as IntervalMin) : DEFAULT_INTERVAL;
-  } catch {
-    return DEFAULT_INTERVAL;
-  }
-}
-
-const formatCountdown = (ms: number) => {
-  const total = Math.max(0, Math.ceil(ms / 1000));
-  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
-};
+/** Un tick por segundo, como pide el spec: 1 segundo real = 1 semana simulada (a velocidad ×1). */
+const TICK_MS = 1000;
+const SPEEDS = [1, 2, 4] as const;
 
 /**
- * Monitoreo vivo del Digital Twin. Arranca solo, apenas se abre la cadena, y pide una semana nueva de datos
- * (sensores simulados) cada 1, 5 o 10 minutos, a elección. El reloj lo maneja el navegador (Vercel no sostiene un
- * proceso continuo): mientras la pantalla está abierta, cada tick pide al servidor la semana siguiente y el canvas se
- * actualiza solo, porque colorea los nodos a partir de las filas que hay en el store. Si se cierra la pestaña, el
- * monitoreo se detiene: no hay un proceso en el servidor que siga generando datos.
+ * Monitoreo vivo del Digital Twin. El reloj lo maneja el navegador (Vercel no sostiene un proceso
+ * continuo): cada tick pide al servidor las semanas siguientes y el canvas se actualiza solo, porque
+ * colorea los nodos a partir de las filas que hay en el store.
  */
 export function LiveMonitorControl({ chainId }: { chainId: string }) {
   const advanceChain = useAppStore((s) => s.advanceChain);
@@ -39,21 +21,17 @@ export function LiveMonitorControl({ chainId }: { chainId: string }) {
   const nodes = useAppStore((s) => s.nodes);
   const weeklyPerformance = useAppStore((s) => s.weeklyPerformance);
 
-  const [playing, setPlaying] = useState(true);
-  const [intervalMin, setIntervalMin] = useState<IntervalMin>(DEFAULT_INTERVAL);
+  const [playing, setPlaying] = useState(false);
+  const [speed, setSpeed] = useState<(typeof SPEEDS)[number]>(1);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
-  /** Cuándo se pide la próxima semana; null si está pausado. */
-  const [nextAt, setNextAt] = useState<number | null>(null);
-  const [now, setNow] = useState(() => Date.now());
-
-  // La preferencia se lee después de montar (localStorage no existe en el servidor).
+  // El bucle lee la velocidad desde una ref: cambiarla no reinicia el bucle ni pierde el ritmo.
+  const speedRef = useRef(speed);
   useEffect(() => {
-    setIntervalMin(readStoredInterval());
-  }, []);
+    speedRef.current = speed;
+  }, [speed]);
 
   const chainNodeIds = useMemo(() => new Set(nodes.filter((n) => n.chainId === chainId).map((n) => n.id)), [nodes, chainId]);
-  const noNodes = chainNodeIds.size === 0;
   const latestWeek = useMemo(() => {
     let latest = "";
     for (const row of weeklyPerformance) {
@@ -63,21 +41,13 @@ export function LiveMonitorControl({ chainId }: { chainId: string }) {
   }, [weeklyPerformance, chainNodeIds]);
 
   useEffect(() => {
-    if (!playing || noNodes) {
-      setNextAt(null);
-      return;
-    }
-    const intervalMs = intervalMin * 60_000;
+    if (!playing) return;
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout>;
 
-    const schedule = () => {
-      setNextAt(Date.now() + intervalMs);
-      timer = setTimeout(tick, intervalMs);
-    };
     const tick = async () => {
-      setNextAt(null);
-      const result = await advanceChain(chainId, 1);
+      const startedAt = Date.now();
+      const result = await advanceChain(chainId, speedRef.current);
       if (cancelled) return;
       if (!result.ok) {
         setPlaying(false);
@@ -90,34 +60,16 @@ export function LiveMonitorControl({ chainId }: { chainId: string }) {
         );
         return;
       }
-      schedule();
+      // Descuenta lo que tardó el servidor: el ritmo es de un tick por segundo, no un segundo MÁS la espera.
+      timer = setTimeout(tick, Math.max(0, TICK_MS - (Date.now() - startedAt)));
     };
 
-    // La primera semana nueva llega al cumplirse el intervalo, no al abrir la pantalla: así no se suma una semana
-    // cada vez que se entra a la cadena.
-    schedule();
+    timer = setTimeout(tick, 0);
     return () => {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [playing, noNodes, intervalMin, chainId, advanceChain]);
-
-  // Refresca la cuenta regresiva una vez por segundo, solo mientras hay una espera en curso.
-  useEffect(() => {
-    if (nextAt === null) return;
-    setNow(Date.now());
-    const id = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(id);
-  }, [nextAt]);
-
-  function chooseInterval(value: IntervalMin) {
-    setIntervalMin(value);
-    try {
-      window.localStorage.setItem(STORAGE_KEY, String(value));
-    } catch {
-      // Sin almacenamiento disponible la elección rige igual para esta sesión.
-    }
-  }
+  }, [playing, chainId, advanceChain]);
 
   async function handleReset() {
     setBusy(true);
@@ -126,6 +78,8 @@ export function LiveMonitorControl({ chainId }: { chainId: string }) {
     setBusy(false);
     if (!result.ok) setNotice(result.error);
   }
+
+  const noNodes = chainNodeIds.size === 0;
 
   return (
     <div className="flex flex-none items-center gap-2">
@@ -136,7 +90,7 @@ export function LiveMonitorControl({ chainId }: { chainId: string }) {
             setPlaying((p) => !p);
           }}
           disabled={noNodes || busy}
-          title={playing ? "Pausar el monitoreo" : "Retomar el monitoreo: una semana de datos nueva en cada intervalo"}
+          title={playing ? "Pausar el monitoreo" : "Avanzar el tiempo simulado: una semana por segundo"}
           className={cn(
             "flex items-center gap-1.5 px-3 py-1.5 text-[12.5px] whitespace-nowrap disabled:opacity-50",
             playing ? "bg-primary/10 font-medium text-primary" : "hover:bg-muted",
@@ -146,34 +100,29 @@ export function LiveMonitorControl({ chainId }: { chainId: string }) {
           {playing ? "Pausar" : "Tiempo real"}
         </button>
         <div className="flex items-center border-l border-border">
-          {INTERVALS_MIN.map((value) => (
+          {SPEEDS.map((value) => (
             <button
               key={value}
-              onClick={() => chooseInterval(value)}
-              title={`Un dato nuevo cada ${value} ${value === 1 ? "minuto" : "minutos"}`}
+              onClick={() => setSpeed(value)}
+              title={`${value} ${value === 1 ? "semana" : "semanas"} por segundo`}
               className={cn(
                 "px-2 py-1.5 font-mono text-[11px]",
-                intervalMin === value ? "bg-muted font-medium" : "text-muted-foreground hover:bg-muted/60",
+                speed === value ? "bg-muted font-medium" : "text-muted-foreground hover:bg-muted/60",
               )}
             >
-              {value} min
+              ×{value}
             </button>
           ))}
         </div>
         <button
           onClick={handleReset}
           disabled={playing || busy || noNodes}
-          title="Reiniciar: vuelve al historial original (pausá primero)"
+          title="Reiniciar: vuelve al historial original"
           className="border-l border-border px-2.5 py-1.5 text-muted-foreground hover:bg-muted disabled:opacity-40"
         >
           <RotateCcw size={13} />
         </button>
       </div>
-      {playing && nextAt !== null && (
-        <span className="font-mono text-[10.5px] whitespace-nowrap text-muted-foreground" title="Cuándo llega la próxima semana de datos">
-          próxima en {formatCountdown(nextAt - now)}
-        </span>
-      )}
       {latestWeek && (
         <span className="font-mono text-[10.5px] whitespace-nowrap text-muted-foreground" title="Semana simulada más reciente: puede pasar de la fecha de hoy">
           sem. simulada {formatWeekLabel(latestWeek)}
