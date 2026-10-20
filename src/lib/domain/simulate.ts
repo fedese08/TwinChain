@@ -269,6 +269,28 @@ export function thresholdAtK(
   };
 }
 
+/**
+ * N para un costo de reconfigurar expresado directamente en semanas de operación perdidas (la unidad de la pérdida),
+ * en vez de en semanas de operar como ahora: la primera semana en que la pérdida evitable alcanza ese costo.
+ * Resume las réplicas de una fracción de propagación; `null` = no cruza dentro del horizonte.
+ */
+export function thresholdAtCost(
+  curves: ReplicaCurve[],
+  cost: number,
+  fraction: number,
+): { median: number | null; low: number | null; high: number | null; share: number } {
+  const values = curves.filter((c) => Math.abs(c.fraction - fraction) < 1e-9).map((c) => crossingWeek(c.avoidable, cost));
+  if (values.length === 0) return { median: null, low: null, high: null, share: 0 };
+  const summary = summarize(values);
+  const finite = (value: number) => (Number.isFinite(value) ? Math.round(value * 10) / 10 : null);
+  return {
+    median: finite(summary.median),
+    low: finite(summary.low),
+    high: finite(summary.high),
+    share: values.filter(Number.isFinite).length / values.length,
+  };
+}
+
 export interface SimulationOutcome {
   /** Proyección agregada (mediana + rango) por nodo alcanzado, directa o por propagación. */
   projectionByNode: Map<string, ProjectedWeek[]>;

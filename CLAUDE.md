@@ -181,15 +181,15 @@ resultado se recalculan con la cadena actual y no con la de la corrida, y las de
     nodo (directos y propagados), y la "red fork" (`ChainCanvas mode="display"`) coloreando cada nodo/arista según
     severidad (severo/moderado/sin efecto) con un slider de semana para ver cómo avanza la propagación.
   - `/cadenas/[id]/escenarios/[scenarioId]` tiene dos vistas: **"Respuesta"** (solo lo que le importa a quien decide:
-    cuánto se pierde, dónde pega y desde cuándo; si conviene reconfigurar y qué hacer, sin pedirle nada al usuario (supone
-    un costo de 3 semanas de operar como ahora y muestra la regla general); y la red
+    cuánto se pierde, dónde pega y desde cuándo; a partir de cuándo conviene reconfigurar (una tabla que dice, para distintos costos del cambio en
+    semanas de operación, cuántas semanas tiene que durar el problema; no decide por el usuario ni le pide el costo); y la red
     de propagación con su reproductor) y **"Detalle técnico"** (ficha de la corrida con réplicas/semilla, corridas
     guardadas, eventos, cómo se calculó la decisión, evolución semanal de la crisis, tabla_k por fracción de
     propagación y los gráficos por nodo). Toda la jerga metodológica vive en la segunda; la primera no la menciona.
   - **El umbral y la recomendación salen de la misma función.** `N(k) = min { t : E(t) ≥ k·d0 }`, con `E(t)` la pérdida
     evitable acumulada al reconfigurar en `s_r`. "Conviene reconfigurar" con el costo `k` que asume el usuario es
-    `E(H) ≥ k·d0` en más de la mitad de las réplicas (la pantalla usa k = 3 y no tiene control de costo; el detalle técnico
-    trae la tabla para otros k). La fórmula anterior de `tabla_k` estaba invertida y se reemplazó
+    `E(H) ≥ k·d0` en más de la mitad de las réplicas (la pantalla Respuesta no tiene control de costo: muestra la tabla N para varios costos con
+    `thresholdAtCost`; el detalle técnico usa k = 3 para "cómo se calculó la decisión"). La fórmula anterior de `tabla_k` estaba invertida y se reemplazó
     (ver `docs/definiciones-motor.md`). **No hay piso de propagación**: el viejo `MIN_PROPAGATED_MAGNITUDE` se sacó.
   - `/comparar` — comparación de 2+ escenarios (tabla_k lado a lado, mediana + rango, última corrida de cada uno).
   - `/biblioteca` — referencia de tipos de nodo/arista/plantillas.

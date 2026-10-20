@@ -3,7 +3,7 @@
 import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Check, Trash2, X } from "lucide-react";
+import { Trash2 } from "lucide-react";
 import { DeleteScenarioDialog } from "@/components/scenario/delete-scenario-dialog";
 import { WeeklyPerformanceChart } from "@/components/charts/weekly-performance-chart";
 import { CrisisTimelineChart } from "@/components/charts/crisis-timeline-chart";
@@ -18,7 +18,7 @@ import {
   replayRun,
   runScenarioSimulation,
   shareWorthwhile,
-  thresholdAtK,
+  thresholdAtCost,
   type ProjectedWeek,
   type Severity,
 } from "@/lib/domain/simulate";
@@ -31,7 +31,17 @@ import { cn } from "@/lib/utils";
 
 type View = "answer" | "detail";
 
-/** Costo que supone la respuesta, en semanas de operar como ahora: lo que se perdería en 3 semanas con el problema actual. */
+/** Costos de ejemplo (en semanas de operación) entre los que se eligen las filas de la tabla "a partir de cuándo". */
+const COST_LADDER = [0.25, 0.5, 1, 2, 3, 5, 8, 12, 20, 30, 50, 80];
+
+/** Hasta 5 costos redondos que se pagan (no superan lo que se evita), repartidos entre el más barato y el más caro. */
+function pickCosts(maxAvoidable: number): number[] {
+  const fits = COST_LADDER.filter((c) => c <= maxAvoidable);
+  if (fits.length <= 5) return fits;
+  return [0, 1, 2, 3, 4].map((i) => fits[Math.round((i * (fits.length - 1)) / 4)]);
+}
+
+/** Costo que supone el detalle técnico para "cómo se calculó la decisión', en semanas de operar como ahora: lo que se perdería en 3 semanas con el problema actual. */
 const DEFAULT_RECONFIGURATION_COST_WEEKS = 3;
 
 /** Franjas de impacto sobre el horizonte proyectado — para traducir el déficit a algo legible. */
@@ -295,12 +305,10 @@ export default function ScenarioResultPage({
   const worthShare = shareWorthwhile(outcome.breakEvenKs, effectiveK);
   const worthReconfiguring = worthShare > 0.5;
   const costNow = effectiveK * d0;
-  const threshold = thresholdAtK(outcome.replicaCurves, effectiveK, CENTRAL_PROPAGATION_FRACTION);
-  // Último momento en que reconfigurar todavía se paga solo: después, lo que queda por evitar ya no alcanza el costo.
-  const lastWorthwhileWeek = weekly.avoidableFromWeek.reduce(
-    (last, avoidable, i) => (avoidable >= costNow ? i : last),
-    -1,
-  );
+  const paybackRows = pickCosts(avoidableNow).map((cost) => ({
+    cost,
+    ...thresholdAtCost(outcome.replicaCurves, cost, CENTRAL_PROPAGATION_FRACTION),
+  }));
   // Qué porción de la pérdida evitable se lleva el costo de reconfigurar, para ver cuánto margen queda.
   const costShareOfAvoidable = avoidableNow > 0 ? Math.min(1, costNow / avoidableNow) : 1;
   // Fechas de las semanas proyectadas, para decir "cuándo" en vez de un número de semana suelto.
@@ -450,77 +458,54 @@ export default function ScenarioResultPage({
               </div>
             </div>
 
-            {/* 2. Qué hacer: una respuesta clara, sin pedirle nada al usuario. */}
+            {/* 2. Cuándo conviene reconfigurar: la información para decidir, sin decidir por el usuario. */}
             <div className="rounded-2xl border border-border bg-card p-5">
-              <div className="text-[15px] font-medium">¿Conviene reconfigurar la red?</div>
-
-              <div
-                className="mt-3 flex items-start gap-3 rounded-xl border p-4"
-                style={
-                  worthReconfiguring
-                    ? { borderColor: "rgba(59, 130, 246, 0.35)", background: "rgba(59, 130, 246, 0.1)" }
-                    : { borderColor: "var(--border)", background: "var(--muted)" }
-                }
-              >
-                <span
-                  className="mt-0.5 flex h-7 w-7 flex-none items-center justify-center rounded-full text-white"
-                  style={{ background: worthReconfiguring ? "#3b82f6" : "#8c96a6" }}
-                >
-                  {worthReconfiguring ? <Check size={15} /> : <X size={15} />}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <div className="text-[16px] font-medium">
-                    {worthReconfiguring ? "Sí, conviene reconfigurar" : "No conviene reconfigurar"}
-                  </div>
-                  <div className="mt-1 text-[13px] leading-relaxed text-muted-foreground">
-                    {worthReconfiguring ? (
-                      <>
-                        Reconfigurando ahora evitás{" "}
-                        <span className="font-medium text-foreground">{avoidableNow.toFixed(1)} semanas</span> de operación perdidas.
-                      </>
-                    ) : (
-                      <>
-                        Reconfigurando solo evitarías <span className="font-medium text-foreground">{avoidableNow.toFixed(1)} semanas</span> de
-                        operación: no alcanza para cubrir lo que cuesta el cambio.
-                      </>
-                    )}
-                  </div>
-                </div>
+              <div className="text-[15px] font-medium">¿A partir de cuándo conviene reconfigurar?</div>
+              <div className="mt-1 text-[12.5px] leading-relaxed text-muted-foreground">
+                Depende de cuánto te cueste el cambio, y eso lo sabés vos. Buscá en la tabla el costo más parecido al tuyo: te dice cuántas
+                semanas tiene que durar el problema para que reconfigurar se pague.
               </div>
 
-              <div className="mt-4">
-                <div className="font-mono text-[9.5px] font-medium uppercase tracking-wider text-muted-foreground">Qué hacer</div>
-                <div className="mt-1.5 text-[13px] leading-relaxed">
-                  {worthReconfiguring ? (
-                    <>
-                      <span className="font-medium">Reconfigurá cuanto antes.</span> Cada semana que esperes evitás menos
-                      {lastWorthwhileWeek >= 0 && lastWorthwhileWeek + 1 < scenario.projectionHorizonWeeks && (
-                        <>: pasada la semana {lastWorthwhileWeek + 1} ya no se paga</>
-                      )}
-                      .
-                      {threshold.median !== null && (
+              <div className="mt-4 overflow-hidden rounded-xl border border-border">
+                <div className="grid grid-cols-[1fr_1.2fr] bg-muted/40 px-3.5 py-2 font-mono text-[9.5px] uppercase tracking-wider text-muted-foreground">
+                  <div>Si el cambio te cuesta</div>
+                  <div>Conviene reconfigurar si el problema dura</div>
+                </div>
+                {paybackRows.map((row) => (
+                  <div key={row.cost} className="grid grid-cols-[1fr_1.2fr] items-center border-t border-border px-3.5 py-2.5 text-[13px]">
+                    <div>
+                      <span className="font-mono font-medium">{row.cost}</span>{" "}
+                      <span className="text-muted-foreground">{row.cost === 1 ? "semana de operación" : "semanas de operación"}</span>
+                    </div>
+                    <div>
+                      {row.median !== null ? (
                         <>
-                          {" "}
-                          El cambio se paga si el problema dura{" "}
-                          <span className="font-medium">{plural(threshold.median, "semana", "semanas")}</span> o más
-                          {observedWeeks > 0 && <> desde la decisión (ya lleva {plural(observedWeeks, "semana", "semanas")})</>}.
+                          <span className="font-medium">{plural(Math.ceil(row.median), "semana", "semanas")} o más</span>
                         </>
+                      ) : (
+                        <span className="text-muted-foreground">no se paga en el horizonte</span>
                       )}
-                    </>
-                  ) : (
-                    <>
-                      <span className="font-medium">Mantené la red como está y seguí el monitoreo.</span> Si el problema se prolonga o se agrava,
-                      volvé a simular.
-                    </>
-                  )}
+                    </div>
+                  </div>
+                ))}
+                <div className="grid grid-cols-[1fr_1.2fr] items-center border-t border-border bg-muted/30 px-3.5 py-2.5 text-[13px]">
+                  <div>
+                    <span className="text-muted-foreground">más de</span> <span className="font-mono font-medium">{avoidableNow.toFixed(1)}</span>{" "}
+                    <span className="text-muted-foreground">semanas de operación</span>
+                  </div>
+                  <div className="font-medium">No conviene: no alcanza a pagarse</div>
                 </div>
               </div>
 
-              <div className="mt-4 rounded-lg bg-muted/50 px-3 py-2.5 text-[11.5px] leading-relaxed text-muted-foreground">
-                En general, conviene reconfigurar mientras el cambio te cueste menos de{" "}
-                <span className="font-medium text-foreground">{avoidableNow.toFixed(1)} semanas de operación</span>, que es lo que evitás. Esta
-                respuesta supone que te cuesta {costNow.toFixed(1)}: lo que perderías en {DEFAULT_RECONFIGURATION_COST_WEEKS} semanas con el problema
-                actual.
+              <div className="mt-3 text-[12px] leading-relaxed text-muted-foreground">
+                {observedWeeks > 0 && (
+                  <>
+                    El problema ya lleva {plural(observedWeeks, "semana", "semanas")}; esos plazos se cuentan desde la decisión.{" "}
+                  </>
+                )}
+                Reconfigurar evita hasta <span className="font-medium text-foreground">{avoidableNow.toFixed(1)} semanas de operación</span>{" "}
+                perdidas, y cuanto antes se decida, más se evita. Una semana de operación equivale a un nodo detenido por completo
+                durante una semana.
               </div>
 
               <div className="mt-3 flex flex-wrap items-center gap-2.5">
@@ -531,11 +516,11 @@ export default function ScenarioResultPage({
                 ) : (
                   <Button
                     size="sm"
-                    disabled={isRunning || !canRun || !worthReconfiguring}
+                    disabled={isRunning || !canRun}
                     className="bg-foreground text-background hover:bg-foreground/85"
                     onClick={() => rerunScenario(scenarioId, 0)}
                   >
-                    Reconfigurar ahora y ver el resultado
+                    Ver qué pasa si reconfiguro ahora
                   </Button>
                 )}
                 <span className="text-[10.5px] leading-relaxed text-muted-foreground">

@@ -9,6 +9,7 @@ import {
   runScenarioSimulation,
   shareWorthwhile,
   summarize,
+  thresholdAtCost,
   transitLagWeeks,
 } from "@/lib/domain/simulate";
 import { addWeeksIso } from "@/lib/domain/synthetic/weeks";
@@ -139,6 +140,21 @@ describe("umbral N(k)", () => {
     const half = summarize([1, 2, Infinity, Infinity]);
     expect(half.median).toBe(Infinity);
     expect(summarize([2, 4]).median).toBe(3);
+  });
+});
+
+describe("umbral por costo en semanas de operación", () => {
+  it("coincide con N(k) cuando el costo es k·d0, y es 'no cruza' por encima de lo que se evita", () => {
+    const ids = ["a", "b"];
+    const outcome = runScenarioSimulation(nodesOf(...ids), [edge("a", "b")], [event("a", 40)], history(ids), 8, { seed: 1, replications: 3 });
+    const central = 0.55;
+    for (const k of [1, 2, 3]) {
+      const byK = outcome.kTable.find((r) => r.k === k && r.propagationFraction === central)!;
+      expect(thresholdAtCost(outcome.replicaCurves, k * outcome.d0, central).median).toBe(byK.thresholdMedian);
+    }
+    const avoidable = outcome.avoidableFromWeek[0];
+    expect(thresholdAtCost(outcome.replicaCurves, avoidable + 0.01, central).median).toBeNull();
+    expect(thresholdAtCost(outcome.replicaCurves, avoidable - 0.01, central).median).not.toBeNull();
   });
 });
 
