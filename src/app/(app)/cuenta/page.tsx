@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { ProfileForm } from "@/components/account/profile-form";
 import { PlanManager } from "@/components/organization/plan-manager";
 import { can, requirePageMember } from "@/lib/auth/session";
+import { accountDeletionContext } from "@/lib/data/account-deletion";
 import { organizationUsage } from "@/lib/data/plan-limits";
 import { getDb, organizaciones, usuarios } from "@/lib/db";
 
@@ -9,10 +10,11 @@ export default async function AccountPage() {
   const member = await requirePageMember();
   const db = getDb();
 
-  const [[org], [account], usage] = await Promise.all([
+  const [[org], [account], usage, leaving] = await Promise.all([
     db.select({ planDesde: organizaciones.planDesde }).from(organizaciones).where(eq(organizaciones.id, member.organizacionId)),
     db.select({ contrasena: usuarios.contrasena }).from(usuarios).where(eq(usuarios.id, member.id)),
     organizationUsage(db, member.organizacionId),
+    accountDeletionContext(db, member),
   ]);
 
   return (
@@ -31,6 +33,8 @@ export default async function AccountPage() {
             roleName={member.rolNombre}
             organization={member.organizacionNombre}
             hasPassword={Boolean(account?.contrasena)}
+            otherMembers={leaving.otherMembers}
+            canLeave={leaving.otherMembers === 0 || leaving.heirId !== null}
           />
         </section>
 

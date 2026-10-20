@@ -15,3 +15,11 @@ export const changePasswordSchema = z
   .refine((d) => d.nueva === d.confirmacion, { path: ["confirmacion"], message: "Las contraseñas no coinciden" })
   .refine((d) => d.nueva !== d.actual, { path: ["nueva"], message: "La nueva contraseña tiene que ser distinta de la actual" });
 export type ChangePasswordValues = z.infer<typeof changePasswordSchema>;
+
+// Para eliminar la cuenta se vuelve a pedir la contraseña (la sesión sola no alcanza para algo irreversible).
+// Las cuentas sin contraseña propia (inicio con Google, cuando se sume) no la mandan.
+export const deleteAccountSchema = z.object({
+  contrasena: z.string().max(72).optional(),
+});
+export type DeleteAccountValues = z.infer<typeof deleteAccountSchema>;
+

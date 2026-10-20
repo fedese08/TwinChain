@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { signOut } from "next-auth/react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
@@ -128,8 +129,98 @@ function PasswordSection() {
   );
 }
 
-/** Edición del perfil propio: nombre y contraseña. */
-export function ProfileForm(props: { name: string; email: string; roleName: string; organization: string; hasPassword: boolean }) {
+/**
+ * Eliminar la cuenta y los datos personales asociados. Es irreversible, así que pide la contraseña y deja claro qué
+ * más se va: qué pasa depende de si hay más gente en la organización (ver `lib/data/account-deletion.ts`).
+ */
+function DeleteAccountSection({ hasPassword, otherMembers, canLeave }: { hasPassword: boolean; otherMembers: number; canLeave: boolean }) {
+  const [open, setOpen] = useState(false);
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function handleDelete() {
+    setBusy(true);
+    setError(null);
+    const result = await request("DELETE", "/api/cuenta", { contrasena: password });
+    if (!result.ok) {
+      setBusy(false);
+      setError(result.error ?? "No pudimos eliminar la cuenta. Probá de nuevo.");
+      return;
+    }
+    // La cuenta ya no existe: se cierra la sesión y se vuelve al inicio.
+    await signOut({ callbackUrl: "/" });
+  }
+
+  return (
+    <div className="flex flex-col gap-3 rounded-2xl border border-destructive/30 bg-card p-5">
+      <div className="text-[15px] font-semibold tracking-tight">Eliminar cuenta</div>
+      <p className="text-[12.5px] leading-relaxed text-muted-foreground">
+        Se borran tu cuenta y tus datos personales (nombre, email y contraseña). No se puede deshacer.{" "}
+        {otherMembers === 0
+          ? "Sos la única persona de la organización: también se eliminan la organización, sus cadenas, el historial de desempeño y todas las simulaciones."
+          : canLeave
+            ? "Las cadenas privadas que creaste se eliminan. Las cadenas compartidas, las simulaciones y las invitaciones pasan a otra persona administradora de la organización."
+            : ""}
+      </p>
+      {!canLeave && (
+        <p className="rounded-lg bg-muted px-3 py-2 text-[12.5px] leading-relaxed text-muted-foreground">
+          Sos la única persona administradora y la organización tiene más integrantes: mientras sigan, no podés eliminar tu cuenta, porque nadie más
+          podría administrarla.
+        </p>
+      )}
+      {canLeave && !open && (
+        <div>
+          <Button variant="outline" onClick={() => setOpen(true)} className="border-destructive/40 text-destructive hover:bg-destructive/10">
+            Eliminar mi cuenta
+          </Button>
+        </div>
+      )}
+      {canLeave && open && (
+        <div className="flex flex-col gap-3">
+          {hasPassword && (
+            <div className="flex flex-col gap-1.5">
+              <Label className={LABEL}>Confirmá con tu contraseña</Label>
+              <Input type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
+            </div>
+          )}
+          {error && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-[12.5px] text-destructive">{error}</p>}
+          <div className="flex flex-wrap gap-2">
+            <Button
+              onClick={handleDelete}
+              disabled={busy || (hasPassword && password.length === 0)}
+              className="bg-destructive text-white hover:bg-destructive/90"
+            >
+              {busy ? "Eliminando…" : "Eliminar definitivamente"}
+            </Button>
+            <Button
+              variant="ghost"
+              disabled={busy}
+              onClick={() => {
+                setOpen(false);
+                setPassword("");
+                setError(null);
+              }}
+            >
+              Cancelar
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Edición del perfil propio: nombre, contraseña y eliminación de la cuenta. */
+export function ProfileForm(props: {
+  name: string;
+  email: string;
+  roleName: string;
+  organization: string;
+  hasPassword: boolean;
+  otherMembers: number;
+  canLeave: boolean;
+}) {
   return (
     <div className="flex flex-col gap-4">
       <NameSection {...props} />
@@ -138,6 +229,7 @@ export function ProfileForm(props: { name: string; email: string; roleName: stri
       ) : (
         <p className="rounded-xl bg-muted px-4 py-3 text-[12.5px] text-muted-foreground">Tu cuenta no usa contraseña propia.</p>
       )}
+      <DeleteAccountSection hasPassword={props.hasPassword} otherMembers={props.otherMembers} canLeave={props.canLeave} />
     </div>
   );
 }

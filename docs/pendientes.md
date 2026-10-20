@@ -189,4 +189,9 @@ funcionalidad que todavía no existe.
   organización); el servidor cuenta todo, así que el bloqueo real siempre es correcto aunque el contador subestime.
 - **[deuda] Las cadenas existentes con más de una cadena o por encima del tope** (por ejemplo la demo en Freemium)
   no se recortan: el tope se aplica al crear, no retroactivamente.
+- **[falta] Cambiar roles y quitar integrantes de una organización.** No hay pantalla ni API: por eso la única persona
+  administradora de una organización con más gente no puede eliminar su cuenta (`account-deletion.ts`). Con esa
+  pantalla, bastaría con traspasar el rol de administración antes.
+- **[falta] Eliminar la cuenta desde `/sin-organizacion`.** La ruta `DELETE /api/cuenta` ya lo admite (cuenta sin
+  organización), pero el botón solo está en `/cuenta`, que exige pertenecer a una organización.
 

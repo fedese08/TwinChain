@@ -148,7 +148,10 @@ resultado se recalculan con la cadena actual y no con la de la corrida, y las de
     cadena compartida o privada propia; lo ajeno responde 404, no 403. Escribir exige el permiso `chain:write` (el
     Visualizador ve el canvas en modo solo lectura). Un nodo usado por una simulación no se puede borrar. (d) un usuario es miembro de **una** organización con un rol, o de
     ninguna (CHECK en `usuarios`). (e) aceptar una invitación exige token **y** que el email de la cuenta coincida,
-    porque todavía no se verifica el email al registrarse. (f) contraseñas: bcryptjs, máx. 72 caracteres.
+    porque todavía no se verifica el email al registrarse. (f) contraseñas: bcryptjs, máx. 72 caracteres. (g) **eliminar la cuenta** (`DELETE /api/cuenta`, `src/lib/data/account-deletion.ts`) exige la contraseña y borra los datos
+    personales: si es la única persona de la organización se borra la organización entera; si hay más gente se borran
+    sus cadenas privadas y lo de la organización pasa a otra administradora; la única administradora con más
+    integrantes no puede irse (409), porque todavía no hay pantalla para cambiar roles.
   - **Planes (`src/lib/plans.ts`, única fuente de los topes).** `organizaciones.plan` (`freemium` | `pro` | `max`) y
     `plan_desde`. Topes: Freemium 6 nodos / 3 escenarios guardados (US$0), Pro 15 / 6 (US$29/mes), Max 100 / 30
     (US$99/mes), netos de IVA; una cadena por organización en los tres. Los topes son de **nodos y escenarios
