@@ -36,9 +36,12 @@ export function PlanManager({ plan, since, usage, canManage }: { plan: PlanId; s
   const [pending, setPending] = useState<PlanId | null>(null);
   const [error, setError] = useState<string | null>(null);
   const current = PLAN_DEFINITIONS[plan];
+  const isUpgrade = (id: PlanId) => PLAN_IDS.indexOf(id) > PLAN_IDS.indexOf(plan);
+  const atTop = plan === PLAN_IDS[PLAN_IDS.length - 1];
 
   async function change(next: PlanId) {
     setError(null);
+    if (!isUpgrade(next) && !window.confirm(`¿Bajar al plan ${PLAN_DEFINITIONS[next].name}? Se reducen tus topes de nodos y escenarios.`)) return;
     setPending(next);
     try {
       const response = await fetch("/api/organizacion/plan", {
@@ -52,7 +55,7 @@ export function PlanManager({ plan, since, usage, canManage }: { plan: PlanId; s
         return;
       }
       setPlan(next);
-      toast.success(`Ahora estás en el plan ${PLAN_DEFINITIONS[next].name}`);
+      toast.success(`${isUpgrade(next) ? "Subiste" : "Bajaste"} al plan ${PLAN_DEFINITIONS[next].name}`);
       router.refresh();
     } finally {
       setPending(null);
@@ -118,19 +121,25 @@ export function PlanManager({ plan, since, usage, canManage }: { plan: PlanId; s
               ) : canManage ? (
                 <Button
                   size="sm"
-                  variant="outline"
+                  variant={isUpgrade(id) ? "default" : "outline"}
                   className="mt-auto"
                   disabled={pending !== null}
                   onClick={() => change(id)}
                 >
-                  {pending === id ? "Cambiando…" : `Pasar a ${def.name}`}
+                  {pending === id ? "Cambiando…" : `${isUpgrade(id) ? "Subir" : "Bajar"} a ${def.name}`}
                 </Button>
+              ) : isUpgrade(id) ? (
+                <span className="mt-auto pt-1 text-[11.5px] text-muted-foreground">Lo gestiona un administrador</span>
               ) : null}
             </div>
           );
         })}
       </div>
 
+      {atTop && <p className="text-[12px] text-muted-foreground">Estás en el plan más alto.</p>}
+      <p className="text-[11px] text-muted-foreground">
+        El cambio es inmediato. En esta versión del prototipo no se realiza ningún cobro.
+      </p>
       {error && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-[12.5px] text-destructive">{error}</p>}
       {!canManage && (
         <p className="rounded-lg bg-muted px-3 py-2 text-[12px] text-muted-foreground">

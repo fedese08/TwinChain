@@ -157,7 +157,9 @@ actual y no con la de la corrida.
     snapshot; la UI (`usePlanUsage`) solo anticipa el bloqueo. Cambiar de plan: `PUT /api/organizacion/plan`
     (`organization:manage`), sin cobro; un downgrade que deje más nodos/escenarios que el tope se rechaza (409
     `plan_overage`): no hay purga ni archivado. Reemplazó al viejo `MAX_NODES_PER_CHAIN = 50`. La landing lee los
-    mismos topes de `plans.ts`.
+    mismos topes de `plans.ts`. **Cuenta (`/cuenta`)**: perfil propio (nombre y contraseña, `PATCH /api/cuenta`,
+    `PUT /api/cuenta/contrasena` con la actual; el email no se edita) y el plan activo con subir/bajar de plan
+    (`PlanManager`); se abre desde el menú de usuario de la barra lateral (`UserMenu`).
   - **Variables de entorno** (`.env.local`, ver `.env.example`): `DATABASE_URL` (pooler de Neon, runtime),
     `DIRECT_URL` (conexión directa, migraciones y seed), `AUTH_SECRET`.
   - Las decisiones metodológicas del motor (`tabla_k` invertida, `MIN_PROPAGATED_MAGNITUDE`) **no** se tocan al

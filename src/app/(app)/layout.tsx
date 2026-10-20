@@ -16,6 +16,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
       snapshot={snapshot}
       account={{
         userName: member.nombre,
+        userEmail: member.email,
         organizationName: member.organizacionNombre,
         roleName: member.rolNombre,
       }}

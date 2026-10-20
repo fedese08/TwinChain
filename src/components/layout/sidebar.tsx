@@ -4,12 +4,13 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Activity, Boxes, GitCompare, LibraryBig, Users } from "lucide-react";
-import { SignOutButton } from "@/components/auth/sign-out-button";
+import { UserMenu } from "@/components/account/user-menu";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/stores/app-store";
 
 export interface SidebarAccount {
   userName: string;
+  userEmail: string;
   organizationName: string;
   roleName: string;
 }
@@ -37,9 +38,7 @@ export function Sidebar({ account }: { account: SidebarAccount }) {
   const chainCount = useAppStore((s) => s.chains.length);
   const scenarioCount = useAppStore((s) => s.scenarios.length);
 
-  const roleName = account.roleName;
   const initials = initialsOf(account.organizationName, 2);
-  const userInitials = initialsOf(account.userName, 2);
 
   return (
     <div className="flex w-[236px] flex-none flex-col gap-4 border-r border-sidebar-border bg-sidebar p-3 text-sidebar-foreground">
@@ -98,17 +97,8 @@ export function Sidebar({ account }: { account: SidebarAccount }) {
         </div>
       </nav>
 
-      <div className="mt-auto flex flex-col gap-0.5 pt-2">
-        <div className="flex items-center gap-2.5 border-t border-sidebar-border px-2 pb-1 pt-3">
-          <span className="flex h-[26px] w-[26px] items-center justify-center rounded-full border border-sidebar-border bg-sidebar-accent font-mono text-[10px] text-sidebar-foreground/80">
-            {userInitials}
-          </span>
-          <div className="flex min-w-0 flex-col leading-tight">
-            <span className="truncate text-[12.5px]">{account.userName}</span>
-            <span className="text-[10.5px] text-sidebar-foreground/60">{roleName}</span>
-          </div>
-        </div>
-        <SignOutButton className="px-2 py-1.5 text-sidebar-foreground/60 hover:text-sidebar-foreground" />
+      <div className="mt-auto pt-2">
+        <UserMenu account={account} />
       </div>
     </div>
   );

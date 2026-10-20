@@ -1,19 +1,17 @@
 import { and, asc, desc, eq, gt, isNull } from "drizzle-orm";
 import { InviteMembers } from "@/components/organization/invite-members";
-import { PlanManager } from "@/components/organization/plan-manager";
+import Link from "next/link";
+import { PLAN_DEFINITIONS } from "@/lib/plans";
 import { organizationUsage } from "@/lib/data/plan-limits";
 import { can, requirePageMember } from "@/lib/auth/session";
-import { getDb, invitaciones, organizaciones, rolesUsuario, usuarios } from "@/lib/db";
+import { getDb, invitaciones, rolesUsuario, usuarios } from "@/lib/db";
 
 export default async function OrganizationPage() {
   const member = await requirePageMember();
   const db = getDb();
   const canManage = can(member, "organization:manage");
 
-  const [[org], usage] = await Promise.all([
-    db.select({ planDesde: organizaciones.planDesde }).from(organizaciones).where(eq(organizaciones.id, member.organizacionId)),
-    organizationUsage(db, member.organizacionId),
-  ]);
+  const usage = await organizationUsage(db, member.organizacionId);
 
   const members = await db
     .select({ id: usuarios.id, nombre: usuarios.nombre, email: usuarios.email, rol: rolesUsuario.nombre })
@@ -52,7 +50,19 @@ export default async function OrganizationPage() {
           </div>
         </div>
 
-        <PlanManager plan={member.plan} since={org.planDesde.toISOString()} usage={usage} canManage={canManage} />
+        <Link
+          href="/cuenta#plan"
+          className="flex items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3 text-[13px] hover:border-primary/40"
+        >
+          <span className="rounded-full border border-primary/40 bg-accent px-2.5 py-0.5 text-[11px] font-medium text-accent-foreground">
+            {PLAN_DEFINITIONS[member.plan].name}
+          </span>
+          <span className="flex-1 text-muted-foreground">
+            {usage.nodes} / {PLAN_DEFINITIONS[member.plan].maxNodes} nodos · {usage.scenarios} / {PLAN_DEFINITIONS[member.plan].maxScenarios} escenarios
+            guardados
+          </span>
+          <span className="text-primary">Ver o cambiar de plan →</span>
+        </Link>
 
         <div className="flex flex-col divide-y divide-border rounded-2xl border border-border bg-card">
           {members.map((m) => (
