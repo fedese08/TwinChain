@@ -43,22 +43,18 @@ export function SplashScreen() {
         leaving ? "pointer-events-none opacity-0" : "opacity-100"
       }`}
     >
+      {/* El logotipo completo (isotipo + nombre): es lo primero que se ve de la marca al abrir la app. */}
       <Image
-        src="/logo.png"
+        src="/brand/logotipo.svg"
         alt=""
-        width={116}
-        height={116}
+        width={532}
+        height={160}
         priority
-        className="splash-logo h-[116px] w-[116px]"
+        unoptimized
+        className="splash-logo h-auto w-[330px] max-w-[80vw]"
       />
 
       <div className="splash-text flex flex-col items-center gap-3.5">
-        {/* Mismo logotipo que la barra lateral: Sora, con el acento en "Chain". */}
-        <span className="font-display text-[34px] leading-none tracking-tight">
-          <span className="font-semibold text-foreground/60">Twin</span>
-          <span className="font-bold text-foreground">Chain</span>
-        </span>
-
         {/* Barra indeterminada — el gesto que lo hace leer como pantalla de carga. */}
         <div className="h-[3px] w-[132px] overflow-hidden rounded-full bg-border">
           <div className="splash-sweep h-full w-[45%] rounded-full bg-primary" />

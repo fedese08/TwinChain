@@ -74,13 +74,7 @@ export default async function LandingPage() {
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground">
       <header className="mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-6">
-        <div className="flex items-center gap-2.5">
-          <Image src="/logo.png" alt="" width={36} height={36} priority className="h-9 w-9" />
-          <span className="font-display text-[22px] leading-none tracking-tight">
-            <span className="font-semibold text-foreground/60">Twin</span>
-            <span className="font-bold">Chain</span>
-          </span>
-        </div>
+        <Image src="/brand/logotipo.svg" alt="TwinChain" width={532} height={160} priority unoptimized className="-my-3 -ml-3 h-auto w-[190px]" />
         <div className="flex items-center gap-2">
           {signedIn ? (
             <Link href="/cadenas" className={buttonVariants({})}>

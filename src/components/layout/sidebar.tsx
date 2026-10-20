@@ -42,21 +42,9 @@ export function Sidebar({ account }: { account: SidebarAccount }) {
 
   return (
     <div className="flex w-[236px] flex-none flex-col gap-4 border-r border-sidebar-border bg-sidebar p-3 text-sidebar-foreground">
-      {/* Logotipo a sangre: el conjunto marca + nombre ocupa todo el ancho útil de la barra. */}
-      <div className="flex items-center gap-2.5 pb-1 pt-1">
-        <Image
-          src="/logo.png"
-          alt=""
-          width={44}
-          height={44}
-          priority
-          className="h-11 w-11 flex-none"
-        />
-        {/* Fuente propia (Sora) y dos pesos para que "Chain" cargue el acento. */}
-        <span className="font-display text-[30px] leading-none tracking-tight">
-          <span className="font-semibold text-sidebar-foreground/70">Twin</span>
-          <span className="font-bold">Chain</span>
-        </span>
+      {/* Logotipo (isotipo + nombre): ocupa el ancho útil de la barra. El SVG trae su propio margen interno. */}
+      <div className="-mx-1 -my-1">
+        <Image src="/brand/logotipo.svg" alt="TwinChain" width={532} height={160} priority unoptimized className="h-auto w-[200px]" />
       </div>
 
       <div className="flex items-center gap-2 rounded-lg border border-sidebar-border bg-sidebar-accent/40 px-2.5 py-2">
