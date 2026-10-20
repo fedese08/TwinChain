@@ -180,10 +180,11 @@ resultado se recalculan con la cadena actual y no con la de la corrida, y las de
   - `/cadenas/[id]/escenarios` y `/escenarios/[scenarioId]` — listado y resultado: tabla_k, déficit proyectado por
     nodo (directos y propagados), y la "red fork" (`ChainCanvas mode="display"`) coloreando cada nodo/arista según
     severidad (severo/moderado/sin efecto) con un slider de semana para ver cómo avanza la propagación.
-  - `/cadenas/[id]/escenarios/[scenarioId]` tiene dos vistas: **"Respuesta"** (veredicto de impacto, decisión
-    interactiva de reconfigurar según el costo k que asume el usuario, y la red de propagación) y **"Detalle
-    técnico"** (ficha de la corrida con réplicas/semilla, corridas guardadas, eventos, tabla_k completa y los
-    gráficos por nodo). Toda la jerga metodológica vive en la segunda; la primera no la menciona.
+  - `/cadenas/[id]/escenarios/[scenarioId]` tiene dos vistas: **"Respuesta"** (solo lo que le importa a quien decide:
+    cuánto se pierde, dónde pega y desde cuándo; si conviene reconfigurar según el costo que asume el usuario; y la red
+    de propagación con su reproductor) y **"Detalle técnico"** (ficha de la corrida con réplicas/semilla, corridas
+    guardadas, eventos, cómo se calculó la decisión, evolución semanal de la crisis, tabla_k por fracción de
+    propagación y los gráficos por nodo). Toda la jerga metodológica vive en la segunda; la primera no la menciona.
   - **El umbral y la recomendación salen de la misma función.** `N(k) = min { t : E(t) ≥ k·d0 }`, con `E(t)` la pérdida
     evitable acumulada al reconfigurar en `s_r`. "Conviene reconfigurar" con el costo `k` que asume el usuario es
     `E(H) ≥ k·d0` en más de la mitad de las réplicas. La fórmula anterior de `tabla_k` estaba invertida y se reemplazó

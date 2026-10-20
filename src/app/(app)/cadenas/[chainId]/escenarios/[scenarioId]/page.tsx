@@ -302,10 +302,11 @@ export default function ScenarioResultPage({
   );
   // Qué porción de la pérdida evitable se lleva el costo de reconfigurar, para ver cuánto margen queda.
   const costShareOfAvoidable = avoidableNow > 0 ? Math.min(1, costNow / avoidableNow) : 1;
-  // Posición de k_max sobre el riel del slider; solo se dibuja si cae dentro del rango.
-  const showBreakEven = breakEvenK >= 1 && breakEvenK <= kMax;
-  const breakEvenPct = ((breakEvenK - 1) / Math.max(1, kMax - 1)) * 100;
-  const breakEvenLeft = `calc(${breakEvenPct}% + ${(8 - (breakEvenPct / 100) * 16).toFixed(2)}px)`;
+  // Fechas de las semanas proyectadas, para decir "cuándo" en vez de un número de semana suelto.
+  const weekStarts = [...propagation.values()][0]?.map((w) => w.weekStart) ?? [];
+  const labelOfWeek = (index: number) => (weekStarts[index] ? formatWeekLabel(weekStarts[index]) : "");
+  const nodeLabel = (id: string) => chainNodes.find((n) => n.id === id)?.label ?? "?";
+  const plural = (n: number, one: string, many: string) => `${Number.isInteger(n) ? n : n.toFixed(1)} ${n === 1 ? one : many}`;
   const observedWeeks = outcome.observedWeeks;
 
   // La tabla guardada con la corrida; las corridas anteriores a la tabla por fracción no la traen y se recalcula.
@@ -371,11 +372,8 @@ export default function ScenarioResultPage({
       {view === "answer" ? (
         <div className="flex min-h-0 flex-1 justify-center overflow-auto px-5 pb-10">
           <div className="flex w-full max-w-[780px] flex-col gap-4">
-            {/* Veredicto: lo primero que tiene que leerse, sin jerga. */}
-            <div
-              className="rounded-2xl border p-6"
-              style={{ background: impact.bg, borderColor: impact.border }}
-            >
+            {/* 1. Qué pasa: cuánto se pierde, dónde pega y desde cuándo. */}
+            <div className="rounded-2xl border p-6" style={{ background: impact.bg, borderColor: impact.border }}>
               <div className="mb-3 flex items-center gap-2">
                 <span className="h-2 w-2 rounded-full" style={{ background: impact.tone }} />
                 <span className="font-mono text-[10px] font-medium uppercase tracking-wider" style={{ color: impact.tone }}>
@@ -383,7 +381,7 @@ export default function ScenarioResultPage({
                 </span>
                 {reconfigured && (
                   <span className="rounded border border-border bg-card px-1.5 py-0.5 font-mono text-[9.5px] text-muted-foreground">
-                    con reconfiguración en la semana {(result.reconfigurationWeekIndex ?? 0) + 1}
+                    reconfigurando en la semana {(result.reconfigurationWeekIndex ?? 0) + 1}
                   </span>
                 )}
               </div>
@@ -393,97 +391,95 @@ export default function ScenarioResultPage({
                   {badWeeks.toFixed(1)}
                 </span>
                 <span className="text-[17px] leading-snug font-medium">
-                  semanas de operación perdidas, sumando todos los nodos, en {scenario.projectionHorizonWeeks} semanas
+                  {badWeeks === 1 ? "semana" : "semanas"} de operación perdidas
                 </span>
               </div>
-
-              <div className="mt-2 text-[12.5px] leading-relaxed text-muted-foreground">
-                Estimación central; según cómo se comporte la propagación puede ir de{" "}
-                <span className="font-mono">{badWeeksLow.toFixed(1)}</span> a{" "}
-                <span className="font-mono">{badWeeksHigh.toFixed(1)}</span> semanas.
+              <div className="mt-1.5 text-[12.5px] leading-relaxed text-muted-foreground">
+                en las próximas {scenario.projectionHorizonWeeks} semanas, sumando todos los nodos afectados
+                {badWeeksHigh - badWeeksLow >= 0.05 && (
+                  <>
+                    {" "}
+                    (entre <span className="font-mono">{badWeeksLow.toFixed(1)}</span> y{" "}
+                    <span className="font-mono">{badWeeksHigh.toFixed(1)}</span> según cómo se propague)
+                  </>
+                )}
+                .
               </div>
 
-              <div className="mt-4 grid grid-cols-3 gap-2">
-                {[
-                  { label: "Nodos alcanzados", value: `${propagation.size}`, note: `${propagatedNodeIds.length} por propagación` },
-                  {
-                    label: "Empieza a sentirse",
-                    value: firstAffectedWeek >= 0 ? `sem. ${firstAffectedWeek + 1}` : "—",
-                    note: "primera semana con déficit",
-                  },
-                  {
-                    label: "Semanas afectadas",
-                    value: `${weeksInDeficit}`,
-                    note: reconfigured ? "hasta la reconfiguración" : "no se corrige solo",
-                  },
-                ].map((stat) => (
-                  <div key={stat.label} className="rounded-xl border border-border bg-card px-3 py-2.5">
-                    <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">{stat.label}</div>
-                    <div className="mt-0.5 font-mono text-[19px] leading-tight font-medium">{stat.value}</div>
-                    <div className="text-[10.5px] text-muted-foreground">{stat.note}</div>
+              <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                <div className="rounded-xl border border-border bg-card px-3.5 py-3">
+                  <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">Dónde pega</div>
+                  <div className="mt-1.5 flex flex-wrap gap-1.5">
+                    {[...directlyAffectedNodeIds, ...propagatedNodeIds].map((id) => (
+                      <span
+                        key={id}
+                        className={cn(
+                          "rounded-md border px-1.5 py-0.5 font-mono text-[11px]",
+                          directlyAffectedNodeIds.includes(id) ? "border-foreground/40 font-medium" : "border-border text-muted-foreground",
+                        )}
+                        title={directlyAffectedNodeIds.includes(id) ? "Nodo afectado por el evento" : "Alcanzado por propagación"}
+                      >
+                        {nodeLabel(id)}
+                      </span>
+                    ))}
                   </div>
-                ))}
+                  <div className="mt-1.5 text-[10.5px] text-muted-foreground">
+                    {propagatedNodeIds.length === 0
+                      ? "El golpe queda en el nodo afectado."
+                      : `El nodo afectado y ${plural(propagatedNodeIds.length, "nodo más", "nodos más")} por propagación.`}
+                  </div>
+                </div>
+                <div className="rounded-xl border border-border bg-card px-3.5 py-3">
+                  <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">Cuándo</div>
+                  {firstAffectedWeek >= 0 ? (
+                    <>
+                      <div className="mt-1 text-[13.5px] font-medium">
+                        Empieza en la semana {firstAffectedWeek + 1} <span className="font-normal text-muted-foreground">({labelOfWeek(firstAffectedWeek)})</span>
+                      </div>
+                      <div className="mt-0.5 text-[10.5px] text-muted-foreground">
+                        {reconfigured
+                          ? "y se corta al reconfigurar."
+                          : `Peor momento: semana ${peakWeekIndex + 1}. No se corrige solo.`}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="mt-1 text-[13.5px] font-medium">Sin impacto en el horizonte</div>
+                  )}
+                </div>
               </div>
             </div>
 
-            {/* La decisión: el usuario pone su costo y el sistema responde sí o no. */}
+            {/* 2. Qué hacer: el usuario pone su costo y el sistema responde sí o no. */}
             <div className="rounded-2xl border border-border bg-card p-5">
-              <div className="text-[15px] font-medium">¿Conviene reconfigurar?</div>
+              <div className="text-[15px] font-medium">¿Conviene reconfigurar la red?</div>
               <div className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
-                Depende de cuánto te cueste hacerlo. Ese costo se mide en semanas de operar como ahora: reconfigurar
-                cuesta lo que perderías en esas semanas con el problema actual.
+                Decinos cuánto te cuesta hacerlo y te respondemos. El costo se mide en semanas de operar como ahora: 1 semana es lo
+                que perderías en una semana con el problema actual.
               </div>
-              {observedWeeks > 0 && (
-                <div className="mt-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-[11.5px] leading-relaxed text-muted-foreground">
-                  Esta simulación parte de una alerta: el desvío ya lleva{" "}
-                  <span className="font-medium text-foreground">
-                    {observedWeeks} {observedWeeks === 1 ? "semana" : "semanas"}
-                  </span>{" "}
-                  observadas. Son pasado: no cuentan para el umbral, que se mide desde la decisión.
-                </div>
-              )}
 
-              <div className="mt-4 flex items-start gap-3">
-                <span className="mt-0.5 flex-none font-mono text-[10.5px] text-muted-foreground">
-                  reconfigurar me cuesta
-                </span>
-                <div className="relative min-w-0 flex-1 pb-5">
-                  <input
-                    type="range"
-                    min={1}
-                    max={kMax}
-                    value={effectiveK}
-                    onChange={(e) => setAssumedK(Number(e.target.value))}
-                    className="h-1.5 w-full accent-primary"
-                  />
-                  {/* Punto de equilibrio sobre la escala del slider. La marca es una línea real
-                      apoyada en el riel — antes era un "▲" dentro de un texto centrado, así que
-                      el triángulo caía a la izquierda del valor que decía señalar. El desfase de
-                      8px compensa el radio del thumb, que no llega a los extremos del riel. */}
-                  {showBreakEven && (
-                    <>
-                      <span
-                        className="pointer-events-none absolute top-[9px] h-2 w-px -translate-x-1/2 bg-muted-foreground/60"
-                        style={{ left: breakEvenLeft }}
-                      />
-                      <span
-                        className="pointer-events-none absolute top-[19px] -translate-x-1/2 whitespace-nowrap font-mono text-[9.5px] text-muted-foreground"
-                        style={{ left: breakEvenLeft }}
-                      >
-                        deja de convenir en {breakEvenK.toFixed(1)}
-                      </span>
-                    </>
-                  )}
-                </div>
-                <span className="mt-0.5 w-24 flex-none text-right font-mono text-[12.5px] font-medium">
+              <div className="mt-4 flex items-center gap-3">
+                <span className="flex-none text-[12px] text-muted-foreground">Reconfigurar me cuesta</span>
+                <input
+                  type="range"
+                  min={1}
+                  max={kMax}
+                  value={effectiveK}
+                  onChange={(e) => setAssumedK(Number(e.target.value))}
+                  className="h-1.5 min-w-0 flex-1 accent-primary"
+                />
+                <span className="w-24 flex-none text-right font-mono text-[12.5px] font-medium">
                   {effectiveK} {effectiveK === 1 ? "semana" : "semanas"}
                 </span>
               </div>
+              {breakEvenK >= 1 && (
+                <div className="mt-1.5 text-[11px] text-muted-foreground">
+                  Mientras cueste menos de <span className="font-mono">{breakEvenK.toFixed(1)}</span> semanas, conviene.
+                </div>
+              )}
 
-              {/* El color acompaña a la acción recomendada (hacelo / no lo hagas), no a la gravedad:
-                  un ✓ sobre rojo mandaba señales contradictorias. La gravedad ya la comunica el
-                  bloque de impacto de arriba. */}
-              <div className="mt-4 flex items-start gap-3 rounded-xl border p-4"
+              {/* El color acompaña a la acción recomendada (hacelo / no lo hagas), no a la gravedad. */}
+              <div
+                className="mt-4 flex items-start gap-3 rounded-xl border p-4"
                 style={
                   worthReconfiguring
                     ? { borderColor: "rgba(59, 130, 246, 0.35)", background: "rgba(59, 130, 246, 0.1)" }
@@ -497,74 +493,37 @@ export default function ScenarioResultPage({
                   {worthReconfiguring ? <Check size={14} /> : <X size={14} />}
                 </span>
                 <div className="min-w-0 flex-1">
-                  <div className="text-[14px] font-medium">
+                  <div className="text-[14.5px] font-medium">
                     {worthReconfiguring ? "Sí, conviene reconfigurar" : "No conviene reconfigurar"}
                   </div>
-                  <div className="mt-0.5 text-[12px] leading-relaxed text-muted-foreground">
+                  <div className="mt-0.5 text-[12.5px] leading-relaxed text-muted-foreground">
                     {worthReconfiguring ? (
                       <>
-                        Reconfigurando ahora evitás{" "}
-                        <span className="font-medium text-foreground">{avoidableNow.toFixed(1)} semanas</span> de
-                        pérdida, contra un costo de {costNow.toFixed(1)} ({effectiveK}{" "}
-                        {effectiveK === 1 ? "semana" : "semanas"} de operar como ahora).
+                        Evitarías <span className="font-medium text-foreground">{avoidableNow.toFixed(1)}</span> semanas de pérdida y el
+                        cambio te cuesta <span className="font-medium text-foreground">{costNow.toFixed(1)}</span>.
                         {threshold.median !== null && (
                           <>
                             {" "}
                             Se paga si el problema dura{" "}
-                            <span className="font-medium text-foreground">
-                              {threshold.median.toFixed(1)} {threshold.median === 1 ? "semana" : "semanas"}
-                            </span>{" "}
-                            o más desde la decisión
-                            {threshold.low !== null && threshold.high !== null && threshold.low !== threshold.high && (
-                              <> (entre {threshold.low.toFixed(1)} y {threshold.high.toFixed(1)} según las réplicas)</>
-                            )}
-                            {observedWeeks > 0 && threshold.median !== null && (
-                              <>
-                                ; desde que empezó el desvío, {(observedWeeks + threshold.median).toFixed(1)} semanas en total
-                              </>
-                            )}
-                            .
+                            <span className="font-medium text-foreground">{plural(threshold.median, "semana", "semanas")}</span> o más desde
+                            la decisión
+                            {observedWeeks > 0 && <> ({plural(observedWeeks + threshold.median, "semana", "semanas")} desde que empezó)</>}.
                           </>
                         )}
                         {lastWorthwhileWeek >= 0 && lastWorthwhileWeek + 1 < scenario.projectionHorizonWeeks && (
                           <>
                             {" "}
-                            Cada semana que esperes queda menos por evitar: a partir de la{" "}
-                            <span className="font-medium text-foreground">semana {lastWorthwhileWeek + 2}</span> ya no
-                            se paga solo.
+                            Cuanto antes, mejor: a partir de la semana {lastWorthwhileWeek + 2} ya no se paga solo.
                           </>
                         )}
                       </>
                     ) : (
                       <>
-                        Reconfigurar cuesta {costNow.toFixed(1)} ({effectiveK}{" "}
-                        {effectiveK === 1 ? "semana" : "semanas"} de operar como ahora) y en todo el horizonte solo
-                        evitarías <span className="font-mono">{avoidableNow.toFixed(1)}</span>. Sale más caro el
-                        remedio que la enfermedad.
-                        {worthShare > 0 && (
-                          <> Aun así, se paga en el {Math.round(worthShare * 100)} % de las réplicas.</>
-                        )}
+                        Reconfigurar cuesta <span className="font-medium text-foreground">{costNow.toFixed(1)}</span> y en todo el horizonte
+                        solo evitarías <span className="font-medium text-foreground">{avoidableNow.toFixed(1)}</span>.
+                        {worthShare > 0 && <> Aun así, se paga en el {Math.round(worthShare * 100)} % de las simulaciones.</>}
                       </>
                     )}
-                  </div>
-
-                  {/* La barra entera es la pérdida que evitás; el relleno, lo que te cuesta
-                      evitarla. Si el relleno tapa toda la barra, el remedio cuesta más que la
-                      enfermedad. */}
-                  <div className="mt-3">
-                    <div className="h-1.5 overflow-hidden rounded-full bg-card">
-                      <div
-                        className="h-full rounded-full transition-all"
-                        style={{
-                          width: `${costShareOfAvoidable * 100}%`,
-                          background: worthReconfiguring ? "#3b82f6" : "#8c96a6",
-                        }}
-                      />
-                    </div>
-                    <div className="mt-1 flex justify-between font-mono text-[9.5px] text-muted-foreground">
-                      <span>cuesta {costNow.toFixed(1)}</span>
-                      <span>evitás {avoidableNow.toFixed(1)}</span>
-                    </div>
                   </div>
                 </div>
               </div>
@@ -585,64 +544,16 @@ export default function ScenarioResultPage({
                   </Button>
                 )}
                 <span className="text-[10.5px] leading-relaxed text-muted-foreground">
-                  Reconfigurar es un cambio de golpe: firmado el convenio, el proveedor alternativo opera de inmediato.
+                  Es un cambio de golpe: firmado el convenio, el proveedor alternativo opera de inmediato.
                 </span>
               </div>
             </div>
 
-            {/* La curva de la crisis: cuándo pega, cuánto dura, cuál es el peor momento. */}
-            <div className="rounded-2xl border border-border bg-card p-4">
-              <div className="mb-1 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                <span className="text-[14px] font-medium">Cómo evoluciona la crisis</span>
-                <span className="text-[11.5px] text-muted-foreground">
-                  cuánta operación se pierde cada semana
-                </span>
-              </div>
-              <CrisisTimelineChart
-                data={crisisData}
-                currentWeekIndex={effectiveWeekIndex}
-                reconfigurationWeekIndex={result.reconfigurationWeekIndex}
-                onSeek={(i) => {
-                  setPlaying(false);
-                  setWeekIndex(i);
-                }}
-              />
-              <div className="mt-2 grid grid-cols-3 gap-2 border-t border-border pt-3">
-                {[
-                  {
-                    label: "Arranca",
-                    value: firstAffectedWeek >= 0 ? `semana ${firstAffectedWeek + 1}` : "sin impacto",
-                    note: "primera semana con pérdida",
-                  },
-                  {
-                    label: "Peor momento",
-                    value: `semana ${peakWeekIndex + 1}`,
-                    note: `se pierde ${(weekly.perWeek[peakWeekIndex] ?? 0).toFixed(2)} de semana`,
-                  },
-                  {
-                    label: "Cuánto dura",
-                    value: `${weeksInDeficit} ${weeksInDeficit === 1 ? "semana" : "semanas"}`,
-                    note: reconfigured ? "hasta la reconfiguración" : "no se corrige solo",
-                  },
-                ].map((stat) => (
-                  <div key={stat.label} className="rounded-xl bg-muted/40 px-3 py-2">
-                    <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">
-                      {stat.label}
-                    </div>
-                    <div className="mt-0.5 text-[13.5px] font-medium">{stat.value}</div>
-                    <div className="text-[10.5px] text-muted-foreground">{stat.note}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Cómo se mueve por la red — la parte visual. */}
+            {/* 3. Cómo se mueve por la red — la parte visual. */}
             <div className="rounded-2xl border border-border bg-card p-4">
               <div className="mb-2.5 flex flex-wrap items-baseline gap-x-3 gap-y-1">
                 <span className="text-[14px] font-medium">Cómo se propaga por la cadena</span>
-                <span className="text-[11.5px] text-muted-foreground">
-                  el impacto no llega a todos a la vez: viaja con el tiempo de tránsito de cada tramo
-                </span>
+                <span className="text-[11.5px] text-muted-foreground">el impacto no llega a todos a la vez: viaja con el tránsito de cada tramo</span>
               </div>
               <div className="flex h-[360px] overflow-hidden rounded-xl border border-border">
                 <ChainCanvas chainId={chainId} mode="display" severityByNode={severityByNode} severityByEdge={severityByEdge} />
@@ -727,6 +638,82 @@ export default function ScenarioResultPage({
                     </div>
                   );
                 })}
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-border bg-card p-4">
+              <div className="mb-1 text-[13.5px] font-medium">Cómo se calculó la decisión</div>
+              <div className="mb-3 text-[11px] leading-relaxed text-muted-foreground">
+                Reconfigurar se paga si la pérdida que se evita (E) alcanza el costo (K = k · d0), con d0 la caída semanal del nodo
+                afectado. El resultado de la pantalla Respuesta es el que sale en más de la mitad de las réplicas.
+              </div>
+              <div className="grid grid-cols-2 gap-2 font-mono text-[11px] sm:grid-cols-3">
+                {[
+                  { k: "caída semanal (d0)", v: `${(d0 * 100).toFixed(0)} %` },
+                  { k: `costo K (k = ${effectiveK})`, v: costNow.toFixed(2) },
+                  { k: "pérdida evitable E", v: avoidableNow.toFixed(2) },
+                  { k: "k máximo que se paga", v: breakEvenK.toFixed(1) },
+                  { k: "réplicas en que se paga", v: `${Math.round(worthShare * 100)} %` },
+                  { k: "semanas observadas", v: observedWeeks > 0 ? `${observedWeeks}` : "—" },
+                ].map((item) => (
+                  <div key={item.k} className="rounded-lg bg-muted/40 px-2.5 py-2">
+                    <div className="text-[9px] uppercase tracking-wider text-muted-foreground">{item.k}</div>
+                    <div className="mt-0.5 truncate font-medium">{item.v}</div>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-3">
+                <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+                  <div
+                    className="h-full rounded-full transition-all"
+                    style={{ width: `${costShareOfAvoidable * 100}%`, background: worthReconfiguring ? "#3b82f6" : "#8c96a6" }}
+                  />
+                </div>
+                <div className="mt-1 flex justify-between font-mono text-[9.5px] text-muted-foreground">
+                  <span>cuesta {costNow.toFixed(1)}</span>
+                  <span>evitás {avoidableNow.toFixed(1)}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-border bg-card p-4">
+              <div className="mb-1 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                <span className="text-[13.5px] font-medium">Evolución de la crisis</span>
+                <span className="text-[11px] text-muted-foreground">cuánta operación se pierde cada semana</span>
+              </div>
+              <CrisisTimelineChart
+                data={crisisData}
+                currentWeekIndex={effectiveWeekIndex}
+                reconfigurationWeekIndex={result.reconfigurationWeekIndex}
+                onSeek={(i) => {
+                  setPlaying(false);
+                  setWeekIndex(i);
+                }}
+              />
+              <div className="mt-2 grid grid-cols-3 gap-2 border-t border-border pt-3">
+                {[
+                  {
+                    label: "Arranca",
+                    value: firstAffectedWeek >= 0 ? `semana ${firstAffectedWeek + 1}` : "sin impacto",
+                    note: "primera semana con pérdida",
+                  },
+                  {
+                    label: "Peor momento",
+                    value: `semana ${peakWeekIndex + 1}`,
+                    note: `se pierde ${(weekly.perWeek[peakWeekIndex] ?? 0).toFixed(2)} de semana`,
+                  },
+                  {
+                    label: "Cuánto dura",
+                    value: `${weeksInDeficit} ${weeksInDeficit === 1 ? "semana" : "semanas"}`,
+                    note: reconfigured ? "hasta la reconfiguración" : "no se corrige solo",
+                  },
+                ].map((stat) => (
+                  <div key={stat.label} className="rounded-xl bg-muted/40 px-3 py-2">
+                    <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">{stat.label}</div>
+                    <div className="mt-0.5 text-[13.5px] font-medium">{stat.value}</div>
+                    <div className="text-[10.5px] text-muted-foreground">{stat.note}</div>
+                  </div>
+                ))}
               </div>
             </div>
 
