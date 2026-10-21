@@ -206,3 +206,9 @@ funcionalidad que todavía no existe.
 - **[deuda] Una caída de un margen no se detecta** con el umbral conservador, y el CUSUM puede confirmar con una sola semana
   extremadamente mala. Ver `docs/modelo-ml.md`, sección 8.
 
+
+## Prueba intermitente de calibración del estado operativo (detectada 21/10/2026)
+`src/lib/domain/monitoring.test.ts` → "un nodo sano casi nunca sale en crítico…" usa `randomUUID()` para los nodos, así que la
+semilla cambia en cada corrida. En 1 de ~22 corridas dio 0,51 % de semanas críticas contra el tope de 0,5 %. No se relajó
+el tope. Para volverla reproducible, fijar los ids de los 80 nodos (y mirar si con ids fijos pasa con margen); si no, el
+tope de la regla vieja (nodos en escala 0–100) está justo en el borde. Afecta solo a nodos legacy, no al CUSUM.

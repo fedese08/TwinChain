@@ -5,6 +5,7 @@ import {
   CartesianGrid,
   ComposedChart,
   Line,
+  ReferenceArea,
   ReferenceLine,
   ResponsiveContainer,
   Tooltip,
@@ -38,11 +39,14 @@ export function WeeklyPerformanceChart({
   reconfigurationWeekIndex = null,
   /** "pct": escala 0-100 (nodos sintéticos). "dias": días de margen (Vendedor con datos reales de Olist). */
   unit = "pct",
+  /** Períodos de degradación sostenida confirmados por el monitoreo (HU5): se sombrean en el gráfico. */
+  periods = [],
 }: {
   data: WeeklyChartPoint[];
   height?: number;
   reconfigurationWeekIndex?: number | null;
   unit?: PerformanceUnit;
+  periods?: { from: string; to: string }[];
 }) {
   const isDays = unit === "dias";
   const hasWeeklyBand = data.some((d) => d.weeklyBandLower !== undefined && d.weeklyBandUpper !== undefined);
@@ -74,6 +78,7 @@ export function WeeklyPerformanceChart({
     ...(hasWeeklyBand ? [{ name: "banda semanal (modelo)", color: "#0d9c84", kind: "area" as const }] : []),
     { name: "déficit", color: "#f2703c", kind: "area" as const },
     ...(hasReplicaRange ? [{ name: "rango simulado", color: "#3b82f6", kind: "area" as const }] : []),
+    ...(periods.length > 0 ? [{ name: "degradación sostenida", color: "#c2571f", kind: "area" as const }] : []),
   ];
 
   return (
@@ -94,6 +99,9 @@ export function WeeklyPerformanceChart({
         />
         {/* Rellenos con borde propio y opacidad: sobre el fondo blanco de la tarjeta los tonos
             planos muy claros se perdían y la banda y el déficit no se leían. */}
+        {periods.map((period) => (
+          <ReferenceArea key={period.from} x1={formatWeekLabel(period.from)} x2={formatWeekLabel(period.to)} fill="#c2571f" fillOpacity={0.12} stroke="#c2571f" strokeOpacity={0.35} />
+        ))}
         {hasWeeklyBand && (
           <Area type="monotone" dataKey="bandaSemanal" name="banda semanal" fill="#0d9c84" fillOpacity={0.07} stroke="#0d9c84" strokeOpacity={0.2} strokeWidth={1} />
         )}

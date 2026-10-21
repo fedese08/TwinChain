@@ -190,3 +190,34 @@ export function degradationStatus(rows: CusumRow[], h: number): DegradationStatu
   }
   return { level: "normal", run, active: null };
 }
+
+/** Un período en que el nodo estuvo en degradación sostenida: de cuándo se sostuvo el desvío hasta la última confirmación. */
+export interface DegradationPeriod {
+  from: string;
+  to: string;
+  /** Primera confirmación del período: es la detección. */
+  confirmedWeek: string;
+  confirmations: number;
+}
+
+/**
+ * Todos los períodos de degradación sostenida que el CUSUM confirmó en la serie (HU5): las confirmaciones consecutivas se
+ * unen en un solo período, igual que en la alerta vigente.
+ */
+export function degradationPeriods(rows: CusumRow[], h: number): DegradationPeriod[] {
+  const run = runCusum(rows, h);
+  const index = new Map(run.weeks.map((w, i) => [w.weekStart, i]));
+  const periods: DegradationPeriod[] = [];
+  for (const episode of run.episodes) {
+    const last = periods[periods.length - 1];
+    const gap = last ? (index.get(episode.since) ?? 0) - (index.get(last.to) ?? 0) - 1 : Infinity;
+    if (last && gap <= MERGE_GAP_WEEKS) {
+      last.to = episode.confirmedWeek;
+      last.confirmations += 1;
+    } else {
+      periods.push({ from: episode.since, to: episode.confirmedWeek, confirmedWeek: episode.confirmedWeek, confirmations: 1 });
+    }
+  }
+  return periods;
+}
+

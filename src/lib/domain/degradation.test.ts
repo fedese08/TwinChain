@@ -1,6 +1,6 @@
 // El CUSUM del Flujo A: acumula solo lo que excede el margen, confirma al superar el umbral y se reinicia.
 import { describe, expect, it } from "vitest";
-import { ALERT_HOLD_WEEKS, degradationStatus, runCusum, type CusumRow } from "@/lib/domain/degradation";
+import { ALERT_HOLD_WEEKS, degradationPeriods, degradationStatus, runCusum, type CusumRow } from "@/lib/domain/degradation";
 import { addWeeksIso } from "@/lib/domain/synthetic/weeks";
 
 const START = "2026-01-05";
@@ -89,3 +89,17 @@ describe("estado del nodo según el CUSUM", () => {
     expect(status.active?.first.weeks).toBe(4);
   });
 });
+
+describe("períodos de degradación sostenida (HU5)", () => {
+  it("une las confirmaciones consecutivas en un período y separa los que están lejos", () => {
+    // Degradado en las semanas 2 a 9; normal 10 a 21; degradado de nuevo desde la 22.
+    const values = [3, 3, 1, 1, 1, 1, 1, 1, 1, 1, ...Array(12).fill(3), 1, 1, 1, 1];
+    const periods = degradationPeriods(rows(values), 4);
+    expect(periods).toHaveLength(2);
+    expect(periods[0].from).toBe(addWeeksIso(START, 2));
+    expect(periods[0].confirmations).toBeGreaterThanOrEqual(2);
+    expect(periods[1].from).toBe(addWeeksIso(START, 22));
+    expect(degradationPeriods(rows(Array(10).fill(3)), 4)).toEqual([]);
+  });
+});
+

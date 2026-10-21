@@ -9,6 +9,7 @@ import { WeeklyPerformanceChart } from "@/components/charts/weekly-performance-c
 import { CrisisTimelineChart } from "@/components/charts/crisis-timeline-chart";
 import { WeekPlayer } from "@/components/scenario/week-player";
 import { SimulationIntro } from "@/components/scenario/simulation-intro";
+import { AlertEvolutionChart } from "@/components/charts/alert-evolution-chart";
 import { KTableChart } from "@/components/charts/k-table-chart";
 import { ChainCanvas } from "@/components/canvas/chain-canvas";
 import { Button } from "@/components/ui/button";
@@ -23,7 +24,9 @@ import {
   type Severity,
 } from "@/lib/domain/simulate";
 import { CENTRAL_PROPAGATION_FRACTION, fractionsOf, PROPAGATION_FRACTIONS, rowsForFraction } from "@/lib/domain/k-table";
+import { thresholdForCost } from "@/lib/domain/cusum-config";
 import { formatWeekLabel } from "@/lib/domain/dates";
+import { simulatedAlertTimeline } from "@/lib/domain/simulation-alerts";
 import { adaptForEngine, type EngineAdapter } from "@/lib/domain/units";
 import { hashSeed } from "@/lib/domain/rng";
 import { useAppStore } from "@/stores/app-store";
@@ -168,6 +171,12 @@ export default function ScenarioResultPage({
   const propagation = useMemo((): Map<string, ProjectedWeek[]> => outcome?.projectionByNode ?? new Map(), [outcome]);
 
   const directlyAffectedNodeIds = useMemo(() => [...new Set(events.map((e) => e.nodeId))], [events]);
+  // HU3: el mismo CUSUM del monitoreo, aplicado a las semanas proyectadas de cada nodo alcanzado.
+  const alertThreshold = thresholdForCost(chain?.falseAlarmCost ?? 3);
+  const alertTimelines = useMemo(
+    () => new Map([...propagation].map(([nodeId, weeks]) => [nodeId, simulatedAlertTimeline(weeks, alertThreshold)])),
+    [propagation, alertThreshold],
+  );
   const propagatedNodeIds = useMemo(
     () => [...propagation.keys()].filter((id) => !directlyAffectedNodeIds.includes(id)),
     [propagation, directlyAffectedNodeIds],
@@ -653,6 +662,39 @@ export default function ScenarioResultPage({
                   <span>cuesta {costNow.toFixed(1)}</span>
                   <span>evitás {avoidableNow.toFixed(1)}</span>
                 </div>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-border bg-card p-4">
+              <div className="mb-1 text-[13.5px] font-medium">Desvío acumulado y estado de alerta</div>
+              <div className="mb-3 text-[11px] leading-relaxed text-muted-foreground">
+                Si el escenario ocurriera, así evolucionaría el desvío acumulado de cada nodo alcanzado y cuándo saltaría la alerta de
+                degradación sostenida del monitoreo. Es solo una proyección: no modifica el registro de la operación real.
+              </div>
+              <div className="flex flex-col gap-3">
+                {[...directlyAffectedNodeIds, ...propagatedNodeIds].map((nodeId) => {
+                  const timeline = alertTimelines.get(nodeId);
+                  if (!timeline) return null;
+                  const isDirect = directlyAffectedNodeIds.includes(nodeId);
+                  const when =
+                    timeline.confirmedIndex !== null
+                      ? `La alerta se confirmaría en la semana ${timeline.confirmedIndex + 1} (${labelOfWeek(timeline.confirmedIndex)})`
+                      : timeline.attentionIndex !== null
+                        ? `Pasaría a vigilancia en la semana ${timeline.attentionIndex + 1}, pero no llegaría a confirmarse`
+                        : "No saltaría ninguna alerta";
+                  return (
+                    <div key={nodeId} className="rounded-lg border border-border/70 p-2.5">
+                      <div className="flex flex-wrap items-baseline justify-between gap-2">
+                        <span className="text-[12.5px] font-medium">
+                          {nodeLabel(nodeId)}
+                          {!isDirect && <span className="ml-1.5 font-mono text-[10px] text-muted-foreground">(propagado)</span>}
+                        </span>
+                        <span className={cn("text-[11.5px]", timeline.confirmedIndex !== null ? "font-medium text-[#c2571f]" : "text-muted-foreground")}>{when}</span>
+                      </div>
+                      <AlertEvolutionChart timeline={timeline} />
+                    </div>
+                  );
+                })}
               </div>
             </div>
 

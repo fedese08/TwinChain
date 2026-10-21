@@ -121,6 +121,15 @@ export default function ChainDetailPage({ params }: { params: Promise<{ chainId:
           </button>
         </div>
 
+        {mode === "design" && (
+          <Link
+            href={`/cadenas/${chainId}/comparar-nodos`}
+            className="flex-none whitespace-nowrap rounded-lg border border-border px-3.5 py-1.5 text-[12.5px] hover:bg-muted"
+          >
+            Comparar nodos
+          </Link>
+        )}
+
         {mode === "simulate" && (
           <Link
             href={`/cadenas/${chainId}/escenarios`}

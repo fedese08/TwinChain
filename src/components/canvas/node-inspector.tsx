@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { WeeklyPerformanceChart } from "@/components/charts/weekly-performance-chart";
+import { degradationPeriods } from "@/lib/domain/degradation";
 import { deriveAlertScenario } from "@/lib/domain/detection";
 import { NODE_TYPE_CODE, NODE_TYPE_COLOR } from "@/lib/domain/node-visuals";
 import { assessNode, assessOptionsFor } from "@/lib/domain/monitoring";
@@ -150,6 +151,11 @@ export function NodeInspector({ node, onClose }: { node: SupplyChainNode; onClos
   const alert = useMemo(() => deriveAlertScenario(history, assessOptions), [history, assessOptions]);
   const health = useMemo(() => assessNode(history, assessOptions), [history, assessOptions]);
   const unit = unitOfNode(node);
+  // HU5: los períodos en que el monitoreo confirmó degradación sostenida, marcados en el gráfico.
+  const periods = useMemo(
+    () => (assessOptions.cusumH !== undefined ? degradationPeriods(history, assessOptions.cusumH) : []),
+    [history, assessOptions],
+  );
 
   function handleLabelChange(value: string) {
     setLabel(value);
@@ -302,7 +308,7 @@ export function NodeInspector({ node, onClose }: { node: SupplyChainNode; onClos
           </div>
           {history.length > 0 ? (
             <div className="rounded-lg border border-border bg-muted/20 p-1">
-              <WeeklyPerformanceChart data={history} unit={unitOfNode(node)} />
+              <WeeklyPerformanceChart data={history} unit={unitOfNode(node)} periods={periods} />
             </div>
           ) : (
             <div className="rounded-lg border border-dashed border-border p-3 text-center text-[11.5px] text-muted-foreground">
