@@ -21,6 +21,7 @@ const TYPE_OPTIONS: { value: RegisterType; label: string; hint: string; icon: ty
 export function RegisterForm({ next, invitedEmail }: { next: string; invitedEmail?: string }) {
   const router = useRouter();
   const [serverError, setServerError] = useState<string | null>(null);
+  const [consentOpen, setConsentOpen] = useState(false);
   const {
     register,
     handleSubmit,
@@ -136,11 +137,30 @@ export function RegisterForm({ next, invitedEmail }: { next: string; invitedEmai
 
       <div className="flex flex-col gap-2.5 rounded-xl border border-border bg-muted/40 p-3.5">
         <div className="text-[13px] font-semibold">{CONSENT_TITLE}</div>
-        {CONSENT_PARAGRAPHS.map((paragraph) => (
-          <p key={paragraph} className="text-[11.5px] leading-relaxed text-muted-foreground">
-            {paragraph}
-          </p>
-        ))}
+        <div id="consent-text" className="flex flex-col gap-2.5">
+          {CONSENT_PARAGRAPHS.map((paragraph, index) => (
+            <p
+              key={paragraph}
+              // Cerrado se ve solo el comienzo de la primera parte; el texto completo está a un click.
+              className={cn(
+                "text-[11.5px] leading-relaxed text-muted-foreground",
+                !consentOpen && index === 0 && "line-clamp-3",
+                !consentOpen && index > 0 && "hidden",
+              )}
+            >
+              {paragraph}
+            </p>
+          ))}
+        </div>
+        <button
+          type="button"
+          onClick={() => setConsentOpen((open) => !open)}
+          aria-expanded={consentOpen}
+          aria-controls="consent-text"
+          className="w-fit text-[11.5px] font-medium text-primary hover:underline"
+        >
+          {consentOpen ? "Mostrar menos" : "Leer todo"}
+        </button>
         <label htmlFor="aceptaTratamiento" className="flex cursor-pointer items-start gap-2 text-[12px] leading-snug">
           <input
             id="aceptaTratamiento"
