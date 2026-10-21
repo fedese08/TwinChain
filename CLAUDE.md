@@ -108,7 +108,10 @@ resultado se recalculan con la cadena actual y no con la de la corrida, y las de
   6. **Retirar el mock — hecho.** No queda ningún dato de mentira en la app: `src/lib/mock/` pasó a `src/lib/domain/`
      (tipos de la UI, motor, fechas, plantillas) y el generador de datos demo vive en `scripts/seed-data.ts` (solo lo
      usa `db:seed`).
-  7. **Ingesta sintética + monitoreo vivo — hecho.** El desempeño semanal de los nodos ya no sale solo del seed:
+  7. **Ingesta por envío + monitoreo vivo — hecho.** (El sensor simula **envíos individuales** — RF009 — que la ingesta agrega
+     por semana — RF010 —: `synthetic/shipments.ts`. `aggregateShipments` agrega envíos de CUALQUIER origen, y
+     `POST /api/cadenas/[id]/envios` acepta los de una fuente real (CSV o sensores) y los agrega igual: la fuente se
+     reemplaza sin cambiar el resto.) El desempeño semanal de los nodos ya no sale solo del seed:
      `src/lib/ingestion/ingest-history.ts` (pipeline de ingesta, contenedor C4) lo genera al **crear una cadena** y
      al **agregar un nodo**, en la misma transacción. Núcleo puro en `src/lib/domain/synthetic/` (perfiles por tipo,
      generador AR(1) determinístico por (nodo, semana), estimador de línea base, CUSUM, avance semanal) y estado
@@ -132,10 +135,15 @@ resultado se recalculan con la cadena actual y no con la de la corrida, y las de
      marca de que el nodo mide en días**: los nodos anteriores (null) siguen en 0–100 (`unitOfNode`,
      `src/lib/domain/units.ts`). **Todo lo que llame al motor pasa las filas por `adaptForEngine`** (escala cada nodo
      en días a línea base = 100; identidad si no hay nodos en días) — no llamar a `runScenarioSimulation` con filas
-     crudas. Detección: banda semanal del modelo (2 de las últimas 3 semanas por debajo = atención, 3 = crítico) y C24
-     (CUSUM) sobre la ventana de 24 semanas. Medido en `scripts/measure-sensor-model.ts` (ver `docs/modelo-ml.md`, sección 8):
-     el modelo supera al método ingenuo pero **subestima el nivel ~0,45 d**, y la banda semanal **detecta mal las caídas
-     chicas** (−2 d: 24 % llega a atención). El camino de Vendedor con vendedor REAL de Olist sigue en el código, inactivo
+     crudas. **Detección (Flujo A del E90, `src/lib/domain/degradation.ts`)**: CUSUM tabular unilateral sobre el residuo
+     semanal, `S_t = max(0, S_{t-1} + (línea base − desempeño_t) − K)` con K = el margen de la banda de incertidumbre de la
+     línea base; al superar el umbral h·K se confirma la degradación sostenida y S se reinicia; las confirmaciones
+     consecutivas son UNA alerta (desde cuándo, déficit acumulado: HU2). El umbral h sale de la **calibración** (RF019/RF020,
+     `scripts/calibrate-cusum.ts` → `src/data/cusum-calibracion.json`): minimiza `C(h) = retardo + f·falsas alarmas` sobre
+     vendedores reales de Olist con episodios inyectados, y es **configurable por cadena** (`cadenas.costo_falsa_alarma`,
+     f de 0 a 3; control "Sensibilidad"). Los nodos anteriores (0-100) siguen con la regla por σ. C24 (CUSUM retrospectivo)
+     sigue verificando la estabilidad del historial de entrenamiento. Medido en `scripts/measure-sensor-model.ts` (ver
+     `docs/modelo-ml.md`, sección 8): el modelo supera al método ingenuo pero **subestima el nivel ~0,45 d**. El camino de Vendedor con vendedor REAL de Olist sigue en el código, inactivo
      (`REAL_VENDEDORES_ENABLED = false`, `src/lib/domain/vendedor/config.ts`). El modelo no es el clasificador de backorder
      de `TwinChain-DEV.md`. Variables: `ML_SERVICE_URL`, `ML_API_KEY` (opcionales: sin ellas todo queda provisorio). El
      bundle `.joblib` es un pickle de scikit-learn **1.9.1 exacto**: no actualizar la versión.
@@ -236,7 +244,7 @@ resultado se recalculan con la cadena actual y no con la de la corrida, y las de
     `domain/synthetic/cusum.ts`, hook `useChainStatuses`) y no se guarda. Ninguno de los dos es una entidad del
     modelo de datos ni debe convertirse en tabla: el job y el pipeline son contenedores de la arquitectura C4.
     Cuando exista el job real, `pendingRuns` lo reemplaza el job de Vercel.
-  - **Tests:** Vitest (`npm test`, 121) y, para el servicio de ML, pytest (`cd twinchain-ml && .venv/bin/pytest`, 22). Los de la ingesta sintética y el estado operativo incluyen las
+  - **Tests:** Vitest (`npm test`, 148) y, para el servicio de ML, pytest (`cd twinchain-ml && .venv/bin/pytest`, 22). Los de la ingesta sintética y el estado operativo incluyen las
     calibraciones de Monte Carlo del CUSUM y de los umbrales de atención/crítico: **no relajarlos para que
     pasen**, si fallan es que cambió algo que afecta la tasa de falsas alarmas.
 - **`ChainCanvas` necesita un padre con altura.** Su raíz es `flex h-full min-h-0 flex-1`: dentro de un padre

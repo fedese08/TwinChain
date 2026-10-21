@@ -33,6 +33,11 @@ export interface Chain {
   name: string;
   organizationId: string;
   visibility: ChainVisibility;
+  /**
+   * Costo de una falsa alarma, en semanas de operar degradado (0 a 3): define el umbral del CUSUM que confirma una
+   * degradación sostenida (HU1, RF019). 0 es el detector más sensible; 3, el más conservador.
+   */
+  falseAlarmCost: number;
 }
 
 /** De dónde salió la línea base de un nodo con datos reales: el modelo de ML o el estimador de respaldo. */

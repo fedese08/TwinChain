@@ -39,8 +39,8 @@ export const seedUser: User = {
 };
 
 export const seedChains: Chain[] = [
-  { id: "chain-norte", name: "Cadena Norte", organizationId: seedOrganization.id, visibility: "shared" },
-  { id: "chain-sur", name: "Cadena Sur — empaque", organizationId: seedOrganization.id, visibility: "private" },
+  { id: "chain-norte", name: "Cadena Norte", organizationId: seedOrganization.id, visibility: "shared", falseAlarmCost: 3 },
+  { id: "chain-sur", name: "Cadena Sur — empaque", organizationId: seedOrganization.id, visibility: "private", falseAlarmCost: 3 },
 ];
 
 export const seedNodes: SupplyChainNode[] = [

@@ -161,6 +161,8 @@ interface AppState {
    * irreversible) y recién si confirma la saca del store. Devuelve el error si no se pudo.
    */
   deleteChain: (chainId: string) => Promise<{ ok: true } | { ok: false; error: string }>;
+  /** Cambia el costo de una falsa alarma de la cadena (fija el umbral del CUSUM). Se ve al instante; si el servidor lo rechaza, vuelve atrás. */
+  setFalseAlarmCost: (chainId: string, value: number) => Promise<{ ok: true } | { ok: false; error: string }>;
   /** Elimina el escenario con sus eventos y todas sus corridas. No es optimista: es irreversible. */
   deleteScenario: (
     scenarioId: string,
@@ -338,6 +340,19 @@ export const useAppStore = create<AppState>()((set, get) => {
       const nodeIds = new Set(get().nodes.filter((n) => n.chainId === chainId).map((n) => n.id));
       const kept = result.data?.weeklyPerformance ?? [];
       set((s) => ({ weeklyPerformance: [...s.weeklyPerformance.filter((w) => !nodeIds.has(w.nodeId)), ...kept] }));
+      return { ok: true };
+    },
+
+    setFalseAlarmCost: async (chainId, value) => {
+      const previous = get().chains.find((c) => c.id === chainId)?.falseAlarmCost;
+      if (previous === undefined || previous === value) return { ok: true };
+      set((s) => ({ chains: s.chains.map((c) => (c.id === chainId ? { ...c, falseAlarmCost: value } : c)) }));
+      const result = await enqueue(() => send("PATCH", `/api/cadenas/${chainId}`, { costoFalsaAlarma: value }));
+      if (!result.ok) {
+        set((s) => ({ chains: s.chains.map((c) => (c.id === chainId ? { ...c, falseAlarmCost: previous } : c)) }));
+        toast.error(result.error);
+        return result;
+      }
       return { ok: true };
     },
 

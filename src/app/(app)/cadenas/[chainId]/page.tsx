@@ -4,10 +4,12 @@ import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { ChainCanvas } from "@/components/canvas/chain-canvas";
 import { DeleteChainButton } from "@/components/canvas/delete-chain-dialog";
+import { DetectionSettings } from "@/components/canvas/detection-settings";
 import { LiveMonitorControl } from "@/components/canvas/live-monitor-control";
 import { ScenarioForm, type ScenarioFormHandle } from "@/components/scenario/scenario-form";
 import { useChainStatus } from "@/hooks/use-chain-status";
 import { deriveAlertScenario, type AlertScenarioInputs } from "@/lib/domain/detection";
+import { assessOptionsFor } from "@/lib/domain/monitoring";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/stores/app-store";
 
@@ -40,8 +42,11 @@ export default function ChainDetailPage({ params }: { params: Promise<{ chainId:
   useEffect(() => {
     if (!alertNodeId) return setAlertSeed(null);
     if (alertSeed?.nodeId === alertNodeId) return;
-    setAlertSeed(deriveAlertScenario(weeklyPerformance.filter((w) => w.nodeId === alertNodeId)));
-  }, [alertNodeId, alertSeed, weeklyPerformance]);
+    const node = nodes.find((n) => n.id === alertNodeId);
+    setAlertSeed(
+      node ? deriveAlertScenario(weeklyPerformance.filter((w) => w.nodeId === alertNodeId), assessOptionsFor(node, chain)) : null,
+    );
+  }, [alertNodeId, alertSeed, weeklyPerformance, nodes, chain]);
 
   const handleNodeSelect = useCallback((nodeId: string) => {
     scenarioFormRef.current?.selectNode(nodeId);
@@ -92,6 +97,7 @@ export default function ChainDetailPage({ params }: { params: Promise<{ chainId:
         <div className="flex-1" />
 
         {/* Monitoreo vivo: escribe datos, así que solo lo ven quienes pueden editar la cadena. */}
+        {canWrite && mode === "design" && <DetectionSettings chainId={chainId} />}
         {canWrite && mode === "design" && <LiveMonitorControl chainId={chainId} />}
 
         <div className="flex flex-none items-center gap-px overflow-hidden rounded-lg border border-border bg-card">

@@ -7,6 +7,7 @@ import type { PerformanceUnit } from "@/lib/domain/units";
 import { MAX_ADVANCE_WEEKS } from "./config";
 import { type NewWeeklyRow } from "./estimate-baseline";
 import { continueSeries } from "./generate-series";
+import { continueSensorWeeks } from "./shipments";
 
 export interface NodeLatestState {
   nodeId: string;
@@ -28,14 +29,28 @@ export function advanceNode(state: NodeLatestState, weeks: number): NewWeeklyRow
   if (!Number.isInteger(weeks) || weeks < 1 || weeks > MAX_ADVANCE_WEEKS) {
     throw new RangeError(`Se puede avanzar entre 1 y ${MAX_ADVANCE_WEEKS} semanas por vez`);
   }
-  const next = continueSeries({
-    nodeId: state.nodeId,
-    nodeType: state.nodeType,
-    history: state.history,
-    lastWeekStart: state.lastWeekStart,
-    weeks,
-    unit: state.unit,
-  });
+  // Los nodos en días tienen sensor por envío: cada semana nueva son envíos agregados. Los de escala 0-100 (anteriores
+  // a la integración del modelo) siguen con el valor semanal directo.
+  const next =
+    state.unit === "dias"
+      ? (() => {
+          const batches = continueSensorWeeks({
+            nodeId: state.nodeId,
+            nodeType: state.nodeType,
+            history: state.history,
+            lastWeekStart: state.lastWeekStart,
+            weeks,
+          });
+          return { weekStarts: batches.map((b) => b.weekStart), values: batches.map((b) => b.actualValue) };
+        })()
+      : continueSeries({
+          nodeId: state.nodeId,
+          nodeType: state.nodeType,
+          history: state.history,
+          lastWeekStart: state.lastWeekStart,
+          weeks,
+          unit: state.unit,
+        });
   return next.weekStarts.map((weekStart, i) => ({
     nodeId: state.nodeId,
     weekStart,

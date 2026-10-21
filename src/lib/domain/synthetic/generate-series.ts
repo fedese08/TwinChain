@@ -63,7 +63,8 @@ export function generateSeries(input: {
   return weekStarts.map((weekStart) => {
     const next = step(profile, deviation, nodeId, weekStart);
     deviation = next.deviation;
-    const shifted = levelShift && weekStart >= levelShift.fromWeek ? levelShift.sigmas * profile.volatility : 0;
+    // El cambio de nivel se mide en σ de lo que se ve cada semana (el promedio de los envíos), no en σ del nodo.
+    const shifted = levelShift && weekStart >= levelShift.fromWeek ? levelShift.sigmas * profile.weeklyVolatility : 0;
     return clamp(profile.level + shifted + next.deviation + next.badWeek);
   });
 }

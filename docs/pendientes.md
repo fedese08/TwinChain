@@ -194,4 +194,15 @@ funcionalidad que todavía no existe.
   pantalla, bastaría con traspasar el rol de administración antes.
 - **[falta] Eliminar la cuenta desde `/sin-organizacion`.** La ruta `DELETE /api/cuenta` ya lo admite (cuenta sin
   organización), pero el botón solo está en `/cuenta`, que exige pertenecer a una organización.
+- **[acción] Aplicar la migración `0005` a Neon** (`npm run db:migrate`): agrega `cadenas.costo_falsa_alarma` (el costo de
+  una falsa alarma que fija el umbral del CUSUM). **Sin ella la app falla al cargar** (todas las lecturas de cadenas la piden).
+- **[hecho] CUSUM del Flujo A con calibración** (`degradation.ts`, `cusum-calibration.ts`, `scripts/calibrate-cusum.ts`). La
+  regla de la banda semanal quedó reemplazada. Recalibrar con `scripts/calibrate-cusum.ts` si cambia el modelo (el JSON guarda
+  su huella SHA-256).
+- **[metodología] Margen del CUSUM = banda del promedio.** El E90 dice "margen de la línea base" (RF012/RF016); se usó la banda
+  del promedio (`banda_inferior`), no la semanal. La banda semanal (`banda_semanal_*`) ya no interviene en la detección; queda
+  guardada por si se quiere comparar.
+- **[deuda] La banda semanal sigue guardándose** aunque la detección ya no la usa. Se puede dejar de pedírsela al modelo.
+- **[deuda] Una caída de un margen no se detecta** con el umbral conservador, y el CUSUM puede confirmar con una sola semana
+  extremadamente mala. Ver `docs/modelo-ml.md`, sección 8.
 

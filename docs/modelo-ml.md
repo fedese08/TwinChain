@@ -243,7 +243,7 @@ ni le importa** de dónde vienen los datos. Como la tesis no tiene sensores real
    actualización vuelve a calcular el volumen de la Fase I con el generador (no se guarda; es función de nodo y semana).
 5. `fuente_linea_base` marca además que el nodo mide en **días**; los nodos anteriores (null) siguen en 0–100.
 6. El motor recibe el desempeño relativo por `adaptForEngine`, igual que en la sección 7.
-7. Detección: banda semanal (2 de 3 = atención, 3 de 3 = crítico) y C24 sobre las 24 primeras semanas.
+7. Detección: **CUSUM** sobre el residuo semanal (ver abajo) y C24 sobre las 24 primeras semanas.
 
 **Cambios de código:** `synthetic/` (perfiles y series en días, `generateWeeklyItems`, `sensorPhase1`,
 `historyWeekStarts`), `ingestion/vendedor-setup.ts` (`prepareSensorBaselines`), `ingestion/ingest-history.ts`,
@@ -289,3 +289,50 @@ Detección de una caída sostenida de X días desde la semana 25, con 4 semanas 
    definición conceptual, no contrastable con Olist.
 6. **El volumen de la Fase I no se guarda**: se regenera del generador al actualizar la línea base. Funciona porque es
    función pura de (nodo, semana), pero un sensor real tendría que persistirlo (columna `items_semana`, pendiente).
+
+### Detección: CUSUM calibrado (Flujo A del E90)
+
+La regla anterior (2 de 3 semanas por debajo de la banda semanal) se reemplazó por la que define el E90.
+
+- **CUSUM tabular unilateral** (`src/lib/domain/degradation.ts`): `S_t = max(0, S_{t-1} + (línea base − desempeño_t) − K)`, con
+  `K` = el margen de la banda de incertidumbre de la línea base. Mientras el residuo queda dentro del margen no se
+  acumula; si `S` supera `h·K`, se confirma la degradación sostenida y `S` se reinicia. Las confirmaciones consecutivas
+  son una sola alerta, con el desde cuándo y el déficit acumulado (HU2).
+- **Calibración del umbral** (RF019, RF020): un paso aparte del entrenamiento, sobre el modelo ya entrenado
+  (`scripts/calibrate-cusum.ts`). Se minimiza `C(h) = retardo(h) + f · falsas alarmas(h)`: retardo en semanas (equivale al
+  déficit acumulado en múltiplos del déficit semanal del episodio), falsas alarmas por cada 26 semanas de operación normal,
+  y `f` el costo de una falsa alarma en semanas de operar degradado. `f` se barre (0 a 3; 3 es el costo de reconfigurar,
+  la cota superior) y se reporta `h*(f)`. **No se calibra por una tasa objetivo de falsas alarmas.**
+- **De dónde salen los episodios:** se inyectan caídas de 1, 2 y 3 márgenes sobre series REALES de 81 vendedores de Olist
+  que el modelo no vio (ensayos con 12 semanas de episodio y todas las semanas normales anteriores). Supuesto
+  conservador: el tramo normal de esos vendedores se toma sin degradación sostenida, así que toda confirmación ahí cuenta
+  como falsa alarma. El resultado es `src/data/cusum-calibracion.json`.
+
+| Costo de falsa alarma f | h* (múltiplos del margen) | Retardo (sem) | Falsas alarmas / 26 sem | Episodios detectados |
+|---|---|---|---|---|
+| 0 | 0,25 | 2,1 | 1,96 | 98 % |
+| 1 | 0,50 | 2,4 | 1,54 | 98 % |
+| 2 | 1,25 | 3,4 | 0,85 | 93 % |
+| 3 (cota superior) | 2,00 | 4,2 | 0,59 | 90 % |
+
+`h*` deja de moverse a partir de f = 55. El umbral es **configurable por cadena** (`cadenas.costo_falsa_alarma`, control
+"Sensibilidad" con cuatro niveles); por defecto f = 3.
+
+**Verificación sobre los nodos simulados** (`scripts/measure-sensor-model.ts`, 600 nodos, línea base del modelo):
+
+| f | Falsas alarmas / 26 sem | Caída de 1 margen | Caída de 2 márgenes | Caída de 3 márgenes |
+|---|---|---|---|---|
+| 0 | 2,50 | 2 sem (98 %) | 1 sem (100 %) | 1 sem (100 %) |
+| 1 | 1,79 | 3 sem (94 %) | 1 sem (100 %) | 1 sem (100 %) |
+| 2 | 0,71 | 4 sem (75 %) | 2 sem (99,8 %) | 1 sem (100 %) |
+| 3 | 0,34 | 5 sem (56 %) | 3 sem (98,5 %) | 2 sem (100 %) |
+
+**Límites que hay que declarar**
+
+1. Una caída de **un margen** (≈ 0,9 d) casi no se detecta con el umbral conservador: con `K` igual a la caída, el CUSUM no
+   tiene deriva.
+2. El CUSUM suma magnitudes: una única semana extremadamente mala (más de unos 3 márgenes) puede confirmar sola.
+3. Las falsas alarmas de la calibración se midieron sobre series reales de Olist, que tienen sus propios cambios de nivel
+   (supuesto conservador). Con una línea base **provisoria** (sin el modelo) las falsas alarmas son ~3 veces más.
+4. La línea base del modelo está sesgada hacia abajo (−0,45 d), lo que baja las falsas alarmas y el poder de detección.
+

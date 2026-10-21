@@ -22,7 +22,7 @@ import { SupplyChainNodeView, type SupplyChainNodeData } from "@/components/canv
 import { TransitEdge } from "@/components/canvas/transit-edge";
 import { useAppStore } from "@/stores/app-store";
 import type { Severity } from "@/lib/domain/simulate";
-import { assessNode } from "@/lib/domain/monitoring";
+import { assessNode, assessOptionsFor } from "@/lib/domain/monitoring";
 import { unitOfNode } from "@/lib/domain/units";
 import type { NodeType, SupplyChainNode, WeeklyPerformance } from "@/lib/domain/types";
 
@@ -71,6 +71,7 @@ function CanvasInner({ chainId, mode, selectedNodeIds, onNodeSelect, severityByN
   const addEdgeToStore = useAppStore((s) => s.addEdge);
   const addNodeToStore = useAppStore((s) => s.addNode);
 
+  const chain = useAppStore((s) => s.chains.find((c) => c.id === chainId));
   const chainNodes = useMemo(() => allNodes.filter((n) => n.chainId === chainId), [allNodes, chainId]);
   const chainNodeIds = useMemo(() => new Set(chainNodes.map((n) => n.id)), [chainNodes]);
   const chainEdges = useMemo(
@@ -86,8 +87,10 @@ function CanvasInner({ chainId, mode, selectedNodeIds, onNodeSelect, severityByN
       list.push(row);
       rowsByNode.set(row.nodeId, list);
     }
-    return new Map([...chainNodeIds].map((nodeId) => [nodeId, assessNode(rowsByNode.get(nodeId) ?? [])]));
-  }, [weeklyPerformance, chainNodeIds]);
+    return new Map(
+      chainNodes.map((n) => [n.id, assessNode(rowsByNode.get(n.id) ?? [], assessOptionsFor(n, chain))]),
+    );
+  }, [weeklyPerformance, chainNodeIds, chainNodes, chain]);
 
   const selectedSet = useMemo(() => new Set(selectedNodeIds ?? []), [selectedNodeIds]);
 

@@ -1,0 +1,532 @@
+{
+  "meta": {
+    "fecha": "2026-10-21",
+    "modelo": {
+      "version": "v2",
+      "sha256": "1b6ef5ab0397bc5d3da5e3289de2a30118d77c55407676684f109b7ad4f712a2"
+    },
+    "fuente": "Vendedores reales de Olist (partición de test del modelo), episodios inyectados",
+    "vendedores": 81,
+    "ensayos": 243,
+    "semanasEpisodio": 12,
+    "semanasNormalesMinimas": 12,
+    "caidasEnMargenes": [
+      1,
+      2,
+      3
+    ],
+    "unidadUmbral": "múltiplos del margen de la línea base (h · K, con K = línea base − límite inferior de la banda)",
+    "unidadFalsasAlarmas": "confirmaciones por cada 26 semanas de operación normal",
+    "fStable": 55
+  },
+  "table": [
+    {
+      "f": 0,
+      "h": 0.25,
+      "retardo": 2.136,
+      "falsasAlarmas": 1.955,
+      "detectados": 0.979,
+      "costo": 2.136
+    },
+    {
+      "f": 0.25,
+      "h": 0.25,
+      "retardo": 2.136,
+      "falsasAlarmas": 1.955,
+      "detectados": 0.979,
+      "costo": 2.625
+    },
+    {
+      "f": 0.5,
+      "h": 0.25,
+      "retardo": 2.136,
+      "falsasAlarmas": 1.955,
+      "detectados": 0.979,
+      "costo": 3.114
+    },
+    {
+      "f": 0.75,
+      "h": 0.5,
+      "retardo": 2.432,
+      "falsasAlarmas": 1.54,
+      "detectados": 0.979,
+      "costo": 3.587
+    },
+    {
+      "f": 1,
+      "h": 0.5,
+      "retardo": 2.432,
+      "falsasAlarmas": 1.54,
+      "detectados": 0.979,
+      "costo": 3.972
+    },
+    {
+      "f": 1.5,
+      "h": 0.75,
+      "retardo": 2.728,
+      "falsasAlarmas": 1.256,
+      "detectados": 0.971,
+      "costo": 4.613
+    },
+    {
+      "f": 2,
+      "h": 1.25,
+      "retardo": 3.407,
+      "falsasAlarmas": 0.852,
+      "detectados": 0.926,
+      "costo": 5.112
+    },
+    {
+      "f": 2.5,
+      "h": 1.25,
+      "retardo": 3.407,
+      "falsasAlarmas": 0.852,
+      "detectados": 0.926,
+      "costo": 5.538
+    },
+    {
+      "f": 3,
+      "h": 2,
+      "retardo": 4.169,
+      "falsasAlarmas": 0.59,
+      "detectados": 0.901,
+      "costo": 5.938
+    },
+    {
+      "f": 5,
+      "h": 2.25,
+      "retardo": 4.395,
+      "falsasAlarmas": 0.535,
+      "detectados": 0.889,
+      "costo": 7.072
+    },
+    {
+      "f": 8,
+      "h": 4.25,
+      "retardo": 6.058,
+      "falsasAlarmas": 0.229,
+      "detectados": 0.807,
+      "costo": 7.893
+    },
+    {
+      "f": 13,
+      "h": 4.75,
+      "retardo": 6.395,
+      "falsasAlarmas": 0.197,
+      "detectados": 0.774,
+      "costo": 8.951
+    },
+    {
+      "f": 21,
+      "h": 5.5,
+      "retardo": 6.827,
+      "falsasAlarmas": 0.164,
+      "detectados": 0.749,
+      "costo": 10.268
+    },
+    {
+      "f": 34,
+      "h": 10.5,
+      "retardo": 9.152,
+      "falsasAlarmas": 0.055,
+      "detectados": 0.564,
+      "costo": 11.009
+    },
+    {
+      "f": 55,
+      "h": 22,
+      "retardo": 11.255,
+      "falsasAlarmas": 0,
+      "detectados": 0.255,
+      "costo": 11.255
+    },
+    {
+      "f": 89,
+      "h": 22,
+      "retardo": 11.255,
+      "falsasAlarmas": 0,
+      "detectados": 0.255,
+      "costo": 11.255
+    }
+  ],
+  "curve": [
+    {
+      "h": 0.25,
+      "retardo": 2.136,
+      "falsasAlarmas": 1.955,
+      "detectados": 0.979
+    },
+    {
+      "h": 0.5,
+      "retardo": 2.432,
+      "falsasAlarmas": 1.54,
+      "detectados": 0.979
+    },
+    {
+      "h": 0.75,
+      "retardo": 2.728,
+      "falsasAlarmas": 1.256,
+      "detectados": 0.971
+    },
+    {
+      "h": 1,
+      "retardo": 3.058,
+      "falsasAlarmas": 1.082,
+      "detectados": 0.947
+    },
+    {
+      "h": 1.25,
+      "retardo": 3.407,
+      "falsasAlarmas": 0.852,
+      "detectados": 0.926
+    },
+    {
+      "h": 1.5,
+      "retardo": 3.708,
+      "falsasAlarmas": 0.808,
+      "detectados": 0.914
+    },
+    {
+      "h": 1.75,
+      "retardo": 3.856,
+      "falsasAlarmas": 0.71,
+      "detectados": 0.909
+    },
+    {
+      "h": 2,
+      "retardo": 4.169,
+      "falsasAlarmas": 0.59,
+      "detectados": 0.901
+    },
+    {
+      "h": 2.25,
+      "retardo": 4.395,
+      "falsasAlarmas": 0.535,
+      "detectados": 0.889
+    },
+    {
+      "h": 2.5,
+      "retardo": 4.716,
+      "falsasAlarmas": 0.503,
+      "detectados": 0.868
+    },
+    {
+      "h": 2.75,
+      "retardo": 4.984,
+      "falsasAlarmas": 0.459,
+      "detectados": 0.856
+    },
+    {
+      "h": 3,
+      "retardo": 5.235,
+      "falsasAlarmas": 0.426,
+      "detectados": 0.844
+    },
+    {
+      "h": 3.25,
+      "retardo": 5.362,
+      "falsasAlarmas": 0.393,
+      "detectados": 0.831
+    },
+    {
+      "h": 3.5,
+      "retardo": 5.514,
+      "falsasAlarmas": 0.317,
+      "detectados": 0.831
+    },
+    {
+      "h": 3.75,
+      "retardo": 5.667,
+      "falsasAlarmas": 0.295,
+      "detectados": 0.831
+    },
+    {
+      "h": 4,
+      "retardo": 5.914,
+      "falsasAlarmas": 0.262,
+      "detectados": 0.811
+    },
+    {
+      "h": 4.25,
+      "retardo": 6.058,
+      "falsasAlarmas": 0.229,
+      "detectados": 0.807
+    },
+    {
+      "h": 4.5,
+      "retardo": 6.21,
+      "falsasAlarmas": 0.218,
+      "detectados": 0.786
+    },
+    {
+      "h": 4.75,
+      "retardo": 6.395,
+      "falsasAlarmas": 0.197,
+      "detectados": 0.774
+    },
+    {
+      "h": 5,
+      "retardo": 6.527,
+      "falsasAlarmas": 0.197,
+      "detectados": 0.765
+    },
+    {
+      "h": 5.25,
+      "retardo": 6.679,
+      "falsasAlarmas": 0.186,
+      "detectados": 0.753
+    },
+    {
+      "h": 5.5,
+      "retardo": 6.827,
+      "falsasAlarmas": 0.164,
+      "detectados": 0.749
+    },
+    {
+      "h": 5.75,
+      "retardo": 7.021,
+      "falsasAlarmas": 0.164,
+      "detectados": 0.741
+    },
+    {
+      "h": 6,
+      "retardo": 7.218,
+      "falsasAlarmas": 0.153,
+      "detectados": 0.733
+    },
+    {
+      "h": 6.5,
+      "retardo": 7.457,
+      "falsasAlarmas": 0.153,
+      "detectados": 0.708
+    },
+    {
+      "h": 7,
+      "retardo": 7.77,
+      "falsasAlarmas": 0.142,
+      "detectados": 0.687
+    },
+    {
+      "h": 7.5,
+      "retardo": 7.984,
+      "falsasAlarmas": 0.12,
+      "detectados": 0.683
+    },
+    {
+      "h": 8,
+      "retardo": 8.255,
+      "falsasAlarmas": 0.109,
+      "detectados": 0.667
+    },
+    {
+      "h": 8.5,
+      "retardo": 8.44,
+      "falsasAlarmas": 0.098,
+      "detectados": 0.65
+    },
+    {
+      "h": 9,
+      "retardo": 8.634,
+      "falsasAlarmas": 0.087,
+      "detectados": 0.63
+    },
+    {
+      "h": 9.5,
+      "retardo": 8.831,
+      "falsasAlarmas": 0.087,
+      "detectados": 0.605
+    },
+    {
+      "h": 10,
+      "retardo": 9.045,
+      "falsasAlarmas": 0.076,
+      "detectados": 0.584
+    },
+    {
+      "h": 10.5,
+      "retardo": 9.152,
+      "falsasAlarmas": 0.055,
+      "detectados": 0.564
+    },
+    {
+      "h": 11,
+      "retardo": 9.276,
+      "falsasAlarmas": 0.055,
+      "detectados": 0.539
+    },
+    {
+      "h": 11.5,
+      "retardo": 9.412,
+      "falsasAlarmas": 0.055,
+      "detectados": 0.531
+    },
+    {
+      "h": 12,
+      "retardo": 9.617,
+      "falsasAlarmas": 0.055,
+      "detectados": 0.523
+    },
+    {
+      "h": 12.5,
+      "retardo": 9.708,
+      "falsasAlarmas": 0.055,
+      "detectados": 0.51
+    },
+    {
+      "h": 13,
+      "retardo": 9.844,
+      "falsasAlarmas": 0.055,
+      "detectados": 0.498
+    },
+    {
+      "h": 13.5,
+      "retardo": 9.988,
+      "falsasAlarmas": 0.055,
+      "detectados": 0.498
+    },
+    {
+      "h": 14,
+      "retardo": 10.123,
+      "falsasAlarmas": 0.055,
+      "detectados": 0.486
+    },
+    {
+      "h": 14.5,
+      "retardo": 10.239,
+      "falsasAlarmas": 0.055,
+      "detectados": 0.477
+    },
+    {
+      "h": 15,
+      "retardo": 10.403,
+      "falsasAlarmas": 0.055,
+      "detectados": 0.453
+    },
+    {
+      "h": 15.5,
+      "retardo": 10.477,
+      "falsasAlarmas": 0.055,
+      "detectados": 0.444
+    },
+    {
+      "h": 16,
+      "retardo": 10.58,
+      "falsasAlarmas": 0.044,
+      "detectados": 0.432
+    },
+    {
+      "h": 16.5,
+      "retardo": 10.654,
+      "falsasAlarmas": 0.044,
+      "detectados": 0.407
+    },
+    {
+      "h": 17,
+      "retardo": 10.724,
+      "falsasAlarmas": 0.033,
+      "detectados": 0.395
+    },
+    {
+      "h": 17.5,
+      "retardo": 10.794,
+      "falsasAlarmas": 0.033,
+      "detectados": 0.374
+    },
+    {
+      "h": 18,
+      "retardo": 10.872,
+      "falsasAlarmas": 0.033,
+      "detectados": 0.358
+    },
+    {
+      "h": 18.5,
+      "retardo": 10.93,
+      "falsasAlarmas": 0.033,
+      "detectados": 0.35
+    },
+    {
+      "h": 19,
+      "retardo": 11.008,
+      "falsasAlarmas": 0.033,
+      "detectados": 0.337
+    },
+    {
+      "h": 19.5,
+      "retardo": 11.062,
+      "falsasAlarmas": 0.033,
+      "detectados": 0.333
+    },
+    {
+      "h": 20,
+      "retardo": 11.14,
+      "falsasAlarmas": 0.033,
+      "detectados": 0.317
+    },
+    {
+      "h": 20.5,
+      "retardo": 11.189,
+      "falsasAlarmas": 0.033,
+      "detectados": 0.3
+    },
+    {
+      "h": 21,
+      "retardo": 11.235,
+      "falsasAlarmas": 0.033,
+      "detectados": 0.276
+    },
+    {
+      "h": 21.5,
+      "retardo": 11.255,
+      "falsasAlarmas": 0.022,
+      "detectados": 0.259
+    },
+    {
+      "h": 22,
+      "retardo": 11.255,
+      "falsasAlarmas": 0,
+      "detectados": 0.255
+    },
+    {
+      "h": 22.5,
+      "retardo": 11.3,
+      "falsasAlarmas": 0,
+      "detectados": 0.239
+    },
+    {
+      "h": 23,
+      "retardo": 11.337,
+      "falsasAlarmas": 0,
+      "detectados": 0.226
+    },
+    {
+      "h": 23.5,
+      "retardo": 11.358,
+      "falsasAlarmas": 0,
+      "detectados": 0.222
+    },
+    {
+      "h": 24,
+      "retardo": 11.379,
+      "falsasAlarmas": 0,
+      "detectados": 0.218
+    },
+    {
+      "h": 24.5,
+      "retardo": 11.42,
+      "falsasAlarmas": 0,
+      "detectados": 0.21
+    },
+    {
+      "h": 25,
+      "retardo": 11.481,
+      "falsasAlarmas": 0,
+      "detectados": 0.21
+    },
+    {
+      "h": 25.5,
+      "retardo": 11.506,
+      "falsasAlarmas": 0,
+      "detectados": 0.21
+    }
+  ]
+}

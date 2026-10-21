@@ -13,7 +13,8 @@ import { evaluateChainStability, type ChainStability } from "./cusum";
 import { buildRows, buildRowsWithBaseline, estimateBaseline, type NewWeeklyRow } from "./estimate-baseline";
 import { buildVendedorRows, type RealWeek } from "@/lib/domain/vendedor/history";
 import { PHASE1_WEEKS, type NodeBaseline } from "@/lib/domain/vendedor/baseline";
-import { generateSeries, generateWeeklyItems, type LevelShift } from "./generate-series";
+import { generateSeries, type LevelShift } from "./generate-series";
+import { sensorWeeks } from "./shipments";
 import { lastCompleteWeek, weekRange } from "./weeks";
 
 /** Datos reales de un nodo Vendedor: su historial en Olist (días) y su línea base ya resuelta (modelo o provisoria). */
@@ -74,7 +75,8 @@ export function buildNodeHistory(node: HistoryNode, weekStarts: string[], levelS
     };
   }
   if (node.baseline) {
-    const values = generateSeries({ nodeId: node.id, nodeType: node.type, weekStarts, levelShift, unit: "dias" });
+    // El sensor simulado emite los envíos de cada semana y la ingesta los agrega: acá solo se ve el lote semanal (RF010).
+    const values = sensorWeeks({ nodeId: node.id, nodeType: node.type, weekStarts, levelShift }).map((b) => b.actualValue);
     return {
       rows: buildRowsWithBaseline({ nodeId: node.id, weekStarts, values, baseline: node.baseline }),
       training: { weekStarts: weekStarts.slice(0, TRAINING_WEEKS), values: values.slice(0, TRAINING_WEEKS) },
@@ -129,7 +131,5 @@ export function historyWeekStarts(endWeek?: string): string[] {
  */
 export function sensorPhase1(node: { id: string; type: NodeType }, weekStarts: string[]): { margen: number; items: number }[] {
   const first = weekStarts.slice(0, PHASE1_WEEKS);
-  const margins = generateSeries({ nodeId: node.id, nodeType: node.type, weekStarts: first, unit: "dias" });
-  const items = generateWeeklyItems({ nodeId: node.id, nodeType: node.type, weekStarts: first });
-  return first.map((_, i) => ({ margen: margins[i], items: items[i] }));
+  return sensorWeeks({ nodeId: node.id, nodeType: node.type, weekStarts: first }).map((b) => ({ margen: b.actualValue, items: b.items }));
 }

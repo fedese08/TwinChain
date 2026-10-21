@@ -1,7 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { NODE_TYPES, type WeeklyPerformance } from "@/lib/domain/types";
+import { DEFAULT_FALSE_ALARM_COST, thresholdForCost } from "./cusum-config";
+import { runCusum } from "./degradation";
 import { assessChain, assessNode, ATTENTION_SIGMAS, CRITICAL_SIGMAS } from "./monitoring";
+import { sensorWeeks } from "./synthetic/shipments";
+import { provisionalVendedorBaseline } from "./vendedor/baseline";
 import { advanceNode } from "./synthetic/advance";
 import { buildNodeHistory } from "./synthetic/build-history";
 import { HISTORY_WEEKS, TRAINING_WEEKS } from "./synthetic/config";
@@ -101,5 +105,59 @@ describe("calibración: operación estable (Monte Carlo)", () => {
 
   it("los umbrales están ordenados", () => {
     expect(CRITICAL_SIGMAS).toBeGreaterThan(ATTENTION_SIGMAS);
+  });
+});
+
+describe("CUSUM sobre nodos con sensor por envío (Monte Carlo)", () => {
+  // Línea base provisoria de cada nodo (media de su fase I, ± el intervalo de esa media): no hace falta el servicio de ML.
+  // Es el peor caso para las falsas alarmas: la línea base sale de solo cuatro semanas y no tiene el encogimiento del
+  // modelo. La calibración real, sobre vendedores de Olist con el modelo, está en `scripts/calibrate-cusum.ts`.
+  function trialRows(id: string, type: (typeof NODE_TYPES)[number], weeks: string[], drop: number, dropFrom: number) {
+    const values = sensorWeeks({ nodeId: id, nodeType: type, weekStarts: weeks }).map((b) => b.actualValue);
+    const b = provisionalVendedorBaseline(values.slice(0, 4));
+    const margin = b.baseline - b.lower;
+    return {
+      margin,
+      rows: values.slice(4).map((v, k) => ({ weekStart: weeks[k + 4], actualValue: k >= dropFrom ? v - drop * margin : v, baseline: b.baseline, baselineLowerBand: b.lower })),
+    };
+  }
+
+  it("en operación estable, con el costo máximo de falsa alarma, saltan pocas falsas alarmas por semestre", () => {
+    const h = thresholdForCost(DEFAULT_FALSE_ALARM_COST);
+    const weeks = weekRange("2026-10-05", 52);
+    let confirmations = 0;
+    let exposure = 0;
+    for (let i = 0; i < 150; i++) {
+      const { rows } = trialRows(`mc-${i}`, NODE_TYPES[i % NODE_TYPES.length], weeks, 0, 999);
+      confirmations += runCusum(rows, h).episodes.length;
+      exposure += rows.length;
+    }
+    expect((confirmations / exposure) * 26).toBeLessThan(1.5);
+  });
+
+  it("una caída sostenida de dos márgenes se detecta casi siempre y en pocas semanas", () => {
+    const h = thresholdForCost(DEFAULT_FALSE_ALARM_COST);
+    const weeks = weekRange("2026-10-05", 40);
+    const delays: number[] = [];
+    const trials = 100;
+    for (let i = 0; i < trials; i++) {
+      const { rows } = trialRows(`pw-${i}`, NODE_TYPES[i % NODE_TYPES.length], weeks, 2, 12);
+      const first = runCusum(rows, h).episodes.find((e) => rows.findIndex((r) => r.weekStart === e.confirmedWeek) >= 12);
+      if (first) delays.push(rows.findIndex((r) => r.weekStart === first.confirmedWeek) - 12 + 1);
+    }
+    expect(delays.length / trials).toBeGreaterThan(0.9);
+    expect(delays.sort((a, b) => a - b)[Math.floor(delays.length / 2)]).toBeLessThanOrEqual(4);
+  });
+
+  it("un umbral más sensible avisa antes y avisa de más (HU1: umbral configurable)", () => {
+    const weeks = weekRange("2026-10-05", 52);
+    const count = (f: number) => {
+      const h = thresholdForCost(f);
+      let c = 0;
+      for (let i = 0; i < 60; i++) c += runCusum(trialRows(`cfg-${i}`, NODE_TYPES[i % NODE_TYPES.length], weeks, 0, 999).rows, h).episodes.length;
+      return c;
+    };
+    expect(count(0)).toBeGreaterThan(count(3));
+    expect(thresholdForCost(0)).toBeLessThan(thresholdForCost(3));
   });
 });

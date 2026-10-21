@@ -189,3 +189,15 @@ base no la estima el estimador estadístico sino el **modelo de ML**, a partir d
 estimador de `estimate-baseline.ts` sigue vigente solo para los nodos anteriores en 0–100. El generador sigue siendo
 una fuente de datos que no conoce al modelo. Detalles y mediciones: `docs/modelo-ml.md`, sección 8.
 
+## Sensor por envío y detección por CUSUM (actualización de octubre de 2026)
+
+**Sensor por envío (RF009, RF010).** El simulador no genera el valor semanal del nodo: genera sus **envíos individuales**
+(`synthetic/shipments.ts`). El nodo tiene un nivel semanal (proceso AR(1) con semanas malas) y cada envío es ese nivel más
+un ruido propio; la ingesta **agrega por semana** (media del margen y cantidad de envíos) antes de cualquier análisis. La
+variabilidad semanal que ve el sistema se reparte 50/50 entre el nivel del nodo y el ruido de los envíos, así que sigue
+siendo la calibrada con Olist (`weeklyVolatility` de cada perfil; hay una prueba que lo verifica). `aggregateShipments`
+agrega envíos de cualquier origen y `POST /api/cadenas/[id]/envios` los acepta de una fuente real.
+
+**Detección (Flujo A, RF011, RF018 a RF020).** CUSUM tabular unilateral sobre el residuo semanal (`degradation.ts`), con
+umbral calibrado por costo (`cusum-calibration.ts`, `scripts/calibrate-cusum.ts`). Ver `docs/modelo-ml.md`, sección 8.
+

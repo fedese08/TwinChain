@@ -5,4 +5,5 @@ export * from "./cusum";
 export * from "./estimate-baseline";
 export * from "./generate-series";
 export * from "./node-profiles";
+export * from "./shipments";
 export * from "./weeks";

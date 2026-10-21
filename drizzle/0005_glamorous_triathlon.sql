@@ -1,0 +1,2 @@
+ALTER TABLE "cadenas" ADD COLUMN "costo_falsa_alarma" double precision DEFAULT 3 NOT NULL;--> statement-breakpoint
+ALTER TABLE "cadenas" ADD CONSTRAINT "cadenas_costo_falsa_alarma_rango" CHECK ("cadenas"."costo_falsa_alarma" >= 0 AND "cadenas"."costo_falsa_alarma" <= 3);

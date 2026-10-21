@@ -131,9 +131,15 @@ export const cadenas = pgTable(
     creadaPor: uuid("creada_por")
       .notNull()
       .references(() => usuarios.id, { onDelete: "restrict" }),
+    // app: costo de una falsa alarma (semanas de operar degradado). Fija el umbral del CUSUM de la cadena (HU1: umbral
+    // configurable; RF019). 3 = el costo de reconfigurar, la cota superior.
+    costoFalsaAlarma: doublePrecision("costo_falsa_alarma").notNull().default(3),
     creadoEn: creadoEn(),
   },
-  (t) => [index("cadenas_organizacion_idx").on(t.organizacionId)],
+  (t) => [
+    index("cadenas_organizacion_idx").on(t.organizacionId),
+    check("cadenas_costo_falsa_alarma_rango", sql`${t.costoFalsaAlarma} >= 0 AND ${t.costoFalsaAlarma} <= 3`),
+  ],
 );
 
 // Herencia de tabla única (nota de implementación del modelo): una sola tabla `nodos` con las

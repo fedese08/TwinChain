@@ -10,7 +10,8 @@ import { Label } from "@/components/ui/label";
 import { WeeklyPerformanceChart } from "@/components/charts/weekly-performance-chart";
 import { deriveAlertScenario } from "@/lib/domain/detection";
 import { NODE_TYPE_CODE, NODE_TYPE_COLOR } from "@/lib/domain/node-visuals";
-import { unitOfNode } from "@/lib/domain/units";
+import { assessNode, assessOptionsFor } from "@/lib/domain/monitoring";
+import { formatPerformance, unitOfNode } from "@/lib/domain/units";
 import { useAppStore } from "@/stores/app-store";
 import type { SupplyChainNode } from "@/lib/domain/types";
 
@@ -144,7 +145,11 @@ export function NodeInspector({ node, onClose }: { node: SupplyChainNode; onClos
 
   // Si el monitoreo marcó el nodo, se ofrece simular cómo sigue (entradas derivadas de lo observado).
   const canRun = useAppStore((s) => s.canRun);
-  const alert = useMemo(() => deriveAlertScenario(history), [history]);
+  const chain = useAppStore((s) => s.chains.find((c) => c.id === node.chainId));
+  const assessOptions = useMemo(() => assessOptionsFor(node, chain), [node, chain]);
+  const alert = useMemo(() => deriveAlertScenario(history, assessOptions), [history, assessOptions]);
+  const health = useMemo(() => assessNode(history, assessOptions), [history, assessOptions]);
+  const unit = unitOfNode(node);
 
   function handleLabelChange(value: string) {
     setLabel(value);
@@ -242,7 +247,36 @@ export function NodeInspector({ node, onClose }: { node: SupplyChainNode; onClos
           <div className="text-[11px] leading-relaxed text-muted-foreground">{TYPE_NOTE[node.nodeType]}</div>
         )}
 
-        {alert && (
+        {/* HU2: la alerta dice desde cuándo se sostiene el desvío y cuánto déficit juntó. */}
+        {health.sustained && alert ? (
+          <div className="rounded-lg border border-[#f5c9a8] bg-[#fdf5ec] p-2.5 text-[11px] leading-relaxed text-[#8a4313]">
+            <div className="font-medium">Degradación sostenida confirmada</div>
+            <div className="mt-0.5">
+              Desde la semana del <span className="font-mono">{health.sustained.since}</span> ({health.sustained.weeks}{" "}
+              {health.sustained.weeks === 1 ? "semana" : "semanas"}), con un déficit acumulado de{" "}
+              <span className="font-mono">{formatPerformance(health.sustained.accumulatedDeficit, unit)}</span> (en promedio{" "}
+              <span className="font-mono">{formatPerformance(health.sustained.meanDeficit, unit)}</span> por semana, una caída del {alert.magnitudePct} %).
+              Se confirmó en la semana del <span className="font-mono">{health.sustained.confirmedWeek}</span>.
+            </div>
+            {canRun && (
+              <Link
+                href={`/cadenas/${node.chainId}?alerta=${node.id}`}
+                className="mt-1.5 inline-block rounded-md border border-[#f5c9a8] bg-card px-2 py-1 font-medium text-foreground hover:bg-muted"
+              >
+                Simular cómo sigue
+              </Link>
+            )}
+          </div>
+        ) : health.accumulating && health.level === "atencion" ? (
+          <div className="rounded-lg border border-border bg-muted/40 p-2.5 text-[11px] leading-relaxed text-muted-foreground">
+            <div className="font-medium text-foreground">Desvío en vigilancia</div>
+            <div className="mt-0.5">
+              Se acumula un desvío desde la semana del <span className="font-mono">{health.accumulating.since}</span>: lleva el{" "}
+              {Math.round(health.accumulating.fractionOfThreshold * 100)} % de lo necesario para confirmarse como degradación sostenida.
+              Una semana aislada no alcanza.
+            </div>
+          </div>
+        ) : alert ? (
           <div className="rounded-lg border border-[#f5c9a8] bg-[#fdf5ec] p-2.5 text-[11px] leading-relaxed text-[#8a4313]">
             <div className="font-medium">
               {alert.level === "critico" ? "Nodo en estado crítico" : "Nodo en atención"} · desvío desde {alert.startDate}
@@ -260,7 +294,7 @@ export function NodeInspector({ node, onClose }: { node: SupplyChainNode; onClos
               </Link>
             )}
           </div>
-        )}
+        ) : null}
 
         <div>
           <div className="mb-2 font-mono text-[9.5px] font-medium uppercase tracking-wider text-muted-foreground">

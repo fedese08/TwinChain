@@ -14,9 +14,8 @@ fuentes citadas. Las cifras de las mediciones se pueden reproducir (se indica c�
 5. **Numeración:** las tablas nuevas están marcadas como `Tabla N.a`, `N.b`, etc. Si el documento usa leyendas
    automáticas de Word, se renumeran solas; si no, hay que correrlas a mano (hoy la Tabla 9 es la de roles del equipo).
 
-**Cuatro cosas que no coinciden con el documento actual y hay que decidir** (están en la sección 5): los roles
-(Operador / Administrador frente a Administrador / Visualizador), el campo de Olist que se mide, el uso del CUSUM y los
-nombres de las tecnologías.
+**Cosas que no coinciden con el documento actual** (están en la sección 5): los roles (Operador / Administrador frente a
+Administrador / Visualizador, que se alinea en una tanda posterior) y el campo de Olist que se mide.
 
 ---
 
@@ -54,12 +53,19 @@ nombres de las tecnologías.
 > machine learning recibe el historial del nodo y estima su línea base sin saber si proviene de un sensor real o del
 > simulador.
 >
-> **Cómo se generan.** Cada nodo reporta, semana a semana, dos valores: su margen de despacho en días y su volumen de
-> envíos. El margen sigue un proceso autorregresivo de primer orden alrededor del nivel propio del nodo, con una
-> persistencia de 0,15 (la mediana observada en los vendedores de Olist es de 0,16) y semanas malas aisladas, con una
-> probabilidad del 3 % y una profundidad de entre 1,5 y 3 desvíos. El ruido de cada semana se obtiene de un generador
-> pseudoaleatorio sembrado con el identificador del nodo y la semana, de modo que la misma red produce siempre la misma
-> serie y se puede continuar semanas después con el mismo proceso. Cada nodo nace con 28 semanas de historial.
+> **Cómo se generan.** El simulador emite, para cada nodo y cada semana, sus **envíos individuales** (RF009): cuántos días
+> se adelantó o se atrasó cada envío respecto de su plazo. La ingesta agrupa esos envíos por semana (RF010) y de cada semana
+> conserva dos valores, la media del margen y la cantidad de envíos; recién ese lote semanal llega al modelo, a la detección
+> y a la simulación. El nivel semanal del nodo sigue un proceso autorregresivo de primer orden, con una persistencia de
+> 0,15 (la mediana observada en los vendedores de Olist es de 0,16) y semanas malas aisladas, con una probabilidad del 3 % y
+> una profundidad de entre 1,5 y 3 desvíos; cada envío es ese nivel más un ruido propio. La variabilidad del promedio de la
+> semana, que es la que se calibró con Olist, se reparte a partes iguales entre el nivel del nodo y el ruido de los envíos. El
+> ruido de cada semana se obtiene de un generador pseudoaleatorio sembrado con el identificador del nodo y la semana, de modo
+> que la misma red produce siempre la misma serie. Cada nodo nace con 28 semanas de historial.
+>
+> Como la ingesta solo necesita envíos con su fecha y su margen, el simulador se puede reemplazar por una fuente real sin
+> cambiar el resto del sistema: el sistema acepta los envíos de un nodo de cualquier origen (por ejemplo, un archivo CSV
+> semanal o sensores) y los agrega de la misma manera.
 >
 > Cada tipo de nodo tiene un perfil propio, calibrado con la distribución observada en Olist (nivel mediano de 3,5 días,
 > desvío semanal mediano de unos 2 días y alrededor de 2,5 envíos por semana). Los niveles se eligieron dentro del rango
@@ -81,17 +87,17 @@ nombres de las tecnologías.
 > los otros cuatro tipos son conceptuales y reciben la misma métrica por definición, sin posibilidad de contrastarse
 > con Olist.
 >
-> **Riesgo de sobreajuste y cómo se acota.** Que el detector se pruebe sobre datos que el propio sistema genera puede
-> dar una idea optimista de su desempeño. Para acotarlo, el umbral del CUSUM no se calibró con degradaciones inyectadas
-> a medida, sino con simulaciones de Monte Carlo de series estables, fijando la tasa de falsas alarmas (apartado
-> sobre detección de cambios). Además, dos resultados se midieron sobre datos reales: el error del modelo de línea base,
-> evaluado sobre 292 vendedores de Olist que el modelo nunca vio, y la regla de alerta por banda semanal, que sobre 81
-> vendedores reales no vistos marcó atención en el 3,3 % de las ventanas de tres semanas y estado crítico en el 0,59 %.
+> **Riesgo de sobreajuste y cómo se acota.** Que el detector se pruebe sobre datos que el propio sistema genera puede dar una
+> idea optimista de su desempeño. Para acotarlo, el umbral del CUSUM no se calibró con los datos simulados sino con series
+> **reales** de vendedores de Olist que el modelo no vio (apartado sobre detección de cambios), y las falsas alarmas se
+> midieron sobre esas series reales. Además, el error del modelo de línea base se evaluó sobre 292 vendedores reales no vistos.
+> Los datos simulados se usan para verificar que el detector se comporta de forma consistente en los cinco tipos de nodo, no
+> para calibrarlo.
 >
-> **Lo que no está demostrado.** La capacidad del sistema para detectar una degradación real de un proveedor, una
-> fábrica, un almacén o un cliente no se validó, porque los datos de Olist no traen degradaciones etiquetadas y los
-> nodos simulados no tienen incidentes inyectados. Se declara como limitación del trabajo y como línea futura: poner a
-> prueba la detección con datos de sensores reales o con un episodio de degradación documentado.
+> **Lo que no está demostrado.** Las degradaciones con las que se calibró el detector se **inyectaron** sobre series reales,
+> porque los datos de Olist no traen degradaciones etiquetadas; la detección de una degradación real de un proveedor, una
+> fábrica, un almacén o un cliente no se validó. Se declara como limitación del trabajo y como línea futura: ponerla a prueba
+> con datos de sensores reales o con un episodio de degradación documentado.
 
 ---
 
@@ -163,7 +169,7 @@ Tabla 7. Tecnologías seleccionadas para el desarrollo del modelo de machine lea
 | Render | Despliegue del microservicio de machine learning | Ejecuta el microservicio como servicio web a partir del contenedor y genera la clave de API en el despliegue. El plan gratuito lo duerme tras unos 15 minutos sin uso, por lo que el primer pedido puede tardar hasta un minuto: el sistema espera 10 s y, si el modelo no responde, usa una línea base provisoria marcada como tal. |
 | Docker | Contenedor del microservicio de machine learning | Empaqueta solo lo que usa el servicio (código, variables de entorno y el modelo), sin el entrenamiento ni las pruebas, y fija las versiones exactas de las librerías: el modelo es un archivo serializado que solo se garantiza que cargue con la versión de scikit-learn con la que se entrenó. |
 | GitHub Actions | Integración continua | Ejecuta en cada cambio el linter, la verificación de tipos, las pruebas automáticas de los dos componentes y la consistencia de las migraciones, para detectar regresiones antes del despliegue. |
-| Vitest | Pruebas automáticas del monolito | Cubre el motor de simulación (contra una enumeración de caminos independiente), la generación de datos simulados, el monitoreo y el cliente del modelo; incluye pruebas estadísticas que verifican la tasa de falsas alarmas. Son 122 pruebas. |
+| Vitest | Pruebas automáticas del monolito | Cubre el motor de simulación (contra una enumeración de caminos independiente), la generación de datos simulados, el monitoreo y el cliente del modelo; incluye pruebas estadísticas que verifican la tasa de falsas alarmas. Son 148 pruebas. |
 | pytest | Pruebas automáticas del microservicio | Son 22 pruebas, entre ellas la que verifica que el cálculo de variables del entrenamiento y el de la inferencia den exactamente lo mismo y la que verifica la integridad del archivo del modelo. |
 
 Tabla 8. Tecnologías seleccionadas para el deploy y control de calidad. Elaboración propia.
@@ -197,8 +203,9 @@ Tabla 8. Tecnologías seleccionadas para el deploy y control de calidad. Elabora
 > pueden quedar demasiado angostos, así que la banda se corrige con regresión conformal de cuantiles (Romano et al.,
 > 2019): sobre el conjunto de calibración se mide cuánto hay que ensanchar los cuantiles para que la cobertura real se
 > acerque al 80 % prometido. Se calibran dos bandas: la **banda del promedio**, que acota la línea base misma y alimenta
-> las réplicas de la simulación, y la **banda semanal**, que acota el valor de una semana individual y se usa para
-> alertar. El ensanchamiento es de 0,30 días en la primera y de 1,38 días en la segunda.
+> las réplicas de la simulación y fija el margen del CUSUM, y la **banda semanal**, que acota el valor de una semana
+> individual y queda registrada como referencia. El ensanchamiento es de 0,30 días en la primera y de 1,38 días en la
+> segunda.
 >
 > **Evaluación.** Las cifras se calcularon sobre los 292 vendedores de evaluación y se reprodujeron de forma
 > independiente a partir del archivo del modelo.
@@ -218,8 +225,8 @@ Tabla 8. Tecnologías seleccionadas para el deploy y control de calidad. Elabora
 > toda su ventaja proviene de acercar las estimaciones al centro de la distribución, y por eso predice entre 2,4 y 4,2 días
 > cuando los niveles reales van de 0,5 a 5,5. Segundo, al validar por fecha en lugar de al azar, la cobertura de la banda
 > del promedio baja del 79,1 % al 65,8 %, lo que indica que subestima la incertidumbre en vendedores nuevos. Tercero,
-> como la banda semanal mide alrededor de 2,8 días a cada lado de una línea base de unos 3 días, solo detecta
-> degradaciones severas. Sobre 600 nodos simulados, donde la línea base verdadera se conoce, el modelo tiene un error de
+> como la banda semanal mide alrededor de 2,8 días a cada lado de una línea base de unos 3 días, no sirve para detectar
+> caídas chicas. Sobre 600 nodos simulados, donde la línea base verdadera se conoce, el modelo tiene un error de
 > 0,51 días frente a 0,80 del método ingenuo y subestima el nivel en 0,45 días en promedio.
 >
 > **Interpretabilidad.** Para explicar por qué el modelo estima una línea base determinada se calcularon valores SHAP
@@ -244,34 +251,69 @@ Tabla 8. Tecnologías seleccionadas para el deploy y control de calidad. Elabora
 > línea base de un proveedor es la que es porque sus primeras semanas tuvieron ese margen, y no por variables que el
 > sistema no ve. A nivel individual, por ejemplo, el primer vendedor de la muestra recibe una estimación de 2,61 días,
 > 0,69 días por debajo del promedio: la media de su fase I resta 0,21, su máximo resta 0,35 y su mínimo resta 0,13. Por
-> último, la decisión de pasar un nodo a atención o a estado crítico no la toma el modelo sino una regla explícita —
-> dos o tres de las últimas tres semanas por debajo de la banda semanal—, de modo que el sistema siempre puede mostrar
-> qué semanas, y contra qué valor, dispararon la alerta.
+> último, la decisión de marcar un nodo no la toma el modelo sino una regla explícita: una suma acumulada de los desvíos que
+> superan el margen de la línea base (apartado siguiente). El sistema siempre puede mostrar desde qué semana se acumula el
+> desvío y cuánto déficit juntó.
 
-### 2.4 Subapartado nuevo: Detección de cambios (variante implementada)
+### 2.4 Subapartado nuevo: Detección de cambios
 
-> **Detección de cambios: la variante implementada**
+> **Detección de degradación sostenida: CUSUM calibrado**
 >
-> El marco teórico presenta el CUSUM en su forma tabular (Montgomery, 2013), que acumula desvíos respecto de un valor de
-> referencia y exige conocer, o estimar de forma confiable, el desvío estándar del proceso. Al ponerlo a prueba sobre
-> historiales estables de 16 semanas, la forma tabular dio entre un 40 % y un 70 % de falsas alarmas, en lugar del 0,2 %
-> que se buscaba: con tan pocos puntos el desvío estimado es muy ruidoso, y las series tienen autocorrelación, que
-> inflaba el estadístico un 36 %. Una cadena de 50 nodos hace 50 pruebas a la vez, por lo que con esa tasa casi toda cadena
-> saldría en alerta sin motivo.
+> La detección sigue el Flujo A del documento. Cada semana, contra la línea base fija del nodo, se obtienen dos valores
+> distintos: el déficit, que solo cuenta cuánto se quedó por debajo de lo esperado, y el residuo, que además conserva el
+> signo del desvío. El residuo alimenta una suma acumulada (CUSUM) en su forma tabular (Montgomery, 2013), en el sentido de
+> las caídas: cada semana se suma el desvío de la semana y se descuenta el margen de la línea base, es decir, la distancia
+> entre la línea base y el límite inferior de su banda de incertidumbre, y el acumulado nunca baja de cero. Mientras el
+> desempeño se mantiene dentro del margen, no se acumula nada; cuando lo excede, empieza a sumar. Cuando el acumulado supera un
+> umbral, el sistema confirma que la degradación es sostenida y no ruido operativo, e informa desde cuándo se sostiene y cuánto
+> déficit juntó. Al confirmarse se reinicia el acumulado, para que la semana siguiente no se vuelva a confirmar una disrupción
+> ya avisada; si el nodo sigue degradado, las confirmaciones consecutivas se muestran como una sola alerta.
 >
-> Por eso se implementó una variante retrospectiva y estandarizada. Para cada punto de corte posible de la ventana, se
-> compara el nivel de las semanas anteriores con el de las posteriores, y se toma el corte más marcado. El desvío se
-> estima con la variación *dentro* de cada tramo, de modo que el propio cambio de nivel no lo infla ni enmascara lo que
-> se quiere detectar. Si el estadístico supera 6,4 desvíos, se considera que el nodo cambió de nivel y el corte señala
-> la semana. El umbral se calibró con simulaciones de Monte Carlo sobre 20.000 series estables de los cinco tipos de nodo y
-> una ventana de 24 semanas, hasta alcanzar una tasa de falsas alarmas de 0,16 % por nodo. Con ese umbral, una caída de
-> cuatro desvíos a mitad de la ventana se detecta en el 97 % de los casos; las subas se detectan mal (13 %), porque la
-> escala está acotada.
+> **Calibración del umbral.** El umbral se expresa en múltiplos del margen y se calibra en un paso separado del
+> entrenamiento, sobre el modelo ya entrenado (RF019 y RF020), minimizando el costo operativo total en unidades de déficit
+> acumulado:
 >
-> En el sistema esta variante cumple un papel distinto del monitoreo semanal. El CUSUM verifica, sobre las primeras 24
-> semanas de cada nodo, que el historial en el que se congeló la línea base fue estable: si hubo un cambio de nivel, esa
-> línea base nace mala y el sistema lo informa antes de que se confíe en ella. La alerta semana a semana, en cambio, la
-> da la regla de la banda semanal del modelo descripta en el apartado anterior.
+> C(h) = E[retardo(h)] + f · E[F(h)]
+>
+> El retardo es la cantidad de semanas entre el inicio real de la degradación sostenida y su confirmación, que equivale al
+> déficit acumulado en ese lapso medido en múltiplos del déficit semanal del episodio. F es la cantidad de confirmaciones sin
+> degradación real, por cada 26 semanas de operación normal. El parámetro f es el costo de una falsa alarma, en semanas de
+> operar degradado, la misma unidad que el costo k de reconfigurar. Es el costo de evaluar una reconfiguración innecesaria y no
+> el de reconfigurar, porque el sistema solo recomienda. No es un valor fijo: se barre desde 0, donde se ignoran las falsas
+> alarmas, hasta k, donde una falsa alarma equivale a una reconfiguración completa, que es la cota superior. El umbral óptimo
+> h\*(f) es el que minimiza ese costo, y no se calibra por una tasa objetivo de falsas alarmas.
+>
+> **De dónde salen los episodios de degradación.** Se inyectaron caídas de uno, dos y tres márgenes de la línea base sobre las
+> series reales de 81 vendedores de Olist de la partición de evaluación, que el modelo no vio al entrenar ni al calibrar. Para
+> cada vendedor, la línea base y el margen los estima el modelo con sus primeras cuatro semanas con actividad; el tramo normal
+> son las semanas siguientes y el episodio son las últimas doce, con la caída inyectada. Se supone que el tramo normal no tiene
+> degradación sostenida, así que toda confirmación ahí cuenta como falsa alarma: es un supuesto conservador, porque esas series
+> reales tienen sus propios cambios de nivel.
+>
+> | Costo de una falsa alarma (f) | Umbral h\* (múltiplos del margen) | Retardo (semanas) | Falsas alarmas cada 26 semanas | Episodios detectados |
+> |---|---|---|---|---|
+> | 0 | 0,25 | 2,1 | 1,96 | 98 % |
+> | 1 | 0,50 | 2,4 | 1,54 | 98 % |
+> | 2 | 1,25 | 3,4 | 0,85 | 93 % |
+> | 3 (cota superior) | 2,00 | 4,2 | 0,59 | 90 % |
+>
+> Tabla N.f. Umbral óptimo del CUSUM según el costo de una falsa alarma. Elaboración propia.
+>
+> El umbral es configurable por cadena (HU1): quien administra la cadena elige entre cuatro niveles de sensibilidad, que
+> corresponden a esos valores de f. Sobre 600 nodos simulados con la línea base del modelo, con el nivel más conservador hay
+> 0,34 falsas alarmas cada 26 semanas y una caída sostenida de dos márgenes se detecta en el 98,5 % de los casos, con una demora
+> mediana de tres semanas; con el más sensible, la demora baja a una semana, pero las falsas alarmas suben a 2,5 cada 26
+> semanas.
+>
+> **Límites.** Una caída de un solo margen casi no se detecta con el umbral conservador (56 % de los casos, en cinco semanas),
+> porque con un margen igual a la caída la suma no tiene deriva. Como el CUSUM suma magnitudes, una única semana
+> extremadamente mala puede confirmar por sí sola. Y como la línea base del modelo está sesgada hacia abajo (0,45 días en
+> promedio), las falsas alarmas se subestiman y el poder de detección también.
+>
+> Además de esta detección semanal, el sistema verifica, con un CUSUM retrospectivo sobre las primeras 24 semanas de cada nodo,
+> que el historial sobre el que se congeló la línea base fue estable. Esa verificación aparte compara el nivel de las semanas
+> anteriores con el de las posteriores a cada punto de corte, con el desvío estimado dentro de cada tramo, y su umbral (6,4
+> desvíos) se calibró por Monte Carlo con una tasa de falsas alarmas de 0,16 % por nodo.
 
 ### 2.5 Subapartado nuevo: Prueba de carga del motor de simulación
 
@@ -434,9 +476,9 @@ son las de las obras originales; **verificá páginas y DOI antes de entregar**,
    *entrega* al cliente. El modelo y los datos simulados usan el margen de *despacho* (fecha límite de despacho contra
    entrega al transportista). El texto de 4.1 ya está corregido; falta revisar los demás lugares donde el documento dice
    "fecha estimada vs. real de entrega" (por ejemplo, la observación de campo, apartado 3.3).
-3. **CUSUM sobre el residuo del modelo (RF018 a RF020).** Los RF describen un CUSUM sobre el residuo del modelo. En el
-   sistema el CUSUM verifica la estabilidad del historial de entrenamiento, y la alerta semanal usa la banda del modelo
-   (apartado 2.4). Conviene reescribir RF018 o agregar un RF para la regla de la banda semanal.
+3. **RF018 a RF020 y el Flujo A:** ahora coinciden con la app (CUSUM sobre el residuo, umbral calibrado por costo y
+   configurable). Solo hay que agregar al documento que el margen es la banda de incertidumbre de la línea base y que el
+   CUSUM retrospectivo sobre las 24 primeras semanas es una verificación aparte.
 4. **Nombres.** NextAuth.js pasó a ser Auth.js v5; Neon no figuraba; Pandas se usa solo en el entrenamiento. Ya están
    corregidos en las tablas.
 5. **Cifrado en reposo de Neon.** La afirmación de AES-256 sale de la documentación de seguridad de Neon, encontrada por

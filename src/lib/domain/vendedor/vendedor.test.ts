@@ -1,5 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { DEFAULT_FALSE_ALARM_COST, thresholdForCost } from "@/lib/domain/cusum-config";
+import { runCusum } from "@/lib/domain/degradation";
 import { assessNode } from "@/lib/domain/monitoring";
 import { MAX_ADVANCE_WEEKS } from "@/lib/domain/synthetic/config";
 import type { WeeklyPerformance } from "@/lib/domain/types";
@@ -147,51 +149,45 @@ describe("avance de un Vendedor", () => {
   });
 });
 
-describe("estado de un Vendedor por la banda semanal del modelo", () => {
+describe("estado de un Vendedor con línea base del modelo: CUSUM sobre el residuo", () => {
+  const h = thresholdForCost(DEFAULT_FALSE_ALARM_COST);
   const withActuals = (actuals: number[]): WeeklyPerformance[] =>
     actuals.map((actualValue, i) => ({
       id: String(i), nodeId: "v", weekStart: weekRange(END, actuals.length)[i], actualValue,
-      baseline: 3.2, baselineLowerBand: 1.7, baselineUpperBand: 4.6, weeklyBandLower: 0.6, weeklyBandUpper: 5.6,
-      deficit: Math.max(0, 3.2 - actualValue),
+      baseline: 3.2, baselineLowerBand: 2.3, baselineUpperBand: 4.1, deficit: Math.max(0, 3.2 - actualValue),
     }));
 
-  it("2 de las últimas 3 semanas por debajo es atención; 3 de 3, crítico; una sola, normal", () => {
-    expect(assessNode(withActuals([3, 3, 3, 3, 0.1, 3, 0.2])).level).toBe("atencion");
-    expect(assessNode(withActuals([3, 3, 3, 3, 0.1, 0.2, 0.3])).level).toBe("critico");
-    expect(assessNode(withActuals([3, 3, 3, 3, 3, 3, 0.1])).level).toBe("normal");
+  it("una semana mala aislada no alcanza; una degradación sostenida se confirma como crítica", () => {
+    expect(assessNode(withActuals([3, 3.4, 3, 3.2, 3, 3.3, 1.8]), { cusumH: h }).level).toBe("normal");
+    const sustained = assessNode(withActuals([3, 3.4, 3, 3.2, 1, 1, 1, 1]), { cusumH: h });
+    expect(sustained.level).toBe("critico");
+    expect(sustained.sustained?.weeks).toBeGreaterThanOrEqual(1);
   });
 
-  it("sin banda semanal (línea base provisoria) usa la regla por σ de siempre", () => {
-    const rows = withActuals([3, 3.4, 2.8, 3.1, 3.3, 2.9, 3.2, 3.0]).map((r) => ({ ...r, weeklyBandLower: undefined, weeklyBandUpper: undefined }));
+  it("sin umbral del CUSUM (nodos anteriores, 0-100) usa la regla por σ de siempre", () => {
+    const rows = withActuals([3, 3.4, 2.8, 3.1, 3.3, 2.9, 3.2, 3.0]);
     expect(assessNode(rows).level).toBe("normal");
   });
 
-  it("en vendedores reales que el modelo no vio, casi nunca salta sin motivo", () => {
+  it("en vendedores reales que el modelo no vio, las falsas alarmas son pocas (el costo de una falsa alarma es el máximo)", () => {
     const golden = JSON.parse(readFileSync(new URL("../../../../twinchain-ml/tests/fixtures/golden_sellers.json", import.meta.url), "utf8")).sellers as {
       fase1: { margin_mean: number }[];
       fase2_margin_mean: number[];
       esperado: Record<string, number>;
     }[];
-    let windows = 0;
-    let attention = 0;
-    let critical = 0;
+    let confirmations = 0;
+    let weeks = 0;
     for (const s of golden) {
       const actuals = [...s.fase1.map((w) => w.margin_mean), ...s.fase2_margin_mean];
       const e = s.esperado;
-      const rows: WeeklyPerformance[] = actuals.map((actualValue, i) => ({
-        id: String(i), nodeId: "v", weekStart: weekRange(END, actuals.length)[i], actualValue,
-        baseline: e.linea_base, baselineLowerBand: e.banda_inferior, baselineUpperBand: e.banda_superior,
-        weeklyBandLower: e.banda_semanal_inferior, weeklyBandUpper: e.banda_semanal_superior, deficit: Math.max(0, e.linea_base - actualValue),
+      const rows = actuals.slice(4).map((actualValue, i) => ({
+        weekStart: weekRange(END, actuals.length - 4)[i], actualValue, baseline: e.linea_base, baselineLowerBand: e.banda_inferior,
       }));
-      for (let end = 8; end <= rows.length; end++) {
-        const { level } = assessNode(rows.slice(0, end));
-        windows++;
-        if (level === "atencion") attention++;
-        if (level === "critico") critical++;
-      }
+      confirmations += runCusum(rows, h).episodes.length;
+      weeks += rows.length;
     }
-    expect(windows).toBeGreaterThan(200);
-    expect(attention / windows).toBeLessThan(0.1);
-    expect(critical / windows).toBeLessThan(0.03);
+    expect(weeks).toBeGreaterThan(500);
+    // La calibración sobre estos mismos vendedores dio 0,59 falsas alarmas por cada 26 semanas en el costo máximo.
+    expect((confirmations / weeks) * 26).toBeLessThan(1.5);
   });
 });

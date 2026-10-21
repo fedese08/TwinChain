@@ -17,6 +17,13 @@ export interface NodeProfile {
   badWeekDepthSigmas: number;
   /** Volumen típico de la semana (envíos por semana): el segundo dato que reporta el sensor. Solo se usa en escala "dias". */
   itemsPerWeek: number;
+  /**
+   * σ del valor SEMANAL que ve quien agrega los envíos (media de la semana). En escala "pct" es `volatility`. En "dias",
+   * `volatility` pasa a ser solo la parte del nodo (su nivel semanal) y el resto lo pone cada envío (`shipmentSigma`).
+   */
+  weeklyVolatility: number;
+  /** σ del margen de un envío individual alrededor del nivel de su semana. 0 en escala "pct". */
+  shipmentSigma: number;
 }
 
 interface TypeRanges {
@@ -63,6 +70,8 @@ const DAYS_RANGES: Record<NodeType, { level: [number, number]; volatility: [numb
   Cliente: { level: [3.6, 4.2], volatility: [1.3, 1.6], itemsPerWeek: [2, 6] },
 };
 const DAYS_PERSISTENCE = 0.15;
+/** Parte de la varianza semanal que pone el nivel del nodo; el resto es ruido de cada envío. */
+const LATENT_SHARE = 0.5;
 
 const lerp = ([from, to]: [number, number], t: number) => from + (to - from) * t;
 
@@ -87,17 +96,25 @@ export function profileForNode(nodeId: string, nodeType: NodeType, unit: Perform
       badWeekProbability: ranges.badWeekProbability,
       badWeekDepthSigmas: pct.depthSigmas,
       itemsPerWeek: 0,
+      weeklyVolatility: pct.volatility,
+      shipmentSigma: 0,
     };
   }
   const days = DAYS_RANGES[nodeType];
   // Reusa los mismos sorteos (fracción de cada rango), así el nodo conserva su "posición" dentro del tipo.
   const t = { level: (pct.level - ranges.level[0]) / (ranges.level[1] - ranges.level[0] || 1), volatility: (pct.volatility - ranges.volatility[0]) / (ranges.volatility[1] - ranges.volatility[0] || 1) };
+  const weeklyVolatility = lerp(days.volatility, t.volatility);
+  const itemsPerWeek = lerp(days.itemsPerWeek, rng());
+  // La variabilidad semanal que se calibró con Olist (σ del promedio de la semana) se reparte a partes iguales entre el
+  // nivel del nodo y el ruido de cada envío: con `itemsPerWeek` envíos, σ_semana² = σ_nodo² + σ_envío² / itemsPerWeek.
   return {
     level: lerp(days.level, t.level),
-    volatility: lerp(days.volatility, t.volatility),
+    volatility: weeklyVolatility * Math.sqrt(LATENT_SHARE),
     persistence: DAYS_PERSISTENCE,
     badWeekProbability: ranges.badWeekProbability,
     badWeekDepthSigmas: pct.depthSigmas,
-    itemsPerWeek: lerp(days.itemsPerWeek, rng()),
+    itemsPerWeek,
+    weeklyVolatility,
+    shipmentSigma: weeklyVolatility * Math.sqrt((1 - LATENT_SHARE) * itemsPerWeek),
   };
 }

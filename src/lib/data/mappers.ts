@@ -26,6 +26,7 @@ export const toChain = (r: CadenaRow): Chain => ({
   name: r.nombre,
   organizationId: r.organizacionId,
   visibility: r.visibilidad,
+  falseAlarmCost: r.costoFalsaAlarma,
 });
 
 export const toNode = (r: NodoRow): SupplyChainNode => ({

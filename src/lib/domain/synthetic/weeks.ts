@@ -17,6 +17,10 @@ export function mondayOf(iso: string): string {
   return toIso(ms + back * DAY_MS);
 }
 
+export function addDaysIso(iso: string, days: number): string {
+  return toIso(parseIso(iso) + days * DAY_MS);
+}
+
 export function addWeeksIso(iso: string, weeks: number): string {
   return toIso(parseIso(iso) + weeks * 7 * DAY_MS);
 }

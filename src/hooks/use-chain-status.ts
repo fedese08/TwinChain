@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { assessChain, type ChainHealth } from "@/lib/domain/monitoring";
+import { assessChain, assessOptionsFor, type AssessOptions, type ChainHealth } from "@/lib/domain/monitoring";
 import { deriveChainStability, TRAINING_WEEKS, type ChainStability } from "@/lib/domain/synthetic";
 import type { WeeklyPerformance } from "@/lib/domain/types";
 import { useAppStore } from "@/stores/app-store";
@@ -39,7 +39,11 @@ export function useChainStatuses(): Map<string, ChainStatus> {
     const result = new Map<string, ChainStatus>();
     for (const [chainId, byNode] of rowsByChain) {
       const syntheticRows = [...byNode].filter(([nodeId]) => !realNodeIds.has(nodeId)).flatMap(([, rows]) => rows);
-      result.set(chainId, { stability: deriveChainStability(syntheticRows, TRAINING_WEEKS), health: assessChain(byNode) });
+      const chain = chains.find((c) => c.id === chainId);
+      const options = new Map<string, AssessOptions>(
+        nodes.filter((n) => n.chainId === chainId).map((n) => [n.id, assessOptionsFor(n, chain)]),
+      );
+      result.set(chainId, { stability: deriveChainStability(syntheticRows, TRAINING_WEEKS), health: assessChain(byNode, options) });
     }
     return result;
   }, [chains, nodes, weeklyPerformance]);
