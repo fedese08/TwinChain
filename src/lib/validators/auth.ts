@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { CONSENT_REQUIRED_MESSAGE } from "@/lib/legal/consent";
 
 // bcrypt trunca en 72 bytes sin avisar: mejor rechazar antes que aceptar una contraseña "larga" que no lo es.
 const passwordField = z.string().min(8, "Mínimo 8 caracteres").max(72, "Máximo 72 caracteres");
@@ -25,6 +26,8 @@ export const registerSchema = z
     email: emailField,
     password: passwordField,
     nombreOrganizacion: z.string().trim().max(120).optional(),
+    // Consentimiento informado (Ley 25.326): se valida también acá, en el servidor, no solo en la pantalla.
+    aceptaTratamiento: z.literal(true, { error: CONSENT_REQUIRED_MESSAGE }),
   })
   .refine((d) => d.tipo !== "organizacion" || (d.nombreOrganizacion?.length ?? 0) >= 2, {
     path: ["nombreOrganizacion"],

@@ -9,6 +9,7 @@ import { Building2, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { CONSENT_CHECKBOX_LABEL, CONSENT_PARAGRAPHS, CONSENT_TITLE } from "@/lib/legal/consent";
 import { cn } from "@/lib/utils";
 import { registerSchema, type RegisterType, type RegisterValues } from "@/lib/validators/auth";
 
@@ -131,6 +132,26 @@ export function RegisterForm({ next, invitedEmail }: { next: string; invitedEmai
         ) : (
           <p className="text-[11.5px] text-muted-foreground">Entre 8 y 72 caracteres</p>
         )}
+      </div>
+
+      <div className="flex flex-col gap-2.5 rounded-xl border border-border bg-muted/40 p-3.5">
+        <div className="text-[13px] font-semibold">{CONSENT_TITLE}</div>
+        {CONSENT_PARAGRAPHS.map((paragraph) => (
+          <p key={paragraph} className="text-[11.5px] leading-relaxed text-muted-foreground">
+            {paragraph}
+          </p>
+        ))}
+        <label htmlFor="aceptaTratamiento" className="flex cursor-pointer items-start gap-2 text-[12px] leading-snug">
+          <input
+            id="aceptaTratamiento"
+            type="checkbox"
+            className="mt-0.5 h-3.5 w-3.5 flex-none accent-primary"
+            aria-invalid={!!errors.aceptaTratamiento}
+            {...register("aceptaTratamiento")}
+          />
+          <span>{CONSENT_CHECKBOX_LABEL}</span>
+        </label>
+        {errors.aceptaTratamiento && <p className="text-[12px] text-destructive">{errors.aceptaTratamiento.message}</p>}
       </div>
 
       {serverError && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-[12.5px] text-destructive">{serverError}</p>}
