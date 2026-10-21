@@ -30,4 +30,6 @@ export interface AppSnapshot {
   scenarios: Scenario[];
   events: DisruptionEvent[];
   results: ScenarioResult[];
+  /** Corridas lanzadas en segundo plano que todavía no terminaron: la pantalla las retoma tras una recarga. */
+  runningRuns: { id: string; scenarioId: string; startedAt: number }[];
 }

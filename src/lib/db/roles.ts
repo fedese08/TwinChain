@@ -8,9 +8,10 @@ export const ROLE_DEFINITIONS = {
     nombre: "Administrador",
     permisos: ["organization:manage", "chain:read", "chain:write", "scenario:read", "scenario:run"],
   },
-  viewer: {
-    nombre: "Visualizador",
-    permisos: ["chain:read", "scenario:read"],
+  // Consulta la red, simula y ve resultados y alertas; no modifica la estructura de la red ni gestiona usuarios.
+  operator: {
+    nombre: "Operador",
+    permisos: ["chain:read", "scenario:read", "scenario:run"],
   },
 } as const;
 
@@ -35,6 +36,6 @@ export async function ensureRoles(db: Database): Promise<Record<RoleKey, string>
   const byName = new Map(rows.map((r) => [r.nombre, r.id]));
   return {
     admin: byName.get(ROLE_DEFINITIONS.admin.nombre)!,
-    viewer: byName.get(ROLE_DEFINITIONS.viewer.nombre)!,
+    operator: byName.get(ROLE_DEFINITIONS.operator.nombre)!,
   };
 }

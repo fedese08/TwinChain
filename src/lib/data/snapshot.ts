@@ -1,3 +1,4 @@
+import { isStale } from "@/lib/simulation/run-state";
 import { asc, inArray } from "drizzle-orm";
 import { can, type Member } from "@/lib/auth/session";
 import {
@@ -60,6 +61,10 @@ export async function loadSnapshot(member: Member): Promise<AppSnapshot> {
     weeklyPerformance: weeklyRows.map(toWeeklyPerformance),
     scenarios: scenarioRows.map(toScenario),
     events: eventRows.map(toEvent),
-    results: resultRows.map(toResult),
+    // Solo las corridas terminadas son resultados; las que siguen corriendo viajan aparte (y las perdidas se ignoran).
+    results: resultRows.filter((r) => r.estado === "listo").map(toResult),
+    runningRuns: resultRows
+      .filter((r) => r.estado === "corriendo" && !isStale(r.creadoEn))
+      .map((r) => ({ id: r.id, scenarioId: r.escenarioId, startedAt: r.creadoEn.getTime() })),
   };
 }

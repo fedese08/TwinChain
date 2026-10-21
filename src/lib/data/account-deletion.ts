@@ -7,8 +7,9 @@
 //   - Con otras personas en la organización: se borra la cuenta y las cadenas PRIVADAS que creó (eran solo suyas). Lo
 //     que es de la organización (cadenas compartidas, simulaciones, invitaciones enviadas) pasa a otra persona
 //     administradora, porque esos datos no son personales de quien se va.
-//   - Única persona administradora de una organización con más gente: no puede irse. Todavía no existe una pantalla
-//     para cambiar roles, así que dejaría la organización sin nadie que la administre.
+//   - Única persona administradora de una organización con más gente: no puede irse, porque dejaría la organización sin
+//     nadie que la administre. Antes tiene que hacer administradora a otra persona (o quitar a las demás) desde la
+//     pantalla de la organización.
 import { and, eq, ne, asc } from "drizzle-orm";
 import type { CurrentUser } from "@/lib/auth/session";
 import { lockOrganization } from "@/lib/data/plan-limits";
@@ -58,7 +59,7 @@ export async function deleteAccount(db: Database, user: CurrentUser): Promise<De
         ok: false,
         code: "last_admin_with_members",
         message:
-          "Sos la única persona administradora y la organización tiene más integrantes. Mientras sigan en la organización no podés eliminar tu cuenta, porque nadie más podría administrarla.",
+          "Sos la única persona administradora y la organización tiene más integrantes. Antes de irte, hacé administradora a otra persona desde la pantalla de la organización (o quitá a las demás), porque nadie más podría administrarla.",
       };
     }
 

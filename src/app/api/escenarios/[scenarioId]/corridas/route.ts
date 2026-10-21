@@ -1,19 +1,22 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { isUuid, notFound, readJson } from "@/lib/api/http";
 import { requireApiMember } from "@/lib/auth/session";
 import { findVisibleScenario } from "@/lib/data/access";
-import { toEvent, toResult } from "@/lib/data/mappers";
+import { toEvent } from "@/lib/data/mappers";
 import { eventos, getDb, resultados } from "@/lib/db";
-import { runScenarioOnChain, SimulationTooLargeError, simulationTooLargeBody } from "@/lib/simulation/run-scenario";
+import { hashSeed } from "@/lib/domain/rng";
+import { executeRun } from "@/lib/simulation/background-run";
+import { assertSimulationFits, SimulationTooLargeError, simulationTooLargeBody } from "@/lib/simulation/run-scenario";
 import { rerunScenarioSchema } from "@/lib/validators/scenario-api";
 
-// Mismo criterio que POST /api/escenarios: ver el comentario de `maxDuration` ahí.
+// Mismo criterio que POST /api/escenarios: el motor corre en segundo plano, ver el comentario de `maxDuration` ahí.
 export const maxDuration = 300;
 
 /**
- * Vuelve a correr un escenario y AGREGA una corrida nueva: nunca pisa las anteriores (RF030).
- * Con `reconfigurationWeekIndex` aplica el escalón de reconfiguración (RF022).
+ * Vuelve a correr un escenario y AGREGA una corrida nueva: nunca pisa las anteriores (RF030). Con
+ * `reconfigurationWeekIndex` aplica el escalón de reconfiguración (RF022). Como la primera corrida, se lanza en segundo
+ * plano: responde 202 y la pantalla consulta hasta que está lista.
  */
 export async function POST(request: Request, { params }: { params: Promise<{ scenarioId: string }> }) {
   const access = await requireApiMember("scenario:run");
@@ -35,23 +38,46 @@ export async function POST(request: Request, { params }: { params: Promise<{ sce
   }
 
   const eventRows = await db.select().from(eventos).where(eq(eventos.escenarioId, scenarioId));
+  const events = eventRows.map(toEvent);
 
-  let run: Awaited<ReturnType<typeof runScenarioOnChain>>;
   try {
-    run = await runScenarioOnChain(db, {
-      scenarioId,
+    // Puede pasar si la cadena creció desde la primera corrida (más nodos o aristas).
+    await assertSimulationFits(db, {
       chainId: escenario.cadenaId,
       horizonWeeks: escenario.horizonteProyeccion,
-      events: eventRows.map(toEvent),
-      reconfigurationWeekIndex,
+      events,
       decisionWeek: escenario.semanaDecision,
     });
   } catch (error) {
-    // Puede pasar si la cadena creció desde la primera corrida (más nodos o aristas).
     if (error instanceof SimulationTooLargeError) return NextResponse.json(simulationTooLargeBody(error), { status: 422 });
     throw error;
   }
 
-  const [result] = await db.insert(resultados).values(run).returning();
-  return NextResponse.json({ result: toResult(result) }, { status: 201 });
+  const runId = crypto.randomUUID();
+  const [run] = await db
+    .insert(resultados)
+    .values({
+      id: runId,
+      escenarioId: scenarioId,
+      fechaCorrida: new Date().toISOString().slice(0, 10),
+      tablaK: [],
+      replicas: 0,
+      semilla: hashSeed(runId),
+      semanaReconfiguracion: reconfigurationWeekIndex,
+      estado: "corriendo",
+    })
+    .returning({ id: resultados.id, creadoEn: resultados.creadoEn });
+
+  after(() =>
+    executeRun(db, runId, {
+      scenarioId,
+      chainId: escenario.cadenaId,
+      horizonWeeks: escenario.horizonteProyeccion,
+      events,
+      reconfigurationWeekIndex,
+      decisionWeek: escenario.semanaDecision,
+    }),
+  );
+
+  return NextResponse.json({ run: { id: run.id, startedAt: run.creadoEn.getTime() } }, { status: 202 });
 }

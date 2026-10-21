@@ -18,11 +18,9 @@ function genId(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
-/**
- * Un evento del formulario de simulación. No lleva `nodeId`: el escenario apunta a un único
- * nodo (RF: eventos sobre un solo nodo a la vez) y ese nodo se pasa aparte a `createScenario`.
- */
+/** Un evento del formulario de simulación: su nodo, qué le pasa, desde cuándo y cuánto cae (como máximo uno por nodo). */
 export interface NewEventInput {
+  nodeId: string;
   eventType: string;
   startDate: string;
   magnitude: number;
@@ -79,6 +77,47 @@ async function send<T = unknown>(
     return { ok: false, error: "Sin conexión: el cambio no se guardó" };
   }
 }
+
+// --- Corridas en segundo plano -------------------------------------------------------------
+//
+// El servidor responde 202 apenas guarda la corrida en estado `corriendo` y corre el motor después (ver
+// `lib/simulation/background-run.ts`). El cliente la consulta, sin pasar por la cola de escrituras, hasta que está lista.
+
+const RUN_POLL_FIRST_MS = 500;
+const RUN_POLL_MAX_MS = 2500;
+/** Un poco más que lo que tarda el servidor en dar por perdida una corrida (`RUN_STALE_MS`). */
+const RUN_POLL_TIMEOUT_MS = 7 * 60 * 1000;
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+type RunOutcome = { status: "listo"; result: ScenarioResult } | { status: "fallido" };
+
+async function awaitRun(scenarioId: string, runId: string): Promise<RunOutcome> {
+  const startedAt = Date.now();
+  let delay = RUN_POLL_FIRST_MS;
+  while (Date.now() - startedAt < RUN_POLL_TIMEOUT_MS) {
+    await sleep(delay);
+    delay = Math.min(RUN_POLL_MAX_MS, Math.round(delay * 1.4));
+    try {
+      const response = await fetch(`/api/escenarios/${scenarioId}/corridas/${runId}`);
+      if (response.status === 401) {
+        window.location.href = "/login";
+        return { status: "fallido" };
+      }
+      if (response.status === 404) return { status: "fallido" };
+      if (!response.ok) continue;
+      const body = (await response.json()) as { estado: "corriendo" | "listo" | "fallido"; result?: ScenarioResult };
+      if (body.estado === "listo" && body.result) return { status: "listo", result: body.result };
+      if (body.estado === "fallido") return { status: "fallido" };
+    } catch {
+      // Sin conexión un momento: se sigue consultando.
+    }
+  }
+  return { status: "fallido" };
+}
+
+/** Corridas que ya se están consultando (una recarga o un `router.refresh()` no deben duplicar la consulta). */
+const trackedRuns = new Set<string>();
 
 interface PendingPatch {
   timer: ReturnType<typeof setTimeout>;
@@ -186,8 +225,7 @@ interface AppState {
     chainId: string,
     name: string,
     projectionHorizonWeeks: number,
-    /** Único nodo afectado por el escenario — todos los eventos caen sobre él. */
-    nodeId: string,
+    /** Los eventos del escenario: al menos uno, como máximo uno por nodo (Flujo B / RF026). */
     events: NewEventInput[],
     /** Simulación desde una alerta: semana de la decisión de reconfigurar (s_r). Ausente = simulación manual. */
     decisionWeek?: string,
@@ -200,6 +238,36 @@ interface AppState {
 }
 
 export const useAppStore = create<AppState>()((set, get) => {
+  /**
+   * Consulta una corrida en segundo plano hasta que termina. Si falla, el servidor la descartó (y, si era la primera
+   * del escenario, también el escenario): acá se hace lo mismo, con un aviso.
+   */
+  function trackRun(scenarioId: string, runId: string, pendingId: string) {
+    if (trackedRuns.has(runId)) return;
+    trackedRuns.add(runId);
+    void awaitRun(scenarioId, runId).then((outcome) => {
+      trackedRuns.delete(runId);
+      if (outcome.status === "listo") {
+        set((s) => ({
+          results: s.results.some((r) => r.id === outcome.result.id) ? s.results : [...s.results, outcome.result],
+          pendingRuns: s.pendingRuns.filter((r) => r.id !== pendingId),
+        }));
+        return;
+      }
+      set((s) => {
+        const hasOtherRuns = s.results.some((r) => r.scenarioId === scenarioId);
+        return {
+          pendingRuns: s.pendingRuns.filter((r) => r.id !== pendingId),
+          ...(!hasOtherRuns && {
+            scenarios: s.scenarios.filter((sc) => sc.id !== scenarioId),
+            events: s.events.filter((e) => e.scenarioId !== scenarioId),
+          }),
+        };
+      });
+      toast.error("La simulación no pudo completarse. Probá de nuevo.");
+    });
+  }
+
   function flushNodePatch(nodeId: string) {
     const entry = pendingNodePatches.get(nodeId);
     if (!entry) return;
@@ -284,6 +352,13 @@ export const useAppStore = create<AppState>()((set, get) => {
         events: snapshot.events,
         results: snapshot.results,
       });
+      // Corridas que siguieron en el servidor mientras la pantalla se recargaba: se retoma la espera.
+      for (const run of snapshot.runningRuns) {
+        if (trackedRuns.has(run.id) || get().pendingRuns.some((p) => p.runId === run.id)) continue;
+        const pendingId = genId("run");
+        set((s) => ({ pendingRuns: [...s.pendingRuns, { id: pendingId, scenarioId: run.scenarioId, startedAt: run.startedAt, runId: run.id }] }));
+        trackRun(run.scenarioId, run.id, pendingId);
+      }
     },
 
     registerCreatedChain: ({ chain, nodes, edges, weeklyPerformance = [] }) => {
@@ -517,14 +592,14 @@ export const useAppStore = create<AppState>()((set, get) => {
       return { ok: true };
     },
 
-    createScenario: (chainId, name, projectionHorizonWeeks, nodeId, newEvents, decisionWeek) => {
+    createScenario: (chainId, name, projectionHorizonWeeks, newEvents, decisionWeek) => {
       // Los ids los genera el cliente: el escenario se ve al instante (la pantalla de resultado
       // arranca su animación de espera) mientras el servidor corre la simulación y la guarda.
       const scenarioId = crypto.randomUUID();
       const events: DisruptionEvent[] = newEvents.map((e) => ({
         id: crypto.randomUUID(),
         scenarioId,
-        nodeId,
+        nodeId: e.nodeId,
         eventType: e.eventType,
         startDate: e.startDate,
         magnitude: e.magnitude,
@@ -547,15 +622,15 @@ export const useAppStore = create<AppState>()((set, get) => {
       }));
 
       void enqueue(async () => {
-        const result = await send<{ result: ScenarioResult }>("POST", "/api/escenarios", {
+        const result = await send<{ run: { id: string } }>("POST", "/api/escenarios", {
           id: scenarioId,
           chainId,
           name,
           projectionHorizonWeeks,
-          nodeId,
           ...(decisionWeek ? { decisionWeek } : {}),
           events: events.map((e) => ({
             id: e.id,
+            nodeId: e.nodeId,
             eventType: e.eventType,
             startDate: e.startDate,
             magnitude: e.magnitude,
@@ -572,10 +647,10 @@ export const useAppStore = create<AppState>()((set, get) => {
           toast.error(result.error);
           return;
         }
-        set((s) => ({
-          results: [...s.results, result.data.result],
-          pendingRuns: s.pendingRuns.filter((r) => r.id !== pendingId),
-        }));
+        // El servidor ya guardó el escenario y lanzó la corrida; el resultado llega cuando el job termina.
+        const runId = result.data.run.id;
+        set((s) => ({ pendingRuns: s.pendingRuns.map((r) => (r.id === pendingId ? { ...r, runId } : r)) }));
+        trackRun(scenarioId, runId, pendingId);
       });
 
       return scenarioId;
@@ -586,14 +661,17 @@ export const useAppStore = create<AppState>()((set, get) => {
       set((s) => ({ pendingRuns: [...s.pendingRuns, { id: pendingId, scenarioId, startedAt: Date.now() }] }));
 
       void enqueue(async () => {
-        const result = await send<{ result: ScenarioResult }>("POST", `/api/escenarios/${scenarioId}/corridas`, {
+        const result = await send<{ run: { id: string } }>("POST", `/api/escenarios/${scenarioId}/corridas`, {
           reconfigurationWeekIndex,
         });
-        set((s) => ({
-          pendingRuns: s.pendingRuns.filter((r) => r.id !== pendingId),
-          ...(result.ok && { results: [...s.results, result.data.result] }),
-        }));
-        if (!result.ok) toast.error(result.error);
+        if (!result.ok) {
+          set((s) => ({ pendingRuns: s.pendingRuns.filter((r) => r.id !== pendingId) }));
+          toast.error(result.error);
+          return;
+        }
+        const runId = result.data.run.id;
+        set((s) => ({ pendingRuns: s.pendingRuns.map((r) => (r.id === pendingId ? { ...r, runId } : r)) }));
+        trackRun(scenarioId, runId, pendingId);
       });
     },
   };

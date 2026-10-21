@@ -1,0 +1,2 @@
+ALTER TABLE "resultados" ADD COLUMN "estado" text DEFAULT 'listo' NOT NULL;--> statement-breakpoint
+ALTER TABLE "resultados" ADD CONSTRAINT "resultados_estado_valido" CHECK ("resultados"."estado" IN ('corriendo', 'listo'));

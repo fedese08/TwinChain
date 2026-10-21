@@ -27,7 +27,7 @@ Catálogo de roles de usuario.
 | Atributo | Tipo | Clave | Notas |
 |---|---|---|---|
 | id | UUID | PK | |
-| nombre | string | | ej. "Administrador", "Visualizador" |
+| nombre | string | | ej. "Administrador", "Operador" |
 | permisos | array de string (`text[]`) | | lista abierta de acciones permitidas; se completa cuando se definan los roles concretos. La validación de qué significa cada permiso vive en la aplicación, no en el modelo de datos |
 
 ### Usuario
@@ -164,6 +164,7 @@ para poder comparar cómo cambió la recomendación con más datos.
 | tabla_k | JSONB — array de `{k, umbral_mediana, umbral_min, umbral_max}` | | correspondencia entre k (costo de reconfigurar, en semanas malas equivalentes) y el umbral de reconfiguración resultante; incluye el k a partir del cual el umbral deja de existir |
 | replicas | int | | cantidad de réplicas estocásticas que produjeron esta corrida (RF023) |
 | semilla | bigint | | semilla del generador pseudoaleatorio — permite reproducir la corrida exactamente (RF030) |
+| estado | string | | app: `corriendo` mientras el job en segundo plano calcula la corrida, `listo` cuando terminó. Solo las `listo` son resultados |
 | semana_reconfiguracion | int | nullable | semana del horizonte en la que se aplicó la reconfiguración; null = no se reconfiguró (RF022) |
 
 **El umbral es mediana y rango, nunca un valor puntual (RF029 / C36).** Cada corrida barre N réplicas variando los

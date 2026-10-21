@@ -165,8 +165,8 @@ function DeleteAccountSection({ hasPassword, otherMembers, canLeave }: { hasPass
       </p>
       {!canLeave && (
         <p className="rounded-lg bg-muted px-3 py-2 text-[12.5px] leading-relaxed text-muted-foreground">
-          Sos la única persona administradora y la organización tiene más integrantes: mientras sigan, no podés eliminar tu cuenta, porque nadie más
-          podría administrarla.
+          Sos la única persona administradora y la organización tiene más integrantes: antes de eliminar tu cuenta, hacé administradora a otra
+          persona desde la pantalla de la organización, porque nadie más podría administrarla.
         </p>
       )}
       {canLeave && !open && (

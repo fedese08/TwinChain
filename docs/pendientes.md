@@ -66,9 +66,9 @@ funcionalidad que todavía no existe.
 
 ## Backend y arquitectura
 
-- **[deuda] Simulación síncrona.** `POST /api/escenarios` y `/corridas` corren el motor dentro del request. Con 30
-  réplicas son milisegundos; con 200–300 (o cadenas de 50 nodos) hay que pasarlo a un job real (`after()` de Next o
-  una cola) y hacer polling/SSE del resultado. El cliente ya tiene `pendingRuns` pensado para eso (C36).
+- **[hecho 21/10/2026] La simulación corre como job en segundo plano** (`after()`, estado `corriendo`/`listo` en
+  `resultados`, migración 0007). Queda como límite: `after()` vive dentro de `maxDuration` (300 s) de la función; si las
+  réplicas suben a 200–300 y alguna corrida se acerca a ese tope, hay que pasarla a una cola externa.
 - **[deuda] El snapshot carga TODO lo de la organización en cada carga completa** (con el monitoreo vivo, hasta 156 semanas por nodo) (`src/lib/data/snapshot.ts`:
   cadenas, nodos, aristas, desempeño, escenarios, eventos, corridas con su `tabla_k`). Está bien para una tesis; con
   muchos datos hay que paginar o cargar por cadena.
@@ -212,3 +212,12 @@ funcionalidad que todavía no existe.
 semilla cambia en cada corrida. En 1 de ~22 corridas dio 0,51 % de semanas críticas contra el tope de 0,5 %. No se relajó
 el tope. Para volverla reproducible, fijar los ids de los 80 nodos (y mirar si con ids fijos pasa con margen); si no, el
 tope de la regla vieja (nodos en escala 0–100) está justo en el borde. Afecta solo a nodos legacy, no al CUSUM.
+
+## Tanda 5 (21/10/2026): lo que queda abierto
+- **[acción] Aplicar en Neon las migraciones 0005, 0006 y 0007** (`npm run db:migrate`). La 0006 convierte "Visualizador"
+  en "Operador" (quienes eran Visualizadores ahora pueden simular); la 0007 agrega `resultados.estado`. El código nuevo
+  depende de las tres.
+- **[decisión] El avance del monitoreo ("Tiempo real") exige `chain:write`**, así que un Operador no puede encenderlo. El E90
+  dice que el Operador "ve las alertas que deja el monitoreo automático": ve las alertas, pero no puede avanzar las semanas.
+  Si el avance debe ser del Operador, pasarlo a `scenario:run`.
+- **[mejora] Los miembros sacados de una organización quedan sin organización** (su cuenta sigue); no hay aviso por email.

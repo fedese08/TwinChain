@@ -18,7 +18,7 @@ type Mode = "design" | "simulate";
 export default function ChainDetailPage({ params }: { params: Promise<{ chainId: string }> }) {
   const { chainId } = use(params);
   const [mode, setMode] = useState<Mode>("design");
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
   const scenarioFormRef = useRef<ScenarioFormHandle>(null);
 
   const chain = useAppStore((s) => s.chains.find((c) => c.id === chainId));
@@ -52,7 +52,7 @@ export default function ChainDetailPage({ params }: { params: Promise<{ chainId:
     scenarioFormRef.current?.selectNode(nodeId);
   }, []);
 
-  const highlightedNodeIds = useMemo(() => (selectedNodeId ? [selectedNodeId] : []), [selectedNodeId]);
+  const highlightedNodeIds = selectedNodeIds;
 
   if (!chain) {
     return (
@@ -151,7 +151,7 @@ export default function ChainDetailPage({ params }: { params: Promise<{ chainId:
             ref={scenarioFormRef}
             chainId={chainId}
             chainNodes={chainNodes}
-            onSelectedNodeChange={setSelectedNodeId}
+            onSelectedNodesChange={setSelectedNodeIds}
             alertSeed={alertSeed}
             onClearAlert={() => setAlertNodeId(null)}
           />

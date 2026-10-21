@@ -442,9 +442,12 @@ export default function ScenarioResultPage({
                     ))}
                   </div>
                   <div className="mt-1.5 text-[10.5px] text-muted-foreground">
-                    {propagatedNodeIds.length === 0
-                      ? "El golpe queda en el nodo afectado."
-                      : `El nodo afectado y ${plural(propagatedNodeIds.length, "nodo más", "nodos más")} por propagación.`}
+                    {(() => {
+                      const direct = directlyAffectedNodeIds.length;
+                      if (propagatedNodeIds.length === 0) return direct === 1 ? "El golpe queda en el nodo afectado." : `El golpe queda en los ${direct} nodos afectados.`;
+                      const origin = direct === 1 ? "El nodo afectado" : `Los ${direct} nodos afectados`;
+                      return `${origin} y ${plural(propagatedNodeIds.length, "nodo más", "nodos más")} por propagación.`;
+                    })()}
                   </div>
                 </div>
                 <div className="rounded-xl border border-border bg-card px-3.5 py-3">

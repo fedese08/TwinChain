@@ -1,6 +1,6 @@
 "use client";
 
-import { forwardRef, useEffect, useImperativeHandle } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Controller, useFieldArray, useForm, useWatch } from "react-hook-form";
@@ -27,8 +27,8 @@ function todayIso(): string {
 
 export interface ScenarioFormHandle {
   /**
-   * Fija el nodo afectado del escenario — para elegirlo desde el canvas. Reemplaza al anterior:
-   * el escenario apunta a un solo nodo por vez. Volver a clickear el nodo ya elegido lo deselecciona.
+   * Suma o saca un nodo afectado del escenario — para elegirlo desde el canvas. Un nodo tiene como máximo un evento:
+   * clickear un nodo sin evento le agrega uno, y volver a clickearlo lo saca.
    */
   selectNode: (nodeId: string) => void;
 }
@@ -36,14 +36,14 @@ export interface ScenarioFormHandle {
 interface ScenarioFormProps {
   chainId: string;
   chainNodes: SupplyChainNode[];
-  onSelectedNodeChange?: (nodeId: string | null) => void;
+  onSelectedNodesChange?: (nodeIds: string[]) => void;
   /** Simulación desde una alerta: entradas derivadas de lo que observó el monitoreo. */
   alertSeed?: AlertScenarioInputs | null;
   onClearAlert?: () => void;
 }
 
 export const ScenarioForm = forwardRef<ScenarioFormHandle, ScenarioFormProps>(function ScenarioForm(
-  { chainId, chainNodes, onSelectedNodeChange, alertSeed, onClearAlert },
+  { chainId, chainNodes, onSelectedNodesChange, alertSeed, onClearAlert },
   ref,
 ) {
   const router = useRouter();
@@ -56,16 +56,17 @@ export const ScenarioForm = forwardRef<ScenarioFormHandle, ScenarioFormProps>(fu
     control,
     handleSubmit,
     getValues,
-    setValue,
     reset,
     formState: { errors, isSubmitting },
   } = useForm<ScenarioFormValues>({
     resolver: zodResolver(scenarioFormSchema),
-    defaultValues: { name: "", projectionHorizonWeeks: 16, nodeId: "", events: [] },
+    defaultValues: { name: "", projectionHorizonWeeks: 16, events: [] },
   });
 
   const { fields, append, remove } = useFieldArray({ control, name: "events" });
-  const selectedNodeId = useWatch({ control, name: "nodeId" });
+  const watchedEvents = useWatch({ control, name: "events" });
+  const eventNodeIds = useMemo(() => (watchedEvents ?? []).map((e) => e?.nodeId).filter((id): id is string => Boolean(id)), [watchedEvents]);
+  const eventNodeKey = eventNodeIds.join(",");
 
   // Con una alerta, el formulario arranca con lo observado: nodo, inicio del desvío y caída media.
   useEffect(() => {
@@ -74,29 +75,28 @@ export const ScenarioForm = forwardRef<ScenarioFormHandle, ScenarioFormProps>(fu
     reset({
       name: `Cómo sigue ${label}`,
       projectionHorizonWeeks: 16,
-      nodeId: alertSeed.nodeId,
-      events: [{ eventType: "degradacion_detectada", startDate: alertSeed.startDate, magnitude: alertSeed.magnitudePct }],
+      events: [
+        { nodeId: alertSeed.nodeId, eventType: "degradacion_detectada", startDate: alertSeed.startDate, magnitude: alertSeed.magnitudePct },
+      ],
     });
   }, [alertSeed, chainNodes, reset]);
 
   useEffect(() => {
-    onSelectedNodeChange?.(selectedNodeId || null);
-  }, [selectedNodeId, onSelectedNodeChange]);
+    onSelectedNodesChange?.(eventNodeKey ? eventNodeKey.split(",") : []);
+  }, [eventNodeKey, onSelectedNodesChange]);
 
   useImperativeHandle(
     ref,
     () => ({
       selectNode(nodeId: string) {
-        const current = getValues("nodeId");
-        // Reelegir el mismo nodo lo deselecciona; los eventos ya cargados se conservan.
-        setValue("nodeId", current === nodeId ? "" : nodeId, { shouldValidate: false });
-        // Al elegir un nodo por primera vez dejamos un evento listo para completar.
-        if (current !== nodeId && (getValues("events") ?? []).length === 0) {
-          append({ eventType: "", startDate: todayIso(), magnitude: 25 });
-        }
+        const events = getValues("events") ?? [];
+        const index = events.findIndex((e) => e.nodeId === nodeId);
+        // Reclickear un nodo que ya tiene evento lo saca; si no, se le agrega uno listo para completar.
+        if (index >= 0) remove(index);
+        else append({ nodeId, eventType: "", startDate: todayIso(), magnitude: 25 });
       },
     }),
-    [getValues, setValue, append],
+    [getValues, append, remove],
   );
 
   function onSubmit(values: ScenarioFormValues) {
@@ -104,7 +104,6 @@ export const ScenarioForm = forwardRef<ScenarioFormHandle, ScenarioFormProps>(fu
       chainId,
       values.name,
       values.projectionHorizonWeeks,
-      values.nodeId,
       values.events,
       alertSeed?.decisionWeek,
     );
@@ -150,43 +149,12 @@ export const ScenarioForm = forwardRef<ScenarioFormHandle, ScenarioFormProps>(fu
           )}
         </div>
 
-        <div className="flex flex-col gap-1.5 border-t border-border pt-3.5">
-          <Label className="font-mono text-[9.5px] uppercase tracking-wider text-muted-foreground">Nodo afectado</Label>
-          <Controller
-            control={control}
-            name="nodeId"
-            render={({ field: nodeField }) => (
-              <Select value={nodeField.value} onValueChange={nodeField.onChange}>
-                <SelectTrigger className="h-8 text-[12px]">
-                  <SelectValue placeholder="Elegí un nodo">
-                    {(value: string | null) => {
-                      const node = chainNodes.find((n) => n.id === value);
-                      return node ? `${node.label} · ${node.nodeType}` : "Elegí un nodo";
-                    }}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {chainNodes.map((n) => (
-                    <SelectItem key={n.id} value={n.id}>
-                      {n.label} · {n.nodeType}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-          />
-          <span className="text-[10.5px] leading-relaxed text-muted-foreground">
-            Un escenario afecta un solo nodo. Podés cargarle varios eventos.
-          </span>
-          {errors.nodeId && <span className="text-[11px] text-destructive">{errors.nodeId.message}</span>}
-        </div>
-
         <div className="flex flex-col gap-2.5 border-t border-border pt-3.5">
           <div className="flex items-center justify-between">
-            <Label className="font-mono text-[9.5px] uppercase tracking-wider text-muted-foreground">Eventos</Label>
+            <Label className="font-mono text-[9.5px] uppercase tracking-wider text-muted-foreground">Eventos por nodo</Label>
             <button
               type="button"
-              onClick={() => append({ eventType: "", startDate: todayIso(), magnitude: 25 })}
+              onClick={() => append({ nodeId: "", eventType: "", startDate: todayIso(), magnitude: 25 })}
               className="flex items-center gap-1 text-[11.5px] text-primary hover:underline"
             >
               <Plus size={12} /> agregar evento
@@ -195,18 +163,44 @@ export const ScenarioForm = forwardRef<ScenarioFormHandle, ScenarioFormProps>(fu
 
           {fields.length === 0 && (
             <div className="rounded-lg border border-dashed border-border p-3 text-center text-[11.5px] leading-relaxed text-muted-foreground">
-              Hacé click en un nodo del canvas para elegirlo, o usá &quot;agregar evento&quot;.
+              Hacé click en uno o más nodos del canvas, o usá &quot;agregar evento&quot;. Cada nodo tiene como máximo un evento.
             </div>
           )}
 
           {fields.map((field, index) => (
             <div key={field.id} className="flex flex-col gap-2 rounded-lg border border-border p-2.5">
               <div className="flex items-center justify-between">
-                <span className="font-mono text-[10px] text-muted-foreground">Evento {index + 1}</span>
+                <span className="font-mono text-[10px] text-muted-foreground">
+                  {chainNodes.find((n) => n.id === watchedEvents?.[index]?.nodeId)?.label ?? `Evento ${index + 1}`}
+                </span>
                 <button type="button" onClick={() => remove(index)} className="text-muted-foreground hover:text-destructive">
                   <Trash2 size={12} />
                 </button>
               </div>
+
+              <Controller
+                control={control}
+                name={`events.${index}.nodeId`}
+                render={({ field: nodeField }) => (
+                  <Select value={nodeField.value} onValueChange={nodeField.onChange}>
+                    <SelectTrigger className="h-8 text-[12px]">
+                      <SelectValue placeholder="Elegí un nodo">
+                        {(value: string | null) => {
+                          const node = chainNodes.find((n) => n.id === value);
+                          return node ? `${node.label} · ${node.nodeType}` : "Elegí un nodo";
+                        }}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {chainNodes.map((n) => (
+                        <SelectItem key={n.id} value={n.id}>
+                          {n.label} · {n.nodeType}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
 
               <Controller
                 control={control}
@@ -246,7 +240,8 @@ export const ScenarioForm = forwardRef<ScenarioFormHandle, ScenarioFormProps>(fu
               </div>
               {errors.events?.[index] && (
                 <span className="text-[10.5px] text-destructive">
-                  {errors.events[index]?.eventType?.message ||
+                  {errors.events[index]?.nodeId?.message ||
+                    errors.events[index]?.eventType?.message ||
                     errors.events[index]?.startDate?.message ||
                     errors.events[index]?.magnitude?.message}
                 </span>

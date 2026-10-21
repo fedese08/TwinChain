@@ -44,22 +44,43 @@ export function simulationTooLargeBody(error: SimulationTooLargeError) {
   return { error: error.message, code: "simulation_too_large" } as const;
 }
 
+/** Entradas de una corrida (las mismas para la verificación de tamaño y para la corrida). */
+export interface RunInput {
+  scenarioId: string;
+  chainId: string;
+  horizonWeeks: number;
+  events: DisruptionEvent[];
+  reconfigurationWeekIndex: number | null;
+  /** Semana de la decisión (s_r) de una simulación desde una alerta; ausente = simulación manual. */
+  decisionWeek?: string | null;
+}
+
+/** Semanas observadas entre el inicio de los eventos y s_r: también se propagan y cuentan para el costo. */
+function pastWeeksOf(input: Pick<RunInput, "events" | "decisionWeek">): number {
+  if (!input.decisionWeek) return 0;
+  const decision = Date.parse(input.decisionWeek);
+  return Math.max(0, ...input.events.map((e) => Math.round((decision - Date.parse(e.startDate)) / (7 * 86400000))));
+}
+
+/**
+ * Verifica, sin correr nada, que la corrida no exceda `MAX_SIMULATION_WORK`. Lee solo las aristas de la cadena (no el
+ * desempeño), así que es barata: sirve para rechazar en el pedido, antes de lanzar la corrida en segundo plano.
+ */
+export async function assertSimulationFits(db: Database, input: Omit<RunInput, "scenarioId" | "reconfigurationWeekIndex">): Promise<void> {
+  const nodeRows = await db.select({ id: nodos.id }).from(nodos).where(eq(nodos.cadenaId, input.chainId));
+  const nodeIds = nodeRows.map((n) => n.id);
+  const edgeRows = nodeIds.length ? await db.select().from(aristas).where(inArray(aristas.nodoOrigenId, nodeIds)) : [];
+  if (estimateSimulationWork(edgeRows.map(toEdge), input.events, input.horizonWeeks, undefined, pastWeeksOf(input)) > MAX_SIMULATION_WORK) {
+    throw new SimulationTooLargeError();
+  }
+}
+
 /**
  * Lee la cadena tal como está AHORA (nodos, aristas y desempeño) y corre el escenario sobre ella.
  * Lanza `SimulationTooLargeError` sin correr nada si la corrida excede `MAX_SIMULATION_WORK`.
+ * `resultId` fija el id de la corrida (la semilla sale de él); sin él se genera uno.
  */
-export async function runScenarioOnChain(
-  db: Database,
-  input: {
-    scenarioId: string;
-    chainId: string;
-    horizonWeeks: number;
-    events: DisruptionEvent[];
-    reconfigurationWeekIndex: number | null;
-    /** Semana de la decisión (s_r) de una simulación desde una alerta; ausente = simulación manual. */
-    decisionWeek?: string | null;
-  },
-): Promise<NewResult> {
+export async function runScenarioOnChain(db: Database, input: RunInput & { resultId?: string }): Promise<NewResult> {
   const nodeRows = await db.select().from(nodos).where(eq(nodos.cadenaId, input.chainId));
   const nodeIds = nodeRows.map((n) => n.id);
 
@@ -72,15 +93,13 @@ export async function runScenarioOnChain(
 
   const edges = edgeRows.map(toEdge);
   const decisionWeek = input.decisionWeek ?? undefined;
-  // Las semanas observadas antes de s_r también se propagan: cuentan para el costo de la corrida.
-  const pastWeeks = decisionWeek ? Math.max(0, ...input.events.map((e) => Math.round((Date.parse(decisionWeek) - Date.parse(e.startDate)) / (7 * 86400000)))) : 0;
-  if (estimateSimulationWork(edges, input.events, input.horizonWeeks, undefined, pastWeeks) > MAX_SIMULATION_WORK) {
+  if (estimateSimulationWork(edges, input.events, input.horizonWeeks, undefined, pastWeeksOf(input)) > MAX_SIMULATION_WORK) {
     throw new SimulationTooLargeError();
   }
 
   // El id de la corrida se decide ANTES de correr: la semilla sale de él, y con semilla +
   // réplicas la corrida se puede reproducir exacta (RF030).
-  const resultId = crypto.randomUUID();
+  const resultId = input.resultId ?? crypto.randomUUID();
   const seed = hashSeed(resultId);
 
   // Los nodos Vendedor con datos reales están en días: se pasan a escala relativa a su línea base ANTES del motor

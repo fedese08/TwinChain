@@ -211,6 +211,31 @@ describe("propagación", () => {
   });
 });
 
+describe("escenario con eventos en varios nodos (Flujo B / RF026)", () => {
+  const ids = ["a", "b", "c"];
+  const edges = [edge("a", "c"), edge("b", "c")];
+  const run = (events: DisruptionEvent[], reconfigurationWeekIndex?: number) =>
+    runScenarioSimulation(nodesOf(...ids), edges, events, history(ids), 6, { seed: 1, replications: 2, reconfigurationWeekIndex });
+
+  it("cada nodo con evento sufre el suyo, y el de abajo recibe el mayor de los dos golpes propagados", () => {
+    const outcome = run([event("a", 40), event("b", 80)]);
+    expect(outcome.projectionByNode.get("a")![0].deficit).toBeCloseTo(40, 6);
+    expect(outcome.projectionByNode.get("b")![0].deficit).toBeCloseTo(80, 6);
+    // c recibe c·d de cada uno (con retraso de una semana) y cuenta el mayor, el de b.
+    const fromB = run([event("b", 80)]).projectionByNode.get("c")![2].deficit;
+    expect(outcome.projectionByNode.get("c")![2].deficit).toBeCloseTo(fromB, 6);
+  });
+
+  it("la pérdida de dos nodos afectados es mayor que la de uno solo", () => {
+    expect(run([event("a", 40), event("b", 40)]).totalDeficit.median).toBeGreaterThan(run([event("a", 40)]).totalDeficit.median);
+  });
+
+  it("reconfigurar al decidir devuelve a su nivel normal a TODOS los nodos afectados", () => {
+    const outcome = run([event("a", 40), event("b", 80)], 0);
+    expect(outcome.totalDeficit.median).toBe(0);
+  });
+});
+
 describe("reconfiguración", () => {
   it("al decidir en s_r (simulación manual) la red queda sin pérdida: toda la pérdida es evitable", () => {
     const ids = ["a", "b"];

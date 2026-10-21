@@ -17,14 +17,14 @@ export interface PendingInvitation {
 }
 
 const ROLE_LABELS: Record<(typeof INVITE_ROLES)[number], string> = {
-  viewer: "Visualizador",
+  operator: "Operador",
   admin: "Administrador",
 };
 
 export function InviteMembers({ pending }: { pending: PendingInvitation[] }) {
   const router = useRouter();
   const [email, setEmail] = useState("");
-  const [rol, setRol] = useState<(typeof INVITE_ROLES)[number]>("viewer");
+  const [rol, setRol] = useState<(typeof INVITE_ROLES)[number]>("operator");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [link, setLink] = useState<{ email: string; url: string } | null>(null);

@@ -1,5 +1,6 @@
 import { and, asc, desc, eq, gt, isNull } from "drizzle-orm";
 import { InviteMembers } from "@/components/organization/invite-members";
+import { MembersList } from "@/components/organization/members-list";
 import Link from "next/link";
 import { PLAN_DEFINITIONS } from "@/lib/plans";
 import { organizationUsage } from "@/lib/data/plan-limits";
@@ -64,30 +65,7 @@ export default async function OrganizationPage() {
           <span className="text-primary">Ver o cambiar de plan →</span>
         </Link>
 
-        <div className="flex flex-col divide-y divide-border rounded-2xl border border-border bg-card">
-          {members.map((m) => (
-            <div key={m.id} className="flex items-center gap-3 px-4 py-3 text-[13px]">
-              <span className="flex h-8 w-8 flex-none items-center justify-center rounded-full bg-muted text-[11px] font-medium">
-                {m.nombre
-                  .split(" ")
-                  .slice(0, 2)
-                  .map((w) => w[0])
-                  .join("")
-                  .toUpperCase()}
-              </span>
-              <div className="min-w-0 flex-1">
-                <div className="truncate font-medium">
-                  {m.nombre}
-                  {m.id === member.id && <span className="ml-1.5 text-[11px] font-normal text-muted-foreground">(vos)</span>}
-                </div>
-                <div className="truncate text-[11.5px] text-muted-foreground">{m.email}</div>
-              </div>
-              <span className="rounded-full border border-border px-2 py-0.5 text-[11px] text-muted-foreground">
-                {m.rol}
-              </span>
-            </div>
-          ))}
-        </div>
+        <MembersList members={members} selfId={member.id} canManage={canManage} />
 
         {canManage ? (
           <InviteMembers
@@ -95,7 +73,7 @@ export default async function OrganizationPage() {
           />
         ) : (
           <p className="rounded-xl bg-muted px-4 py-3 text-[12.5px] text-muted-foreground">
-            Solo los administradores pueden invitar a otras personas.
+            Solo los administradores pueden invitar a otras personas y gestionar sus roles.
           </p>
         )}
       </div>

@@ -294,10 +294,16 @@ export const resultados = pgTable(
     semilla: bigint("semilla", { mode: "number" }).notNull(),
     // Semana del horizonte en que se reconfiguró (escalón, RF022); null = no se reconfiguró.
     semanaReconfiguracion: integer("semana_reconfiguracion"),
+    // app: el motor corre como job en segundo plano (E90, arquitectura): la fila nace `corriendo` con la tabla vacía y
+    // pasa a `listo` cuando el job la completa. Solo las `listo` son resultados; si el job falla, la fila se descarta.
+    estado: text("estado").notNull().default("listo"),
     // app: `fecha_corrida` es solo una fecha; este timestamp ordena varias corridas del mismo día.
     creadoEn: creadoEn(),
   },
-  (t) => [index("resultados_escenario_idx").on(t.escenarioId)],
+  (t) => [
+    index("resultados_escenario_idx").on(t.escenarioId),
+    check("resultados_estado_valido", sql`${t.estado} IN ('corriendo', 'listo')`),
+  ],
 );
 
 export type Organizacion = typeof organizaciones.$inferSelect;

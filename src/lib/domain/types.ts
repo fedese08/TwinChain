@@ -10,7 +10,7 @@ export interface Organization {
   name: string;
 }
 
-export type UserRoleName = "Administrador" | "Visualizador";
+export type UserRoleName = "Administrador" | "Operador";
 
 export interface UserRole {
   id: string;
@@ -152,15 +152,15 @@ export interface KTableRow {
 }
 
 /**
- * Corrida encolada. En el sistema real el motor corre como job en background dentro del
- * monolito (decisión 13 / C36) y recién al terminar escribe la fila de Resultado; en el mock
- * se simula esa asincronía con una demora. NO es una entidad del modelo de datos: es estado
- * del job, no un dato persistido.
+ * Corrida en segundo plano (decisión 13 / C36): el motor corre como job dentro del monolito y completa la fila de
+ * Resultado cuando termina; mientras tanto el cliente la consulta. NO es una entidad del modelo de datos: es estado del
+ * job. `runId` es el id de la corrida en el servidor (ausente solo en el instante entre pedir la corrida y recibirlo).
  */
 export interface PendingRun {
   id: string;
   scenarioId: string;
   startedAt: number;
+  runId?: string;
 }
 
 export interface ScenarioResult {

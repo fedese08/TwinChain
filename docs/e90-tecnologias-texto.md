@@ -169,7 +169,7 @@ Tabla 7. Tecnologías seleccionadas para el desarrollo del modelo de machine lea
 | Render | Despliegue del microservicio de machine learning | Ejecuta el microservicio como servicio web a partir del contenedor y genera la clave de API en el despliegue. El plan gratuito lo duerme tras unos 15 minutos sin uso, por lo que el primer pedido puede tardar hasta un minuto: el sistema espera 10 s y, si el modelo no responde, usa una línea base provisoria marcada como tal. |
 | Docker | Contenedor del microservicio de machine learning | Empaqueta solo lo que usa el servicio (código, variables de entorno y el modelo), sin el entrenamiento ni las pruebas, y fija las versiones exactas de las librerías: el modelo es un archivo serializado que solo se garantiza que cargue con la versión de scikit-learn con la que se entrenó. |
 | GitHub Actions | Integración continua | Ejecuta en cada cambio el linter, la verificación de tipos, las pruebas automáticas de los dos componentes y la consistencia de las migraciones, para detectar regresiones antes del despliegue. |
-| Vitest | Pruebas automáticas del monolito | Cubre el motor de simulación (contra una enumeración de caminos independiente), la generación de datos simulados, el monitoreo y el cliente del modelo; incluye pruebas estadísticas que verifican la tasa de falsas alarmas. Son 148 pruebas. |
+| Vitest | Pruebas automáticas del monolito | Cubre el motor de simulación (contra una enumeración de caminos independiente), la generación de datos simulados, el monitoreo y el cliente del modelo; incluye pruebas estadísticas que verifican la tasa de falsas alarmas. Son 163 pruebas. |
 | pytest | Pruebas automáticas del microservicio | Son 22 pruebas, entre ellas la que verifica que el cálculo de variables del entrenamiento y el de la inferencia den exactamente lo mismo y la que verifica la integridad del archivo del modelo. |
 
 Tabla 8. Tecnologías seleccionadas para el deploy y control de calidad. Elaboración propia.
@@ -381,8 +381,8 @@ Tabla 8. Tecnologías seleccionadas para el deploy y control de calidad. Elabora
 > **Control de acceso.** Cada consulta de negocio se filtra por la organización de la sesión y nunca por un identificador
 > recibido en el cuerpo o en la dirección de la solicitud: ese filtro es el que aísla los datos de una organización de los
 > de las demás. Un recurso de otra organización responde como inexistente (404) y no como prohibido, para no confirmar
-> que existe. Las acciones se autorizan por permiso: el rol Administrador puede editar la red, correr simulaciones y
-> administrar la organización, y el Visualizador solo puede consultar. Todas las entradas se validan en el servidor con
+> que existe. Las acciones se autorizan por permiso: el rol Administrador puede editar la red, gestionar usuarios y
+> sus roles y administrar la organización, y el Operador consulta la red, simula y ve resultados y alertas, pero no modifica la estructura de la red. Todas las entradas se validan en el servidor con
 > esquemas de Zod, y las consultas a la base se ejecutan con parámetros, lo que impide la inyección de SQL.
 >
 > **Invitaciones.** El acceso de una persona a una organización se otorga con un enlace con token de un solo uso, que vence a los siete días. De ese
@@ -418,7 +418,7 @@ Tabla 8. Tecnologías seleccionadas para el deploy y control de calidad. Elabora
 > **Limitaciones declaradas.** El sistema es un prototipo académico y no se garantiza el cumplimiento formal de la Ley
 > 25.326, por ejemplo la inscripción del archivo de datos. No se verifica el correo al registrarse, no hay doble factor de
 > autenticación, no se limita la cantidad de intentos de inicio de sesión ni se conserva un registro de auditoría de
-> accesos. Tampoco hay todavía una pantalla para cambiar los roles de los integrantes de una organización.
+> accesos. 
 
 ---
 

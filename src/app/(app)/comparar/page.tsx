@@ -72,14 +72,14 @@ export default function CompareScenariosPage() {
       const firstAffectedWeek = perWeek.findIndex((v) => v > 0);
       const peakWeek = perWeek.reduce((best, v, idx) => (v > perWeek[best] ? idx : best), 0);
 
-      const affectedNode = nodes.find((n) => n.id === scenarioEvents[0]?.nodeId);
+      const affectedNodes = scenarioEvents.flatMap((e) => nodes.filter((n) => n.id === e.nodeId));
 
       return {
         scenario,
         chain,
         color: SERIES_COLORS[i % SERIES_COLORS.length],
         events: scenarioEvents,
-        affectedNode,
+        affectedNodes,
         badWeeks,
         badWeeksLow: outcome?.totalDeficit.low ?? 0,
         badWeeksHigh: outcome?.totalDeficit.high ?? 0,
@@ -253,13 +253,17 @@ export default function CompareScenariosPage() {
                     </div>
 
                     <div className="rounded-xl bg-muted/40 px-3 py-2 text-[11.5px] leading-relaxed">
-                      {c.affectedNode ? (
-                        <>
-                          <span className="font-medium">{c.affectedNode.label}</span> sufre{" "}
-                          {c.events.length === 1
-                            ? (EVENT_TYPE_LABELS[c.events[0].eventType] ?? c.events[0].eventType).toLowerCase()
-                            : `${c.events.length} eventos`}
-                        </>
+                      {c.affectedNodes.length > 0 ? (
+                        c.affectedNodes.length === 1 ? (
+                          <>
+                            <span className="font-medium">{c.affectedNodes[0].label}</span> sufre{" "}
+                            {(EVENT_TYPE_LABELS[c.events[0].eventType] ?? c.events[0].eventType).toLowerCase()}
+                          </>
+                        ) : (
+                          <>
+                            <span className="font-medium">{c.affectedNodes.map((n) => n.label).join(", ")}</span> sufren un evento cada uno
+                          </>
+                        )
                       ) : (
                         "sin eventos cargados"
                       )}

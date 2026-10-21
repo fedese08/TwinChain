@@ -32,7 +32,7 @@ export const registerSchema = z
   });
 export type RegisterValues = z.infer<typeof registerSchema>;
 
-export const INVITE_ROLES = ["viewer", "admin"] as const;
+export const INVITE_ROLES = ["operator", "admin"] as const;
 export const inviteSchema = z.object({
   email: emailField,
   rol: z.enum(INVITE_ROLES),

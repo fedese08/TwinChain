@@ -25,10 +25,10 @@ en todo lo que choque. Leer ambos antes de tocar modelos, tipos o pantallas de s
 - **Evento** (no "perturbación con mecanismos fijos"): `tipo` es una lista abierta ("corte", "huelga", "demora", ...),
   `magnitud` (% de caída), `fecha_inicio`, `nodo_id`. **Nunca lleva duración** — la duración es la incógnita que el
   sistema resuelve, no un dato de entrada.
-- **Un Escenario afecta un único nodo, pero puede tener varios Eventos sobre él** (RF del usuario). No es "una
-  perturbación por simulación" — se le pueden acumular varios eventos al mismo nodo. `nodo_id` sigue viviendo en
-  Evento (no en Escenario): el modelo soporta multi-nodo, la restricción se valida en la app, así que habilitar C29
-  más adelante no requiere migrar nada.
+- **Un Escenario tiene al menos un Evento sobre la red, como máximo uno por nodo** (Flujo B / RF026 del E90, que manda):
+  pueden ser varios nodos. `nodo_id` vive en Evento (no en Escenario). La regla "uno por nodo" se valida en el
+  formulario y en la API (`repeatedNodeIds`, `src/lib/validators/scenario.ts`); el motor ya manejaba varios nodos
+  afectados y "reconfigurar" devuelve a TODOS a su nivel normal.
 - **Resultado** = `tabla_k`: array de `{k, fraccion, umbral (mediana, p10, p90 o "no cruza")}` (k = costo de reconfigurar
   en semanas de operar como ahora, `K = k·d0`). No hay costo total, nivel de servicio % ni TTR como tales — esos
   conceptos vienen del mockup viejo y ya no aplican.
@@ -99,10 +99,14 @@ resultado se recalculan con la cadena actual y no con la de la corrida, y las de
      escenario, eventos y primera corrida, o nada. `POST /api/escenarios/[id]/corridas` agrega una corrida nueva
      (con o sin escalón de reconfiguración) **sin pisar las anteriores** (RF030). La `semilla` de cada corrida sale
      del id de la propia corrida (`hashSeed`), así que se reproduce **exacta** con semilla + réplicas: es lo que hace
-     la pantalla de resultado al reconstruir las curvas. Es **síncrono** (30 réplicas tardan milisegundos): cuando
-     el motor pase a 200-300 réplicas hay que mover la corrida a un job real (`after()` / cola) — ver C36. El cliente
+     la pantalla de resultado al reconstruir las curvas. La corrida es un **job en segundo plano** (E90, arquitectura): el pedido valida, guarda el escenario y una fila de
+     `resultados` en estado `corriendo`, responde **202** y el motor corre después con `after()` de Next.js
+     (`src/lib/simulation/background-run.ts`); la pantalla consulta `GET /api/escenarios/[id]/corridas/[runId]` hasta
+     `listo`. Si el job falla (o la corrida queda `corriendo` más de 6 min, función perdida) se descarta la corrida y, si
+     era la primera, el escenario: o queda todo o nada. El snapshot trae las corridas `corriendo` (`runningRuns`) y el
+     store retoma la espera tras una recarga. La salvaguarda de tamaño (422) se evalúa ANTES de lanzar el job. El cliente
      genera los ids del escenario y de sus eventos para mostrarlo al instante y que la pantalla de resultado siga
-     con su animación de espera mientras el servidor corre. Exige el permiso `scenario:run`. `DELETE /api/escenarios/[id]`
+     con su animación de espera mientras el job corre. Exige el permiso `scenario:run`. `DELETE /api/escenarios/[id]`
      elimina la simulación con sus eventos y TODAS sus corridas (cascade); la UI pide confirmación (listado y resultado).
      Borrar una cadena también se lleva sus simulaciones (`DELETE /api/cadenas/[id]`).
   6. **Retirar el mock — hecho.** No queda ningún dato de mentira en la app: `src/lib/mock/` pasó a `src/lib/domain/`
@@ -154,12 +158,19 @@ resultado se recalculan con la cadena actual y no con la de la corrida, y las de
     (el snapshot del layout), escrituras en API Routes bajo `src/app/api/`. Toda ruta de cadenas/nodos/aristas
     resuelve el acceso con `findVisibleChain/Node/Edge` (`src/lib/data/access.ts`): organización de la sesión +
     cadena compartida o privada propia; lo ajeno responde 404, no 403. Escribir exige el permiso `chain:write` (el
-    Visualizador ve el canvas en modo solo lectura). Un nodo usado por una simulación no se puede borrar. (d) un usuario es miembro de **una** organización con un rol, o de
+    Operador ve el canvas en modo solo lectura). Un nodo usado por una simulación no se puede borrar. (d) un usuario es miembro de **una** organización con un rol, o de
     ninguna (CHECK en `usuarios`). (e) aceptar una invitación exige token **y** que el email de la cuenta coincida,
     porque todavía no se verifica el email al registrarse. (f) contraseñas: bcryptjs, máx. 72 caracteres. (g) **eliminar la cuenta** (`DELETE /api/cuenta`, `src/lib/data/account-deletion.ts`) exige la contraseña y borra los datos
     personales: si es la única persona de la organización se borra la organización entera; si hay más gente se borran
     sus cadenas privadas y lo de la organización pasa a otra administradora; la única administradora con más
-    integrantes no puede irse (409), porque todavía no hay pantalla para cambiar roles.
+    integrantes no puede irse (409): antes tiene que hacer administradora a otra persona o quitar a las demás.
+    **Roles (E90): `Administrador` y `Operador`** (`src/lib/db/roles.ts`, migración 0006 que reemplazó a "Visualizador").
+    Operador = `chain:read, scenario:read, scenario:run` (consulta la red, simula y ve resultados y alertas; no edita
+    la red); Administrador hereda eso y suma `chain:write` y `organization:manage`. **Gestión de integrantes**
+    (`src/lib/data/members.ts`, `PATCH/DELETE /api/organizacion/miembros/[id]`, pantalla `/organizacion`): el
+    Administrador cambia el rol de otras personas o las saca de la organización (sus cadenas privadas se borran y lo
+    compartido pasa a quien las saca); a sí mismo no (para irse está "Eliminar cuenta"), así la organización nunca
+    queda sin administrador.
   - **Planes (`src/lib/plans.ts`, única fuente de los topes).** `organizaciones.plan` (`freemium` | `pro` | `max`) y
     `plan_desde`. Topes: Freemium 6 nodos / 3 escenarios guardados (US$0), Pro 15 / 6 (US$29/mes), Max 100 / 30
     (US$99/mes), netos de IVA; una cadena por organización en los tres. Los topes son de **nodos y escenarios
@@ -183,7 +194,7 @@ resultado se recalculan con la cadena actual y no con la de la corrida, y las de
   - `/cadenas/[id]` — canvas React Flow (5 tipos de nodo, aristas con `tiempo_transito`), modo "Diseño y monitoreo"
     (paleta, inspector de nodo con desempeño semanal + edición de label/capacidad, inspector de arista con
     tiempo_transito editable) y modo "Simulación" (`ChainCanvas mode="select"`: el grafo se sigue viendo y cada
-    click en un nodo lo fija como el nodo afectado del escenario, y volver a clickearlo lo deselecciona —
+    click en un nodo le agrega un evento al escenario (como máximo uno por nodo) y volver a clickearlo lo saca —
     `ScenarioForm` expone `selectNode` vía ref).
   - `/cadenas/[id]/escenarios` y `/escenarios/[scenarioId]` — listado y resultado: tabla_k, déficit proyectado por
     nodo (directos y propagados), y la "red fork" (`ChainCanvas mode="display"`) coloreando cada nodo/arista según
@@ -244,7 +255,7 @@ resultado se recalculan con la cadena actual y no con la de la corrida, y las de
     `domain/synthetic/cusum.ts`, hook `useChainStatuses`) y no se guarda. Ninguno de los dos es una entidad del
     modelo de datos ni debe convertirse en tabla: el job y el pipeline son contenedores de la arquitectura C4.
     Cuando exista el job real, `pendingRuns` lo reemplaza el job de Vercel.
-  - **Tests:** Vitest (`npm test`, 148) y, para el servicio de ML, pytest (`cd twinchain-ml && .venv/bin/pytest`, 22). Los de la ingesta sintética y el estado operativo incluyen las
+  - **Tests:** Vitest (`npm test`, 163) y, para el servicio de ML, pytest (`cd twinchain-ml && .venv/bin/pytest`, 22). Los de la ingesta sintética y el estado operativo incluyen las
     calibraciones de Monte Carlo del CUSUM y de los umbrales de atención/crítico: **no relajarlos para que
     pasen**, si fallan es que cambió algo que afecta la tasa de falsas alarmas.
 - **`ChainCanvas` necesita un padre con altura.** Su raíz es `flex h-full min-h-0 flex-1`: dentro de un padre

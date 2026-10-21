@@ -27,7 +27,7 @@ export const seedOrganization: Organization = {
 
 export const seedRoles: UserRole[] = [
   { id: "role-admin", name: "Administrador", permissions: ["organization:manage", "chain:write", "scenario:run"] },
-  { id: "role-viewer", name: "Visualizador", permissions: ["chain:read", "scenario:read"] },
+  { id: "role-operator", name: "Operador", permissions: ["chain:read", "scenario:read", "scenario:run"] },
 ];
 
 export const seedUser: User = {
