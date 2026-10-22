@@ -1,14 +1,13 @@
 // Información previa al registro y consentimiento para el tratamiento de los datos personales (art. 6 de la Ley 25.326:
 // finalidad, destinatarios, carácter obligatorio, consecuencias y derechos).
 //
-// Los dos datos entre corchetes los tiene que completar el equipo: el contacto para consultas y el responsable del archivo.
-// No se inventan. Mientras figuren así, la pantalla de registro los muestra con esa marca.
+// Contacto para consultas y responsables del archivo: los datos del equipo del proyecto.
 
 /** Email al que se pueden dirigir las consultas sobre los datos personales (y los pedidos de cambio de email). */
-export const CONSENT_CONTACT_EMAIL = "[completar: email de contacto]";
+export const CONSENT_CONTACT_EMAIL = "fsena@uade.edu.ar";
 
 /** Responsables del archivo de datos: nombres y domicilio o correo. */
-export const CONSENT_RESPONSIBLES = "[completar: nombres y domicilio o correo]";
+export const CONSENT_RESPONSIBLES = "Facundo Guevara y Federico Sena (fsena@uade.edu.ar)";
 
 export const CONSENT_TITLE = "Antes de crear tu cuenta";
 
