@@ -211,6 +211,10 @@ resultado se recalculan con la cadena actual y no con la de la corrida, y las de
     `E(H) ≥ k·d0` en más de la mitad de las réplicas (la pantalla Respuesta no tiene control de costo: muestra la tabla N para varios costos con
     `thresholdAtCost`; el detalle técnico usa k = 3 para "cómo se calculó la decisión"). La fórmula anterior de `tabla_k` estaba invertida y se reemplazó
     (ver `docs/definiciones-motor.md`). **No hay piso de propagación**: el viejo `MIN_PROPAGATED_MAGNITUDE` se sacó.
+  - `/alertas` — listado de los eventos importantes que detecta el monitoreo, **derivado** (no se guarda): degradaciones
+    sostenidas vigentes y pasadas (CUSUM), desvíos en vigilancia, nodos anteriores por debajo de lo esperado y cambios de
+    nivel del historial de la cadena (C24). Lógica pura en `src/lib/domain/alerts.ts` (`buildSystemAlerts`), hook
+    `useSystemAlerts`; el menú lateral muestra la cantidad de alertas vigentes.
   - `/comparar` — comparación de 2+ escenarios (tabla_k lado a lado, mediana + rango, última corrida de cada uno).
   - `/biblioteca` — referencia de tipos de nodo/arista/plantillas.
   - `src/lib/domain/simulate.ts` implementa las definiciones de la tesis (`docs/definiciones-motor.md`). Su API es
@@ -256,7 +260,7 @@ resultado se recalculan con la cadena actual y no con la de la corrida, y las de
     `domain/synthetic/cusum.ts`, hook `useChainStatuses`) y no se guarda. Ninguno de los dos es una entidad del
     modelo de datos ni debe convertirse en tabla: el job y el pipeline son contenedores de la arquitectura C4.
     Cuando exista el job real, `pendingRuns` lo reemplaza el job de Vercel.
-  - **Tests:** Vitest (`npm test`, 163) y, para el servicio de ML, pytest (`cd twinchain-ml && .venv/bin/pytest`, 22). Los de la ingesta sintética y el estado operativo incluyen las
+  - **Tests:** Vitest (`npm test`, 169) y, para el servicio de ML, pytest (`cd twinchain-ml && .venv/bin/pytest`, 22). Los de la ingesta sintética y el estado operativo incluyen las
     calibraciones de Monte Carlo del CUSUM y de los umbrales de atención/crítico: **no relajarlos para que
     pasen**, si fallan es que cambió algo que afecta la tasa de falsas alarmas.
 - **`ChainCanvas` necesita un padre con altura.** Su raíz es `flex h-full min-h-0 flex-1`: dentro de un padre

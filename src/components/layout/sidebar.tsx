@@ -3,8 +3,10 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Boxes, GitCompare, LibraryBig, Users } from "lucide-react";
+import { Bell, Boxes, GitCompare, LibraryBig, Users } from "lucide-react";
 import { UserMenu } from "@/components/account/user-menu";
+import { useSystemAlerts } from "@/hooks/use-system-alerts";
+import { countActiveAlerts } from "@/lib/domain/alerts";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/stores/app-store";
 
@@ -17,6 +19,7 @@ export interface SidebarAccount {
 
 const NAV_ITEMS = [
   { href: "/cadenas", label: "Cadenas", icon: Boxes },
+  { href: "/alertas", label: "Alertas", icon: Bell },
   { href: "/comparar", label: "Comparar escenarios", icon: GitCompare },
   { href: "/biblioteca", label: "Plantillas y nodos", icon: LibraryBig },
   { href: "/organizacion", label: "Organización", icon: Users },
@@ -36,6 +39,7 @@ export function Sidebar({ account }: { account: SidebarAccount }) {
   // Los contadores siguen saliendo del mock hasta migrar cadenas y escenarios a la base.
   const chainCount = useAppStore((s) => s.chains.length);
   const scenarioCount = useAppStore((s) => s.scenarios.length);
+  const alertCount = countActiveAlerts(useSystemAlerts());
 
   const initials = initialsOf(account.organizationName, 2);
 
@@ -61,7 +65,7 @@ export function Sidebar({ account }: { account: SidebarAccount }) {
           {NAV_ITEMS.map((item) => {
             const active = pathname === item.href || pathname.startsWith(item.href + "/");
             const Icon = item.icon;
-            const count = item.href === "/cadenas" ? chainCount : item.href === "/comparar" ? scenarioCount : null;
+            const count = item.href === "/cadenas" ? chainCount : item.href === "/comparar" ? scenarioCount : item.href === "/alertas" ? alertCount : null;
             return (
               <Link
                 key={item.href}
@@ -75,9 +79,12 @@ export function Sidebar({ account }: { account: SidebarAccount }) {
               >
                 <Icon size={14} strokeWidth={2} className={active ? "text-sidebar-primary" : "text-sidebar-foreground/50"} />
                 {item.label}
-                {count !== null && (
-                  <span className="ml-auto font-mono text-[10.5px] text-sidebar-foreground/50">{count}</span>
-                )}
+                {count !== null &&
+                  (item.href === "/alertas" && count > 0 ? (
+                    <span className="ml-auto rounded-full bg-[#c8452d] px-1.5 py-px font-mono text-[10px] font-medium text-white">{count}</span>
+                  ) : (
+                    <span className="ml-auto font-mono text-[10.5px] text-sidebar-foreground/50">{count}</span>
+                  ))}
               </Link>
             );
           })}
