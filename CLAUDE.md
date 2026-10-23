@@ -145,7 +145,7 @@ resultado se recalculan con la cadena actual y no con la de la corrida, y las de
      consecutivas son UNA alerta (desde cuándo, déficit acumulado: HU2). El umbral h sale de la **calibración** (RF019/RF020,
      `scripts/calibrate-cusum.ts` → `src/data/cusum-calibracion.json`): minimiza `C(h) = retardo + f·falsas alarmas` sobre
      vendedores reales de Olist con episodios inyectados, y es **configurable por cadena** (`cadenas.costo_falsa_alarma`,
-     f de 0 a 3; control "Sensibilidad"). Los nodos anteriores (0-100) siguen con la regla por σ. C24 (CUSUM retrospectivo)
+     f de 0 a 3; menú Opciones → "Sensibilidad de alertas"). Los nodos anteriores (0-100) siguen con la regla por σ. C24 (CUSUM retrospectivo)
      sigue verificando la estabilidad del historial de entrenamiento. Medido en `scripts/measure-sensor-model.ts` (ver
      `docs/modelo-ml.md`, sección 8): el modelo supera al método ingenuo pero **subestima el nivel ~0,45 d**. El camino de Vendedor con vendedor REAL de Olist sigue en el código, inactivo
      (`REAL_VENDEDORES_ENABLED = false`, `src/lib/domain/vendedor/config.ts`). El modelo no es el clasificador de backorder

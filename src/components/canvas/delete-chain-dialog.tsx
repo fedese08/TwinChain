@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,13 +14,23 @@ import {
 } from "@/components/ui/dialog";
 import { useAppStore } from "@/stores/app-store";
 
-export function DeleteChainButton({ chainId, chainName }: { chainId: string; chainName: string }) {
+/** Diálogo de confirmación para eliminar la cadena. Lo abre quien lo controla (hoy, el menú de opciones de la cadena). */
+export function DeleteChainDialog({
+  chainId,
+  chainName,
+  open,
+  onOpenChange: setOpen,
+}: {
+  chainId: string;
+  chainName: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
   const router = useRouter();
   const deleteChain = useAppStore((s) => s.deleteChain);
   const nodes = useAppStore((s) => s.nodes);
   const scenarios = useAppStore((s) => s.scenarios);
 
-  const [open, setOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
   const nodeCount = nodes.filter((n) => n.chainId === chainId).length;
@@ -43,16 +52,6 @@ export function DeleteChainButton({ chainId, chainName }: { chainId: string; cha
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="flex flex-none items-center gap-1.5 whitespace-nowrap rounded-lg border border-border px-3 py-1.5 text-[12.5px] text-muted-foreground hover:border-destructive/40 hover:text-destructive"
-        title="Eliminar cadena"
-      >
-        <Trash2 size={13} />
-        Eliminar
-      </button>
-
       <Dialog open={open} onOpenChange={(next) => !deleting && setOpen(next)}>
         <DialogContent>
           <DialogHeader>

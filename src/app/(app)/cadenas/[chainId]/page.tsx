@@ -3,8 +3,7 @@
 import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { ChainCanvas } from "@/components/canvas/chain-canvas";
-import { DeleteChainButton } from "@/components/canvas/delete-chain-dialog";
-import { DetectionSettings } from "@/components/canvas/detection-settings";
+import { ChainOptionsMenu } from "@/components/canvas/chain-options-menu";
 import { LiveMonitorControl } from "@/components/canvas/live-monitor-control";
 import { ScenarioForm, type ScenarioFormHandle } from "@/components/scenario/scenario-form";
 import { useChainStatus } from "@/hooks/use-chain-status";
@@ -64,17 +63,20 @@ export default function ChainDetailPage({ params }: { params: Promise<{ chainId:
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex h-[54px] flex-none items-center gap-3 border-b border-border bg-card px-3.5">
+      <div className="flex h-[54px] flex-none items-center gap-2 border-b border-border bg-card px-3">
         <Link href="/cadenas" className="flex flex-none items-center gap-2 text-[12.5px] text-muted-foreground hover:text-foreground">
-          <span className="font-mono text-[13px]">‹</span>Cadenas
+          <span className="font-mono text-[13px]">‹</span>
+          <span className="hidden sm:inline">Cadenas</span>
         </Link>
         <div className="h-5 w-px flex-none bg-border" />
-        <div className="min-w-0 truncate text-[14.5px] font-medium">{chain.name}</div>
+        <div className="min-w-[88px] truncate text-[14.5px] font-medium" title={chain.name}>
+          {chain.name}
+        </div>
         {/* C24: verificación de estabilidad estructural del historial, derivada de los datos de la cadena.
             El nombre del mecanismo (CUSUM) no se muestra: es jerga para quien opera la cadena. */}
         {stability && (
           <div
-            className="flex flex-none items-center gap-1.5 font-mono text-[10.5px] text-muted-foreground"
+            className="hidden flex-none items-center gap-1.5 font-mono text-[10.5px] text-muted-foreground xl:flex"
             title={
               stability.status === "alerta"
                 ? `${stability.unstableNodeCount} de ${stability.nodeCount} nodos cambiaron de nivel en su historial: la línea base de esos nodos puede no ser confiable`
@@ -94,26 +96,25 @@ export default function ChainDetailPage({ params }: { params: Promise<{ chainId:
             {stability.status === "alerta" && stability.changePointWeek ? `desde ${stability.changePointWeek}` : null}
           </div>
         )}
-        <div className="flex-1" />
+        <div className="min-w-0 flex-1" />
 
         {/* Monitoreo vivo: escribe datos, así que solo lo ven quienes pueden editar la cadena. */}
-        {canWrite && mode === "design" && <DetectionSettings chainId={chainId} />}
         {canWrite && mode === "design" && <LiveMonitorControl chainId={chainId} />}
 
         <div className="flex flex-none items-center gap-px overflow-hidden rounded-lg border border-border bg-card">
           <button
             onClick={() => setMode("design")}
             className={cn(
-              "px-3.5 py-1.5 text-[12.5px] whitespace-nowrap",
+              "px-3 py-1.5 text-[12.5px] whitespace-nowrap",
               mode === "design" ? "bg-muted font-medium" : "text-muted-foreground",
             )}
           >
-            Diseño y monitoreo
+            Diseño<span className="hidden md:inline"> y monitoreo</span>
           </button>
           <button
             onClick={() => setMode("simulate")}
             className={cn(
-              "border-l border-border px-3.5 py-1.5 text-[12.5px] whitespace-nowrap",
+              "border-l border-border px-3 py-1.5 text-[12.5px] whitespace-nowrap",
               mode === "simulate" ? "bg-muted font-medium" : "text-muted-foreground",
             )}
           >
@@ -121,25 +122,7 @@ export default function ChainDetailPage({ params }: { params: Promise<{ chainId:
           </button>
         </div>
 
-        {mode === "design" && (
-          <Link
-            href={`/cadenas/${chainId}/comparar-nodos`}
-            className="flex-none whitespace-nowrap rounded-lg border border-border px-3.5 py-1.5 text-[12.5px] hover:bg-muted"
-          >
-            Comparar nodos
-          </Link>
-        )}
-
-        {mode === "simulate" && (
-          <Link
-            href={`/cadenas/${chainId}/escenarios`}
-            className="flex-none whitespace-nowrap rounded-lg border border-border px-3.5 py-1.5 text-[12.5px] hover:bg-muted"
-          >
-            Ver simulaciones
-          </Link>
-        )}
-
-        {canWrite && <DeleteChainButton chainId={chainId} chainName={chain.name} />}
+        <ChainOptionsMenu chainId={chainId} chainName={chain.name} mode={mode} canWrite={canWrite} />
       </div>
 
       {mode === "design" ? (

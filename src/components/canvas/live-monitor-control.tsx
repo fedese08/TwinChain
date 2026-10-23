@@ -90,14 +90,14 @@ export function LiveMonitorControl({ chainId }: { chainId: string }) {
             setPlaying((p) => !p);
           }}
           disabled={noNodes || busy}
-          title={playing ? "Pausar el monitoreo" : "Avanzar el tiempo simulado: una semana por segundo"}
+          title={playing ? "Pausar el monitoreo" : latestWeek ? `Avanzar el tiempo simulado: una semana por segundo (semana simulada actual: ${formatWeekLabel(latestWeek)})` : "Avanzar el tiempo simulado: una semana por segundo"}
           className={cn(
             "flex items-center gap-1.5 px-3 py-1.5 text-[12.5px] whitespace-nowrap disabled:opacity-50",
             playing ? "bg-primary/10 font-medium text-primary" : "hover:bg-muted",
           )}
         >
           {playing ? <Pause size={13} /> : <Play size={13} />}
-          {playing ? "Pausar" : "Tiempo real"}
+          <span className="hidden xl:inline">{playing ? "Pausar" : "Tiempo real"}</span>
         </button>
         <div className="flex items-center border-l border-border">
           {SPEEDS.map((value) => (
@@ -124,7 +124,7 @@ export function LiveMonitorControl({ chainId }: { chainId: string }) {
         </button>
       </div>
       {latestWeek && (
-        <span className="font-mono text-[10.5px] whitespace-nowrap text-muted-foreground" title="Semana simulada más reciente: puede pasar de la fecha de hoy">
+        <span className="hidden font-mono text-[10.5px] whitespace-nowrap text-muted-foreground 2xl:inline" title="Semana simulada más reciente: puede pasar de la fecha de hoy">
           sem. simulada {formatWeekLabel(latestWeek)}
         </span>
       )}
