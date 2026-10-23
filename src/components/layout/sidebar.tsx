@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Activity, Boxes, GitCompare, LibraryBig, Users } from "lucide-react";
+import { Boxes, GitCompare, LibraryBig, Users } from "lucide-react";
 import { UserMenu } from "@/components/account/user-menu";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/stores/app-store";
@@ -18,7 +18,6 @@ export interface SidebarAccount {
 const NAV_ITEMS = [
   { href: "/cadenas", label: "Cadenas", icon: Boxes },
   { href: "/comparar", label: "Comparar escenarios", icon: GitCompare },
-  { href: "/modelo", label: "Modelo de línea base", icon: Activity },
   { href: "/biblioteca", label: "Plantillas y nodos", icon: LibraryBig },
   { href: "/organizacion", label: "Organización", icon: Users },
 ] as const;
