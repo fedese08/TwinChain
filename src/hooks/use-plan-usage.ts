@@ -1,6 +1,6 @@
 "use client";
 
-import { MAX_CHAINS_PER_ORGANIZATION, PLAN_DEFINITIONS } from "@/lib/plans";
+import { PLAN_DEFINITIONS } from "@/lib/plans";
 import { useAppStore } from "@/stores/app-store";
 
 /**
@@ -22,6 +22,5 @@ export function usePlanUsage() {
     nodesLeft: Math.max(0, definition.maxNodes - nodes),
     nodesAtLimit: nodes >= definition.maxNodes,
     scenariosAtLimit: scenarios >= definition.maxScenarios,
-    chainsAtLimit: chains >= MAX_CHAINS_PER_ORGANIZATION,
   };
 }

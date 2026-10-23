@@ -8,7 +8,7 @@ import { count, eq, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import type { Member } from "@/lib/auth/session";
 import { cadenas, escenarios, nodos, type Database } from "@/lib/db";
-import { fitsPlan, MAX_CHAINS_PER_ORGANIZATION, planLimitMessage, type PlanId, type PlanLimitKind, type Usage } from "@/lib/plans";
+import { fitsPlan, planLimitMessage, type PlanId, type PlanLimitKind, type Usage } from "@/lib/plans";
 
 type Executor = Pick<Database, "select" | "execute">;
 
@@ -66,14 +66,13 @@ export async function assertScenarioCapacity(db: Executor, member: Pick<Member, 
   }
 }
 
-/** Una cadena nueva: respeta el límite de una por organización y que los nodos de su plantilla entren en el plan. */
+/** Una cadena nueva: los nodos de su plantilla tienen que entrar en el plan (no hay tope de cadenas, solo de nodos y escenarios). */
 export async function assertChainCapacity(
   db: Executor,
   member: Pick<Member, "organizacionId" | "plan">,
   templateNodes: number,
 ): Promise<void> {
   const usage = await organizationUsage(db, member.organizacionId);
-  if (usage.chains >= MAX_CHAINS_PER_ORGANIZATION) throw new PlanLimitError("chains", planLimitMessage(member.plan, "chains", usage));
   if (templateNodes > 0 && !fitsPlan(member.plan, "nodes", usage, templateNodes)) {
     throw new PlanLimitError("nodes", planLimitMessage(member.plan, "nodes", usage, templateNodes));
   }

@@ -221,3 +221,9 @@ tope de la regla vieja (nodos en escala 0–100) está justo en el borde. Afecta
   dice que el Operador "ve las alertas que deja el monitoreo automático": ve las alertas, pero no puede avanzar las semanas.
   Si el avance debe ser del Operador, pasarlo a `scenario:run`.
 - **[mejora] Los miembros sacados de una organización quedan sin organización** (su cuenta sigue); no hay aviso por email.
+
+## Tope de cadenas (23/10/2026)
+Se **sacó** el límite de una cadena por organización: el E90 diferencia los planes solo por nodos y escenarios guardados
+(Freemium 6/3, Pro 15/6, Max 100/30) y no dice nada de cadenas. Los topes de nodos y de escenarios se cuentan sobre toda
+la organización, así que varias cadenas comparten el cupo. Cambios: `plans.ts`, `plan-limits.ts`, `use-plan-usage.ts`,
+pantallas de cadenas y landing.

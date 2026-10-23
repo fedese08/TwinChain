@@ -5,8 +5,7 @@
 //   - nodos: cantidad de nodos (cualquier eslabón) que puede tener su red;
 //   - escenarios guardados a la vez: NO las ejecuciones sobre ellos, que son ilimitadas y sin límite de retención.
 // Con el tope de escenarios completo, crear uno nuevo queda bloqueado hasta borrar otro o cambiar de plan: no hay
-// purga automática ni archivado. El límite de una cadena por organización es igual en los tres planes: es una
-// limitación del alcance del MVP, no un diferencial entre planes.
+// purga automática ni archivado. No hay tope de cadenas: los nodos y los escenarios se cuentan sobre toda la organización.
 
 export const PLAN_IDS = ["freemium", "pro", "max"] as const;
 export type PlanId = (typeof PLAN_IDS)[number];
@@ -29,13 +28,10 @@ export const PLAN_DEFINITIONS: Record<PlanId, PlanDefinition> = {
 /** Plan con el que nace toda organización nueva. Es permanente, no una prueba por tiempo limitado. */
 export const DEFAULT_PLAN: PlanId = "freemium";
 
-/** Cadenas por organización: igual en los tres planes (alcance del MVP). */
-export const MAX_CHAINS_PER_ORGANIZATION = 1;
-
 export const isPlanId = (value: unknown): value is PlanId => typeof value === "string" && (PLAN_IDS as readonly string[]).includes(value);
 
 /** Qué tope se alcanzó. */
-export type PlanLimitKind = "nodes" | "scenarios" | "chains";
+export type PlanLimitKind = "nodes" | "scenarios";
 
 export interface Usage {
   chains: number;
@@ -53,13 +49,11 @@ export function planLimitMessage(plan: PlanId, kind: PlanLimitKind, usage: Usage
         : `Tu plan ${def.name} admite hasta ${def.maxNodes} nodos y ya usás ${usage.nodes}.${upgrade}`;
     case "scenarios":
       return `Tu plan ${def.name} admite hasta ${def.maxScenarios} escenarios guardados. Borrá uno o cambiá de plan para crear otro.`;
-    case "chains":
-      return "Cada organización puede tener una cadena. Borrá la actual si querés crear otra.";
   }
 }
 
 /** ¿Entra `adding` más sin pasarse del tope del plan? */
-export function fitsPlan(plan: PlanId, kind: Exclude<PlanLimitKind, "chains">, usage: Usage, adding = 1): boolean {
+export function fitsPlan(plan: PlanId, kind: PlanLimitKind, usage: Usage, adding = 1): boolean {
   const def = PLAN_DEFINITIONS[plan];
   return kind === "nodes" ? usage.nodes + adding <= def.maxNodes : usage.scenarios + adding <= def.maxScenarios;
 }

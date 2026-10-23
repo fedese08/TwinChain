@@ -26,7 +26,7 @@ export async function POST(request: Request) {
   if (!body.ok) return body.response;
   const { name, visibility, template, withLevelShift } = body.data;
 
-  // Plan de la organización: una cadena por organización y los nodos de la plantilla tienen que entrar en el tope de
+  // Plan de la organización: los nodos de la plantilla tienen que entrar en el tope de
   // nodos. Se mira ANTES de llamar al modelo de ML (trabajo caro) y se vuelve a mirar dentro de la transacción.
   try {
     await assertChainCapacity(getDb(), user, templateNodeCount(template));

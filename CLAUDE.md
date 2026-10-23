@@ -36,7 +36,7 @@ en todo lo que choque. Leer ambos antes de tocar modelos, tipos o pantallas de s
 - **DesempenoSemanal**: `valor_real`, `linea_base` (ML, congelada), `deficit = max(linea_base - valor_real, 0)`,
   nunca negativo.
 - Multi-tenant: cadenas pertenecen a la organización. **Plan de suscripción por organización** (Freemium, Pro, Max; ver
-  "Planes" más abajo): los nodos y los escenarios guardados tienen tope por plan, y hay una cadena por organización. 3 plantillas (lineal 5,
+  "Planes" más abajo): los nodos y los escenarios guardados tienen tope por plan (no hay tope de cadenas: los nodos y escenarios se cuentan sobre toda la organización). 3 plantillas (lineal 5,
   bifurcada 10, compleja 20+). Un nodo debe desconectarse antes de eliminarse. Sin versionado, sin exportación, sin
   notificaciones externas.
 - **Alertas ML** (probabilidad de backorder por umbral) y **Sugerencias** (heurísticas de grafo) del spec funcional
@@ -174,7 +174,7 @@ resultado se recalculan con la cadena actual y no con la de la corrida, y las de
     queda sin administrador.
   - **Planes (`src/lib/plans.ts`, única fuente de los topes).** `organizaciones.plan` (`freemium` | `pro` | `max`) y
     `plan_desde`. Topes: Freemium 6 nodos / 3 escenarios guardados (US$0), Pro 15 / 6 (US$29/mes), Max 100 / 30
-    (US$99/mes), netos de IVA; una cadena por organización en los tres. Los topes son de **nodos y escenarios
+    (US$99/mes), netos de IVA. Los topes son de **nodos y escenarios
     guardados**; las ejecuciones (corridas) son ilimitadas y sin retención. Se hacen cumplir **en el servidor**
     (`src/lib/data/plan-limits.ts`: `assertNodeCapacity` / `assertScenarioCapacity` / `assertChainCapacity`, con un
     candado `pg_advisory_xact_lock` por organización y recheck dentro de la transacción) y responden 409 con

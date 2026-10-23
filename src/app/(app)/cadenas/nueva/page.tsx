@@ -20,7 +20,7 @@ export default function NewChainPage() {
   const organizationName = useAppStore((s) => s.organizationName);
   const canWrite = useAppStore((s) => s.canWrite);
   const [serverError, setServerError] = useState<string | null>(null);
-  const { definition, usage, nodesLeft, chainsAtLimit } = usePlanUsage();
+  const { definition, usage, nodesLeft } = usePlanUsage();
 
   const {
     register,
@@ -203,11 +203,6 @@ export default function NewChainPage() {
         />
 
         {serverError && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-[12.5px] text-destructive">{serverError}</p>}
-        {chainsAtLimit && (
-          <p className="rounded-lg bg-muted px-3 py-2 text-[12.5px] text-muted-foreground">
-            Tu organización ya tiene una cadena. Los tres planes admiten una por organización: borrá la actual para crear otra.
-          </p>
-        )}
         {!canWrite && (
           <p className="rounded-lg bg-muted px-3 py-2 text-[12.5px] text-muted-foreground">
             Tu rol es de solo lectura: pedile a un administrador que cree la cadena.
@@ -223,7 +218,7 @@ export default function NewChainPage() {
           </Link>
           <Button
             type="submit"
-            disabled={isSubmitting || !canWrite || chainsAtLimit}
+            disabled={isSubmitting || !canWrite}
             className="flex-1 bg-foreground text-background hover:bg-foreground/85"
           >
             Crear y abrir canvas

@@ -214,7 +214,7 @@ export default async function LandingPage() {
 
             <p className="max-w-2xl text-center text-[12.5px] text-muted-foreground">
               Precios en dólares, netos de IVA. Al completar el tope de escenarios guardados, crear uno nuevo queda
-              bloqueado hasta que borres otro o cambies de plan. Los tres planes admiten una cadena por organización.
+              bloqueado hasta que borres otro o cambies de plan.
             </p>
           </div>
         </section>

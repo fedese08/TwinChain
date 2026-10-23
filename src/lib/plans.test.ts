@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { templateNodeCount } from "@/lib/domain/templates";
-import { fitsPlan, MAX_CHAINS_PER_ORGANIZATION, PLAN_DEFINITIONS, planLimitMessage, planOverages } from "./plans";
+import { fitsPlan, PLAN_DEFINITIONS, planLimitMessage, planOverages } from "./plans";
 
 const usage = (nodes: number, scenarios: number, chains = 1) => ({ nodes, scenarios, chains });
 
@@ -9,7 +9,6 @@ describe("planes de suscripción", () => {
     expect(PLAN_DEFINITIONS.freemium).toMatchObject({ priceUsd: 0, maxNodes: 6, maxScenarios: 3 });
     expect(PLAN_DEFINITIONS.pro).toMatchObject({ priceUsd: 29, maxNodes: 15, maxScenarios: 6 });
     expect(PLAN_DEFINITIONS.max).toMatchObject({ priceUsd: 99, maxNodes: 100, maxScenarios: 30 });
-    expect(MAX_CHAINS_PER_ORGANIZATION).toBe(1);
   });
 
   it("el tope es inclusivo: se puede llegar al máximo pero no pasarlo", () => {
