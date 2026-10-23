@@ -27,8 +27,8 @@ function todayIso(): string {
 
 export interface ScenarioFormHandle {
   /**
-   * Suma o saca un nodo afectado del escenario — para elegirlo desde el canvas. Un nodo tiene como máximo un evento:
-   * clickear un nodo sin evento le agrega uno, y volver a clickearlo lo saca.
+   * Fija el nodo del evento del escenario — para elegirlo desde el canvas. Un escenario tiene UN solo evento: clickear
+   * otro nodo mueve el evento a ese nodo, y volver a clickear el nodo elegido lo saca.
    */
   selectNode: (nodeId: string) => void;
 }
@@ -56,6 +56,7 @@ export const ScenarioForm = forwardRef<ScenarioFormHandle, ScenarioFormProps>(fu
     control,
     handleSubmit,
     getValues,
+    setValue,
     reset,
     formState: { errors, isSubmitting },
   } = useForm<ScenarioFormValues>({
@@ -89,14 +90,14 @@ export const ScenarioForm = forwardRef<ScenarioFormHandle, ScenarioFormProps>(fu
     ref,
     () => ({
       selectNode(nodeId: string) {
-        const events = getValues("events") ?? [];
-        const index = events.findIndex((e) => e.nodeId === nodeId);
-        // Reclickear un nodo que ya tiene evento lo saca; si no, se le agrega uno listo para completar.
-        if (index >= 0) remove(index);
-        else append({ nodeId, eventType: "", startDate: todayIso(), magnitude: 25 });
+        const [current] = getValues("events") ?? [];
+        if (!current) append({ nodeId, eventType: "", startDate: todayIso(), magnitude: 25 });
+        // Reclickear el nodo elegido lo saca; clickear otro mueve el evento a ese nodo (se conservan tipo, fecha y magnitud).
+        else if (current.nodeId === nodeId) remove(0);
+        else setValue("events.0.nodeId", nodeId, { shouldValidate: true });
       },
     }),
-    [getValues, append, remove],
+    [getValues, setValue, append, remove],
   );
 
   function onSubmit(values: ScenarioFormValues) {
@@ -151,19 +152,21 @@ export const ScenarioForm = forwardRef<ScenarioFormHandle, ScenarioFormProps>(fu
 
         <div className="flex flex-col gap-2.5 border-t border-border pt-3.5">
           <div className="flex items-center justify-between">
-            <Label className="font-mono text-[9.5px] uppercase tracking-wider text-muted-foreground">Eventos por nodo</Label>
-            <button
-              type="button"
-              onClick={() => append({ nodeId: "", eventType: "", startDate: todayIso(), magnitude: 25 })}
-              className="flex items-center gap-1 text-[11.5px] text-primary hover:underline"
-            >
-              <Plus size={12} /> agregar evento
-            </button>
+            <Label className="font-mono text-[9.5px] uppercase tracking-wider text-muted-foreground">Evento</Label>
+            {fields.length === 0 && (
+              <button
+                type="button"
+                onClick={() => append({ nodeId: "", eventType: "", startDate: todayIso(), magnitude: 25 })}
+                className="flex items-center gap-1 text-[11.5px] text-primary hover:underline"
+              >
+                <Plus size={12} /> agregar evento
+              </button>
+            )}
           </div>
 
           {fields.length === 0 && (
             <div className="rounded-lg border border-dashed border-border p-3 text-center text-[11.5px] leading-relaxed text-muted-foreground">
-              Hacé click en uno o más nodos del canvas, o usá &quot;agregar evento&quot;. Cada nodo tiene como máximo un evento.
+              Hacé click en el nodo del canvas que querés afectar, o usá &quot;agregar evento&quot;. Un escenario tiene un solo evento.
             </div>
           )}
 

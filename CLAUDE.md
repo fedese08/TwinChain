@@ -25,10 +25,11 @@ en todo lo que choque. Leer ambos antes de tocar modelos, tipos o pantallas de s
 - **Evento** (no "perturbación con mecanismos fijos"): `tipo` es una lista abierta ("corte", "huelga", "demora", ...),
   `magnitud` (% de caída), `fecha_inicio`, `nodo_id`. **Nunca lleva duración** — la duración es la incógnita que el
   sistema resuelve, no un dato de entrada.
-- **Un Escenario tiene al menos un Evento sobre la red, como máximo uno por nodo** (Flujo B / RF026 del E90, que manda):
-  pueden ser varios nodos. `nodo_id` vive en Evento (no en Escenario). La regla "uno por nodo" se valida en el
-  formulario y en la API (`repeatedNodeIds`, `src/lib/validators/scenario.ts`); el motor ya manejaba varios nodos
-  afectados y "reconfigurar" devuelve a TODOS a su nivel normal.
+- **Un Escenario tiene UN solo Evento** (decisión del usuario, 23/10/2026): una simulación = un evento sobre un nodo.
+  `nodo_id` sigue viviendo en Evento (no en Escenario). La regla se valida en el formulario y en la API
+  (`events` con `.max(1)`, `src/lib/validators/scenario.ts` y `scenario-api.ts`). El motor sigue aceptando varios
+  eventos y nodos afectados (y "reconfigurar" devuelve a TODOS a su nivel normal), y los escenarios viejos con más de
+  un evento se siguen mostrando; la restricción está solo en la entrada.
 - **Resultado** = `tabla_k`: array de `{k, fraccion, umbral (mediana, p10, p90 o "no cruza")}` (k = costo de reconfigurar
   en semanas de operar como ahora, `K = k·d0`). No hay costo total, nivel de servicio % ni TTR como tales — esos
   conceptos vienen del mockup viejo y ya no aplican.
@@ -194,7 +195,7 @@ resultado se recalculan con la cadena actual y no con la de la corrida, y las de
   - `/cadenas/[id]` — canvas React Flow (5 tipos de nodo, aristas con `tiempo_transito`), modo "Diseño y monitoreo"
     (paleta, inspector de nodo con desempeño semanal + edición de label/capacidad, inspector de arista con
     tiempo_transito editable) y modo "Simulación" (`ChainCanvas mode="select"`: el grafo se sigue viendo y cada
-    click en un nodo le agrega un evento al escenario (como máximo uno por nodo) y volver a clickearlo lo saca —
+    click en un nodo fija el nodo del único evento del escenario (clickear otro lo mueve; volver a clickear el elegido lo saca) —
     `ScenarioForm` expone `selectNode` vía ref).
   - `/cadenas/[id]/escenarios` y `/escenarios/[scenarioId]` — listado y resultado: tabla_k, déficit proyectado por
     nodo (directos y propagados), y la "red fork" (`ChainCanvas mode="display"`) coloreando cada nodo/arista según

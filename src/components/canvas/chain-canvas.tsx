@@ -278,7 +278,7 @@ function CanvasInner({ chainId, mode, selectedNodeIds, onNodeSelect, severityByN
 
         {isSelect && (
           <div className="pointer-events-none absolute left-3.5 top-3.5 rounded-lg border border-border bg-card/90 px-3 py-2 font-mono text-[10.5px] text-muted-foreground">
-            Hacé click en los nodos que querés afectar — un evento por nodo; volvé a clickear para sacarlo
+            Hacé click en el nodo que querés afectar — un escenario tiene un solo evento
           </div>
         )}
 

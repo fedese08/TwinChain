@@ -12,8 +12,8 @@ export const EVENT_TYPE_LABELS: Record<string, string> = {
   degradacion_detectada: "Degradación detectada",
 };
 
-// Flujo B / RF026: un escenario tiene al menos un evento sobre la red, como máximo uno por nodo. Cada evento lleva su nodo;
-// el tipo es una lista abierta según el modelo de datos, así que el schema solo exige que no esté vacío.
+// Un escenario tiene UN solo evento sobre la red: el nodo que se ve afectado, qué le pasa, desde cuándo y cuánto cae. El tipo
+// es una lista abierta según el modelo de datos, así que el schema solo exige que no esté vacío.
 export const disruptionEventInputSchema = z.object({
   nodeId: z.string().min(1, "Elegí el nodo afectado"),
   eventType: z.string().min(1, "Indicá el tipo de evento"),
@@ -22,31 +22,11 @@ export const disruptionEventInputSchema = z.object({
 });
 export type DisruptionEventInput = z.infer<typeof disruptionEventInputSchema>;
 
-export const ONE_EVENT_PER_NODE_MESSAGE = "Un nodo solo puede tener un evento por escenario";
-
-/** Ids de nodo que aparecen en más de un evento (vacíos no cuentan: todavía no eligieron nodo). */
-export function repeatedNodeIds(events: { nodeId: string }[]): string[] {
-  const seen = new Set<string>();
-  const repeated = new Set<string>();
-  for (const { nodeId } of events) {
-    if (!nodeId) continue;
-    if (seen.has(nodeId)) repeated.add(nodeId);
-    seen.add(nodeId);
-  }
-  return [...repeated];
-}
+export const ONE_EVENT_MESSAGE = "Un escenario tiene un solo evento";
 
 export const scenarioFormSchema = z.object({
   name: z.string().min(1, "Ponele un nombre al escenario").max(120),
   projectionHorizonWeeks: z.number().min(1, "Mínimo 1 semana").max(52, "Máximo 52 semanas"),
-  events: z
-    .array(disruptionEventInputSchema)
-    .min(1, "Agregá al menos un evento")
-    .superRefine((events, ctx) => {
-      const repeated = new Set(repeatedNodeIds(events));
-      events.forEach((event, index) => {
-        if (repeated.has(event.nodeId)) ctx.addIssue({ code: "custom", path: [index, "nodeId"], message: ONE_EVENT_PER_NODE_MESSAGE });
-      });
-    }),
+  events: z.array(disruptionEventInputSchema).min(1, "Agregá el evento").max(1, ONE_EVENT_MESSAGE),
 });
 export type ScenarioFormValues = z.infer<typeof scenarioFormSchema>;

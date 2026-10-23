@@ -1,9 +1,9 @@
 import { z } from "zod";
-import { ONE_EVENT_PER_NODE_MESSAGE, repeatedNodeIds } from "@/lib/validators/scenario";
+import { ONE_EVENT_MESSAGE } from "@/lib/validators/scenario";
 
 const eventSchema = z.object({
   id: z.uuid(),
-  // Cada evento lleva su nodo (Flujo B / RF026): como máximo uno por nodo, se valida abajo.
+  // El evento lleva su nodo (el único nodo afectado del escenario).
   nodeId: z.uuid(),
   eventType: z.string().trim().min(1).max(40),
   startDate: z.iso.date(),
@@ -16,11 +16,8 @@ export const createScenarioSchema = z.object({
   chainId: z.uuid(),
   name: z.string().trim().min(1, "Ponele un nombre al escenario").max(120),
   projectionHorizonWeeks: z.number().finite().min(1).max(52),
-  events: z
-    .array(eventSchema)
-    .min(1, "Agregá al menos un evento")
-    .max(20)
-    .refine((events) => repeatedNodeIds(events).length === 0, ONE_EVENT_PER_NODE_MESSAGE),
+  // Un escenario tiene un solo evento.
+  events: z.array(eventSchema).min(1, "Agregá el evento").max(1, ONE_EVENT_MESSAGE),
   // Simulación desde una alerta: semana de la decisión de reconfigurar (s_r). Sin ella, s_r es el inicio del primer evento.
   decisionWeek: z.iso.date().optional(),
 });

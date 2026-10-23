@@ -122,12 +122,11 @@ confirmar contra la implementación" y NO se cambiaron:
    réplicas de una misma fracción dan exactamente lo mismo y el rango p10–p90 de N(k) sale sin dispersión; la única
    variación entre réplicas es la fracción `c`, que se reporta por separado. El sorteo solo pesa en la simulación desde
    una alerta, donde el déficit observado se mide contra el `n` sorteado.
-4. **Eventos por nodo.** El texto dice un evento por nodo y escenario (RF026, Flujo B) y la aplicación lo cumple: un
-   escenario puede afectar varios nodos con un evento cada uno, y la API y el formulario rechazan dos eventos sobre el
-   mismo nodo. (Antes la aplicación permitía varios eventos sobre un único nodo; se cambió para alinearla con el
-   documento.) El motor conserva la regla de que los eventos de un mismo nodo no se apilan: cuenta el mayor de los ya
-   iniciados. Con varios nodos afectados, "reconfigurar" devuelve a todos a su nivel normal y d0 es el mayor déficit
-   semanal entre ellos.
+4. **Un evento por simulación.** Por decisión del usuario (23/10/2026) un escenario tiene un solo evento sobre un solo
+   nodo, y la API y el formulario rechazan más de uno. (El E90, Flujo B / RF026, decía "al menos un evento, como máximo
+   uno por nodo"; hay que alinear ese texto del documento.) El motor es más general que la entrada: acepta varios
+   eventos y nodos, no apila los eventos de un mismo nodo (cuenta el mayor de los ya iniciados) y con varios nodos
+   afectados "reconfigurar" devuelve a todos a su nivel normal.
 5. **Semanas observadas.** El texto usa lo observado de todos los nodos antes de `s_r`. Se usa lo observado del nodo
    afectado (su déficit semana a semana y d0); lo que ya estaba en camino hacia el resto de la red se propaga desde ahí
    con la recurrencia, no se lee de las filas de los demás nodos.
