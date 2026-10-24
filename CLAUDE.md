@@ -260,6 +260,7 @@ resultado se recalculan con la cadena actual y no con la de la corrida, y las de
     `domain/synthetic/cusum.ts`, hook `useChainStatuses`) y no se guarda. Ninguno de los dos es una entidad del
     modelo de datos ni debe convertirse en tabla: el job y el pipeline son contenedores de la arquitectura C4.
     Cuando exista el job real, `pendingRuns` lo reemplaza el job de Vercel.
+  - **Pruebas funcionales de integración** (`npm run test:funcional`, `scripts/pruebas-funcionales.ts`, 48 casos PF-01 a PF-48 contra la API y una base local; resultados en `docs/pruebas-funcionales-resultados.md`; prerrequisitos en la cabecera del script).
   - **Tests:** Vitest (`npm test`, 169) y, para el servicio de ML, pytest (`cd twinchain-ml && .venv/bin/pytest`, 22). Los de la ingesta sintética y el estado operativo incluyen las
     calibraciones de Monte Carlo del CUSUM y de los umbrales de atención/crítico: **no relajarlos para que
     pasen**, si fallan es que cambió algo que afecta la tasa de falsas alarmas.
