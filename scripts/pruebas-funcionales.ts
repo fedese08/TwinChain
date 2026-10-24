@@ -295,14 +295,14 @@ async function main() {
     const self = await A.call("PATCH", `/api/organizacion/miembros/${meId}`, { rol: "operator" });
     eq(self.status, 409, "cambio del propio rol");
   });
-  await test("PF-22", "Multi-tenant (RF001)", "Funcional (API)", "Otra organización no ve ni modifica los datos de la primera: todo responde 404", async () => {
+  await test("PF-22", "RNF03, RF001", "Funcional (API)", "Otra organización no ve ni modifica los datos de la primera: todo responde 404", async () => {
     eq((await B.call("PATCH", `/api/nodos/${nodesA[0].id}`, { label: "robado" })).status, 404, "editar nodo ajeno");
     eq((await B.call("DELETE", `/api/cadenas/${chainA}`)).status, 404, "borrar cadena ajena");
     eq((await B.call("POST", `/api/cadenas/${chainA}/avance`, { weeks: 1 })).status, 404, "avanzar cadena ajena");
     eq((await B.call("POST", "/api/escenarios", { id: uuid(), chainId: chainA, name: "ajeno", projectionHorizonWeeks: 8, events: [eventFor(nodesA[0].id)] })).status, 404, "simular sobre cadena ajena");
     eq((await q("select etiqueta from nodos where id = $1", nodesA[0].id))[0].etiqueta === "robado", false, "el nodo fue modificado");
   });
-  await test("PF-23", "Multi-tenant", "Funcional (API)", "Una cadena privada solo la ve quien la creó, aunque sea de la misma organización", async () => {
+  await test("PF-23", "RNF03", "Funcional (API)", "Una cadena privada solo la ve quien la creó, aunque sea de la misma organización", async () => {
     const priv = await A.call("POST", "/api/cadenas", { name: "Privada de Ada", visibility: "private", template: "blank" });
     eq(priv.status, 201, "crear privada");
     eq((await OP.call("POST", `/api/cadenas/${priv.body.chain.id}/avance`, { weeks: 1 })).status >= 400, true, "acceso de otro miembro");
@@ -414,7 +414,7 @@ async function main() {
   });
 
   // ── F. Simulación (RF021–RF031, Flujo B) ─────────────────────────────────────────────────────────
-  await test("PF-33", "HU3, Flujo B", "Funcional (API)", "Crear una simulación con un evento responde 202 enseguida y la corrida termina en segundo plano", async () => {
+  await test("PF-33", "RNF02, HU3", "Funcional (API)", "Crear una simulación con un evento responde 202 enseguida y la corrida termina en segundo plano", async () => {
     scenarioA = uuid();
     const t0 = performance.now();
     const r = await A.call("POST", "/api/escenarios", { id: scenarioA, chainId: chainA, name: "Corte en la fábrica", projectionHorizonWeeks: 12, events: [eventFor(nodesA[1].id, 50)] });
@@ -534,7 +534,7 @@ async function main() {
   });
 
   // ── G2. Carga: el tope del plan Max (100 nodos) con el horizonte máximo (52 semanas) ─────────────
-  await test("PF-48", "RNF de desempeño", "Prueba de carga", "Una simulación sobre una red de 100 nodos y 52 semanas termina en menos de 5 s (entorno local, app en modo desarrollo)", async () => {
+  await test("PF-48", "RNF01", "Prueba de carga", "Una simulación sobre una red de 100 nodos y 52 semanas termina en menos de 5 s (entorno local, app en modo desarrollo)", async () => {
     const c = await register(`max${STAMP}@prueba.test`, "organizacion", "Org Max");
     await q("update organizaciones set plan = 'max' where nombre = 'Org Max'");
     const chain = await c.call("POST", "/api/cadenas", { name: "Red de 100 nodos", visibility: "shared", template: "blank" });
