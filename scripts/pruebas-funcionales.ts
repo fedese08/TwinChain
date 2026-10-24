@@ -331,13 +331,13 @@ async function main() {
     eq(row.baseline, last.baseline, "línea base de la nueva fila");
     eq(row.deficit, Math.max(0, last.baseline - 4), "déficit");
   });
-  await test("PF-26", "RF011", "Funcional (API)", "No se aceptan envíos de una semana que ya está registrada (409 stale_week)", async () => {
+  await test("PF-26", "RF009, RF010", "Funcional (API)", "No se aceptan envíos de una semana que ya está registrada (409 stale_week)", async () => {
     const node = nodeIngest();
     const [last] = (await rowsOfNode(node.id)).slice(-1);
     const res = await A.call("POST", `/api/cadenas/${chainA}/envios`, { nodeId: node.id, envios: [{ fecha: last.weekStart, margen: 3 }] });
     eq(res.status, 409, "estado");
   });
-  await test("PF-27", "RF009", "Funcional (API)", "El monitoreo vivo agrega una semana por nodo y no toca la historia ni la línea base", async () => {
+  await test("PF-27", "RF006, RF014", "Funcional (API)", "El monitoreo vivo agrega una semana por nodo y no toca la historia ni la línea base", async () => {
     const node = nodesA[1];
     const before = await rowsOfNode(node.id);
     const t0 = performance.now();
@@ -350,7 +350,7 @@ async function main() {
     eq(new Set(after.map((x) => x.baseline)).size, 1, "línea base");
     return `${Math.round(timing.avance)} ms`;
   });
-  await test("PF-28", "RF014", "Funcional (API)", "Reiniciar el monitoreo vuelve a las 28 semanas originales", async () => {
+  await test("PF-28", "RF006", "Funcional (API)", "Reiniciar el monitoreo vuelve a las 28 semanas originales", async () => {
     const r = await A.call("DELETE", `/api/cadenas/${chainA}/avance`);
     eq(r.status, 200, "estado");
     for (const n of nodesA) eq((await rowsOfNode(n.id)).length, 28, `semanas de ${n.id}`);
@@ -401,7 +401,7 @@ async function main() {
     eq((await A.call("PATCH", `/api/cadenas/${chainA}`, { costoFalsaAlarma: 3 })).status, 200, "volver a Baja");
     eq((await A.call("PATCH", `/api/cadenas/${chainA}`, { costoFalsaAlarma: 9 })).status, 400, "sensibilidad fuera de rango");
   });
-  await test("PF-32", "HU3, listado de alertas", "Funcional (API + detector)", "El listado de alertas muestra la degradación vigente del nodo y no muestra a los nodos sanos", async () => {
+  await test("PF-32", "RF011, HU2", "Funcional (API + detector)", "El listado de alertas muestra la degradación vigente del nodo y no muestra a los nodos sanos", async () => {
     const nodes = (await q("select id, etiqueta, tipo, vendedor_olist_id, fuente_linea_base from nodos where cadena_id = $1", chainA)).map((n: any) => ({ id: n.id, chainId: chainA, label: n.etiqueta, nodeType: n.tipo, olistSellerId: n.vendedor_olist_id ?? undefined, baselineSource: n.fuente_linea_base }));
     const rows = (await Promise.all(nodes.map((n) => rowsOfNode(n.id)))).flat();
     const alerts = buildSystemAlerts({ chains: [{ id: chainA, name: "Cadena A", falseAlarmCost: 3 }], nodes, rows });
@@ -414,7 +414,7 @@ async function main() {
   });
 
   // ── F. Simulación (RF021–RF031, Flujo B) ─────────────────────────────────────────────────────────
-  await test("PF-33", "Flujo B, C36", "Funcional (API)", "Crear una simulación con un evento responde 202 enseguida y la corrida termina en segundo plano", async () => {
+  await test("PF-33", "HU3, Flujo B", "Funcional (API)", "Crear una simulación con un evento responde 202 enseguida y la corrida termina en segundo plano", async () => {
     scenarioA = uuid();
     const t0 = performance.now();
     const r = await A.call("POST", "/api/escenarios", { id: scenarioA, chainId: chainA, name: "Corte en la fábrica", projectionHorizonWeeks: 12, events: [eventFor(nodesA[1].id, 50)] });
@@ -431,9 +431,11 @@ async function main() {
     eq(row.estado, "listo", "estado");
     const fractions = new Set(row.tabla_k.map((r: any) => r.fraccion));
     eq([...fractions].sort(), [0.45, 0.55, 0.65], "fracciones de propagación");
+    const isNum = (v: unknown) => typeof v === "number" && Number.isFinite(v);
     for (const r of row.tabla_k) {
-      if (r.umbral_mediana === null) expect(r.umbral_min === null || r.umbral_max === null || true, "");
-      else expect(r.umbral_min <= r.umbral_mediana && r.umbral_mediana <= r.umbral_max, `rango incoherente en k=${r.k}`);
+      // 'no cruza' es null: nunca un texto, NaN ni un número inventado
+      for (const campo of ["umbral_mediana", "umbral_min", "umbral_max"]) expect(r[campo] === null || isNum(r[campo]), `${campo} de k=${r.k} (fracción ${r.fraccion}) no es un número ni nulo: ${JSON.stringify(r[campo])}`);
+      if (isNum(r.umbral_mediana)) expect(isNum(r.umbral_min) && isNum(r.umbral_max) && r.umbral_min <= r.umbral_mediana && r.umbral_mediana <= r.umbral_max, `rango incoherente en k=${r.k}`);
     }
     expect(row.replicas > 0 && Number.isFinite(Number(row.semilla)), "faltan réplicas o semilla");
     const medians = row.tabla_k.filter((r: any) => r.fraccion === 0.55).map((r: any) => r.umbral_mediana).filter((m: number | null) => m !== null);
@@ -449,10 +451,10 @@ async function main() {
     eq(after.length, before.length + 1, "corridas guardadas");
     eq(after[0].id, before[0].id, "la primera corrida sigue siendo la misma");
   });
-  await test("PF-36", "RF022", "Funcional (API)", "La semana de reconfiguración fuera del horizonte se rechaza", async () => {
+  await test("PF-36", "RF022, RF025", "Funcional (API)", "La semana de reconfiguración fuera del horizonte se rechaza", async () => {
     eq((await A.call("POST", `/api/escenarios/${scenarioA}/corridas`, { reconfigurationWeekIndex: 99 })).status, 400, "estado");
   });
-  await test("PF-37", "Flujo B (un evento)", "Funcional (API)", "Una simulación con dos eventos (de un nodo o de dos) se rechaza: es un evento por simulación", async () => {
+  await test("PF-37", "RF026, Flujo B", "Funcional (API)", "Una simulación con dos eventos (de un nodo o de dos) se rechaza: es un evento por simulación", async () => {
     const two = [eventFor(nodesA[0].id), eventFor(nodesA[1].id)];
     eq((await A.call("POST", "/api/escenarios", { id: uuid(), chainId: chainA, name: "dos", projectionHorizonWeeks: 8, events: two })).status, 400, "dos nodos");
     eq((await A.call("POST", "/api/escenarios", { id: uuid(), chainId: chainA, name: "ninguno", projectionHorizonWeeks: 8, events: [] })).status, 400, "ningún evento");
