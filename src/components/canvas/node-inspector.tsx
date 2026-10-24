@@ -7,6 +7,7 @@ import { Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ImportShipments } from "@/components/canvas/import-shipments";
 import { WeeklyPerformanceChart } from "@/components/charts/weekly-performance-chart";
 import { degradationPeriods } from "@/lib/domain/degradation";
 import { deriveAlertScenario } from "@/lib/domain/detection";
@@ -120,6 +121,7 @@ export function NodeInspector({ node, onClose }: { node: SupplyChainNode; onClos
   const removeNode = useAppStore((s) => s.removeNode);
   const removeNodeWithEdges = useAppStore((s) => s.removeNodeWithEdges);
   const updateNode = useAppStore((s) => s.updateNode);
+  const canWrite = useAppStore((s) => s.canWrite);
 
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [label, setLabel] = useState(node.label);
@@ -216,9 +218,14 @@ export function NodeInspector({ node, onClose }: { node: SupplyChainNode; onClos
           onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
           className="h-7 border-transparent bg-transparent px-1 font-mono text-[15px] font-medium shadow-none hover:border-input focus-visible:border-input"
         />
-        <span className="ml-auto flex-none font-mono text-[9.5px] uppercase tracking-wider text-muted-foreground">
-          {NODE_TYPE_CODE[node.nodeType]}
-        </span>
+        {canWrite ? (
+          // Quien puede editar la cadena carga los envíos del nodo desde un CSV; el tipo ya se ve en la ficha de abajo.
+          <ImportShipments node={node} lastWeek={history[history.length - 1]?.weekStart ?? null} />
+        ) : (
+          <span className="ml-auto flex-none font-mono text-[9.5px] uppercase tracking-wider text-muted-foreground">
+            {NODE_TYPE_CODE[node.nodeType]}
+          </span>
+        )}
       </div>
 
       <div className="flex flex-col gap-3.5 p-3.5">

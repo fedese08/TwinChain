@@ -193,6 +193,15 @@ interface AppState {
    * dormido al crear la cadena). Espera al servidor: puede tardar hasta un minuto si hay que despertarlo.
    */
   refreshBaselines: (chainId: string) => Promise<{ ok: true; updated: number; stillProvisional: number } | { ok: false; error: string }>;
+  /**
+   * Carga los envíos de UN nodo (de un CSV o de sensores): el servidor los agrega por semana (RF010) y suma las filas de
+   * desempeño con la línea base congelada del nodo. Espera al servidor y suma las filas nuevas a la copia de trabajo.
+   */
+  ingestShipments: (
+    chainId: string,
+    nodeId: string,
+    envios: { fecha: string; margen: number }[],
+  ) => Promise<{ ok: true; newWeeks: number } | { ok: false; error: string; code?: string }>;
   /** Vuelve la cadena a su historial original (borra las semanas avanzadas). */
   resetMonitoring: (chainId: string) => Promise<{ ok: true } | { ok: false; error: string }>;
   /**
@@ -384,6 +393,19 @@ export const useAppStore = create<AppState>()((set, get) => {
         return { weeklyPerformance: [...s.weeklyPerformance, ...incoming.filter((w) => !known.has(`${w.nodeId}|${w.weekStart}`))] };
       });
       return { ok: true };
+    },
+
+    ingestShipments: async (chainId, nodeId, envios) => {
+      const result = await enqueue(() =>
+        send<{ weeklyPerformance: WeeklyPerformance[] }>("POST", `/api/cadenas/${chainId}/envios`, { nodeId, envios }),
+      );
+      if (!result.ok) return result;
+      const incoming = result.data?.weeklyPerformance ?? [];
+      set((s) => {
+        const known = new Set(s.weeklyPerformance.map((w) => `${w.nodeId}|${w.weekStart}`));
+        return { weeklyPerformance: [...s.weeklyPerformance, ...incoming.filter((w) => !known.has(`${w.nodeId}|${w.weekStart}`))] };
+      });
+      return { ok: true, newWeeks: incoming.length };
     },
 
     refreshBaselines: async (chainId) => {

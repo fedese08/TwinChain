@@ -197,6 +197,12 @@ resultado se recalculan con la cadena actual y no con la de la corrida, y las de
     tiempo_transito editable) y modo "Simulación" (`ChainCanvas mode="select"`: el grafo se sigue viendo y cada
     click en un nodo fija el nodo del único evento del escenario (clickear otro lo mueve; volver a clickear el elegido lo saca) —
     `ScenarioForm` expone `selectNode` vía ref).
+  - **Cargar CSV** (inspector del nodo, arriba a la derecha, para quien puede editar la cadena): importa los envíos de UN nodo
+    desde un archivo (una fila por envío: fecha y margen en días; coma o punto y coma, decimal con punto o coma, fechas
+    AAAA-MM-DD o DD/MM/AAAA). Muestra una vista previa por semana y valida antes de enviar; manda lo mismo que el script de
+    pruebas a `POST /api/cadenas/[id]/envios` y el servidor lo agrega por semana. Lectura pura en
+    `src/lib/ingestion/shipments-csv.ts` (con pruebas), diálogo en `components/canvas/import-shipments.tsx`, acción
+    `ingestShipments` del store. Solo semanas posteriores a la última registrada; solo nodos que miden en días.
   - `/cadenas/[id]/escenarios` y `/escenarios/[scenarioId]` — listado y resultado: tabla_k, déficit proyectado por
     nodo (directos y propagados), y la "red fork" (`ChainCanvas mode="display"`) coloreando cada nodo/arista según
     severidad (severo/moderado/sin efecto) con un slider de semana para ver cómo avanza la propagación.
@@ -261,7 +267,7 @@ resultado se recalculan con la cadena actual y no con la de la corrida, y las de
     modelo de datos ni debe convertirse en tabla: el job y el pipeline son contenedores de la arquitectura C4.
     Cuando exista el job real, `pendingRuns` lo reemplaza el job de Vercel.
   - **Pruebas funcionales de integración** (`npm run test:funcional`, `scripts/pruebas-funcionales.ts`, 48 casos PF-01 a PF-48 contra la API y una base local; resultados en `docs/pruebas-funcionales-resultados.md`; prerrequisitos en la cabecera del script).
-  - **Tests:** Vitest (`npm test`, 169) y, para el servicio de ML, pytest (`cd twinchain-ml && .venv/bin/pytest`, 22). Los de la ingesta sintética y el estado operativo incluyen las
+  - **Tests:** Vitest (`npm test`, 179) y, para el servicio de ML, pytest (`cd twinchain-ml && .venv/bin/pytest`, 22). Los de la ingesta sintética y el estado operativo incluyen las
     calibraciones de Monte Carlo del CUSUM y de los umbrales de atención/crítico: **no relajarlos para que
     pasen**, si fallan es que cambió algo que afecta la tasa de falsas alarmas.
 - **`ChainCanvas` necesita un padre con altura.** Su raíz es `flex h-full min-h-0 flex-1`: dentro de un padre
