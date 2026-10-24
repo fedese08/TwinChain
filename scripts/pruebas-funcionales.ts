@@ -9,6 +9,9 @@
 //
 // Uso: `TEST_DB_URL=postgres://postgres@localhost:54329/twinchain npx tsx scripts/pruebas-funcionales.ts [salida.md]`
 // Escribe una tabla con el resultado de cada caso y termina con código 1 si alguno falla.
+/* eslint-disable @typescript-eslint/no-explicit-any --
+   Es un script de pruebas que lee JSON de la API y filas de la base sin tipar: tiparlos uno por uno agregaría ruido sin
+   proteger nada (cada caso comprueba el valor que le importa). */
 import { execFileSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
 import postgres from "postgres";
