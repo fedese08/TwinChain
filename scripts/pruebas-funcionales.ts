@@ -154,7 +154,7 @@ async function main() {
   console.log(`Pruebas funcionales contra ${BASE} (base ${DB_URL.replace(/\/\/.*@/, "//***@")})\n`);
 
   // ── A. Registro, consentimiento y sesión ─────────────────────────────────────────────────────────
-  await test("PF-01", "RF001, art. 6 Ley 25.326", "Funcional (API)", "El registro sin aceptar el tratamiento de datos se rechaza", async () => {
+  await test("PF-01", "Ley 25.326, art. 6", "Funcional (API)", "El registro sin aceptar el tratamiento de datos se rechaza", async () => {
     const r = await new Client().call("POST", "/api/registro", { tipo: "organizacion", nombre: "Sin Aceptar", email: `sin${STAMP}@prueba.test`, password: PASSWORD, nombreOrganizacion: "X" });
     eq(r.status, 400, "estado");
     expect(JSON.stringify(r.body).includes("aceptar el tratamiento"), "el mensaje de error no menciona el consentimiento");
@@ -242,20 +242,20 @@ async function main() {
   });
 
   // ── C. Planes ────────────────────────────────────────────────────────────────────────────────────
-  await test("PF-15", "Planes (modelo de negocio)", "Funcional (API)", "Plan Freemium: se puede llegar a 6 nodos y el séptimo se rechaza con plan_limit", async () => {
+  await test("PF-15", "RF034", "Funcional (API)", "Plan Freemium: se puede llegar a 6 nodos y el séptimo se rechaza con plan_limit", async () => {
     const add = (label: string) => A.call("POST", `/api/cadenas/${chainA}/nodos`, { id: uuid(), tipo: "Proveedor", etiqueta: label, x: 10, y: 10 });
     eq((await add("EXTRA-1")).status, 201, "sexto nodo");
     const seventh = await add("EXTRA-2");
     eq(seventh.status, 409, "séptimo nodo");
     eq(seventh.body.code, "plan_limit", "código");
   });
-  await test("PF-16", "Planes", "Funcional (API)", "No hay tope de cadenas: una segunda cadena en blanco se crea, pero una plantilla que no entra en el plan se rechaza", async () => {
+  await test("PF-16", "RF034", "Funcional (API)", "No hay tope de cadenas: una segunda cadena en blanco se crea, pero una plantilla que no entra en el plan se rechaza", async () => {
     eq((await A.call("POST", "/api/cadenas", { name: "Segunda", visibility: "shared", template: "blank" })).status, 201, "segunda cadena en blanco");
     const big = await A.call("POST", "/api/cadenas", { name: "Grande", visibility: "shared", template: "forked" });
     eq(big.status, 409, "plantilla bifurcada");
     eq(big.body.limit, "nodes", "tope alcanzado");
   });
-  await test("PF-17", "Planes", "Funcional (API)", "Un downgrade que deja a la organización por encima de los topes se rechaza (plan_overage); un upgrade se acepta", async () => {
+  await test("PF-17", "RF034, RF035", "Funcional (API)", "Un downgrade que deja a la organización por encima de los topes se rechaza (plan_overage); un upgrade se acepta", async () => {
     eq((await A.call("PUT", "/api/organizacion/plan", { plan: "pro" })).status, 200, "pasar a Pro");
     eq((await A.call("POST", `/api/cadenas/${chainA}/nodos`, { id: uuid(), tipo: "Cliente", etiqueta: "EXTRA-3", x: 5, y: 5 })).status, 201, "séptimo nodo en Pro");
     const down = await A.call("PUT", "/api/organizacion/plan", { plan: "freemium" });
@@ -265,7 +265,7 @@ async function main() {
   });
 
   // ── D. Roles y aislamiento entre organizaciones ──────────────────────────────────────────────────
-  await test("PF-18", "RF002, casos de uso", "Funcional (API)", "Invitar a una persona como Operador y aceptar la invitación con su cuenta", async () => {
+  await test("PF-18", "RF002", "Funcional (API)", "Invitar a una persona como Operador y aceptar la invitación con su cuenta", async () => {
     B = await register(emailB, "organizacion", "Org B");
     OP = await register(emailOp, "empleado");
     const inv = await A.call("POST", "/api/organizacion/invitaciones", { email: emailOp, rol: "operator" });
@@ -282,11 +282,11 @@ async function main() {
     eq((await OP.call("POST", "/api/organizacion/invitaciones", { email: "x@prueba.test", rol: "operator" })).status, 403, "invitar");
     eq((await OP.call("PUT", "/api/organizacion/plan", { plan: "max" })).status, 403, "cambiar plan");
   });
-  await test("PF-20", "RF002, Flujo B", "Funcional (API)", "El Operador sí puede crear una simulación", async () => {
+  await test("PF-20", "RF002, HU3", "Funcional (API)", "El Operador sí puede crear una simulación", async () => {
     const r = await OP.call("POST", "/api/escenarios", { id: uuid(), chainId: chainA, name: "Del operador", projectionHorizonWeeks: 8, events: [eventFor(nodesA[0].id)] });
     eq(r.status, 202, "estado");
   });
-  await test("PF-21", "Casos de uso (Administrador)", "Funcional (API)", "El Administrador cambia el rol de otra persona (con efecto inmediato) y no puede cambiarse el suyo", async () => {
+  await test("PF-21", "RF002", "Funcional (API)", "El Administrador cambia el rol de otra persona (con efecto inmediato) y no puede cambiarse el suyo", async () => {
     const opId = (await q("select id from usuarios where email = $1", emailOp))[0].id;
     const meId = (await q("select id from usuarios where email = $1", emailA))[0].id;
     eq((await A.call("PATCH", `/api/organizacion/miembros/${opId}`, { rol: "admin" })).status, 200, "promover");
@@ -307,7 +307,7 @@ async function main() {
     eq(priv.status, 201, "crear privada");
     eq((await OP.call("POST", `/api/cadenas/${priv.body.chain.id}/avance`, { weeks: 1 })).status >= 400, true, "acceso de otro miembro");
   });
-  await test("PF-24", "Gestión de integrantes", "Funcional (API)", "Quitar a una persona de la organización: pierde el acceso y los datos compartidos quedan", async () => {
+  await test("PF-24", "RF002", "Funcional (API)", "Quitar a una persona de la organización: pierde el acceso y los datos compartidos quedan", async () => {
     const opId = (await q("select id from usuarios where email = $1", emailOp))[0].id;
     eq((await A.call("DELETE", `/api/organizacion/miembros/${opId}`)).status, 200, "quitar");
     expect((await q("select organizacion_id from usuarios where id = $1", opId))[0].organizacion_id === null, "la persona sigue en la organización");
@@ -469,7 +469,7 @@ async function main() {
     const money = cols.filter((c: string) => /costo|precio|monto|importe|usd|cost\b|price/i.test(c));
     expect(money.length === 0, `columnas monetarias: ${money.join(", ")}`);
   });
-  await test("PF-40", "Planes", "Funcional (API)", "Tope de escenarios guardados: en Freemium el cuarto escenario se rechaza (plan_limit)", async () => {
+  await test("PF-40", "RF034", "Funcional (API)", "Tope de escenarios guardados: en Freemium el cuarto escenario se rechaza (plan_limit)", async () => {
     const c = await register(`tope${STAMP}@prueba.test`, "organizacion", "Org Tope");
     const chain = await c.call("POST", "/api/cadenas", { name: "Tope", visibility: "shared", template: "linear" });
     const node = chain.body.nodes[0].id;
@@ -486,7 +486,7 @@ async function main() {
     eq(r.status, 200, "estado");
     eq((await q("select (select count(*) from eventos where escenario_id = $1)::int + (select count(*) from resultados where escenario_id = $1)::int as n", scenarioA))[0].n, 0, "filas que quedaron");
   });
-  await test("PF-42", "Robustez del job", "Prueba de robustez", "Una corrida que quedó 'corriendo' por más de 6 minutos (función perdida) se descarta y se informa como fallida", async () => {
+  await test("PF-42", "Robustez de la simulación en segundo plano", "Prueba de robustez", "Una corrida que quedó 'corriendo' por más de 6 minutos (función perdida) se descarta y se informa como fallida", async () => {
     const c = await register(`job${STAMP}@prueba.test`, "organizacion", "Org Job");
     const chain = await c.call("POST", "/api/cadenas", { name: "Job", visibility: "shared", template: "linear" });
     const sid = uuid();
@@ -580,7 +580,7 @@ async function main() {
       const [withBand] = await q("select count(*)::int as n from desempeno_semanal d join nodos n on n.id = d.nodo_id where n.cadena_id = $1 and d.banda_semanal_inferior is not null", chain.body.chain.id);
       expect(withBand.n > 0, "no hay banda semanal");
     });
-    await test("PF-47", "Disponibilidad (RNF)", "Integración", "Con el servicio de ML caído, el sistema sigue operando con una línea base provisoria marcada como tal", async () => {
+    await test("PF-47", "Tolerancia a fallas del servicio de ML (4.2)", "Integración", "Con el servicio de ML caído, el sistema sigue operando con una línea base provisoria marcada como tal", async () => {
       const killed = process.env.ML_KILL_CMD;
       expect(killed, "falta ML_KILL_CMD para apagar el servicio durante la prueba");
       execFileSync("sh", ["-c", killed!]);
