@@ -266,6 +266,11 @@ resultado se recalculan con la cadena actual y no con la de la corrida, y las de
     `domain/synthetic/cusum.ts`, hook `useChainStatuses`) y no se guarda. Ninguno de los dos es una entidad del
     modelo de datos ni debe convertirse en tabla: el job y el pipeline son contenedores de la arquitectura C4.
     Cuando exista el job real, `pendingRuns` lo reemplaza el job de Vercel.
+  - **Demo para presentar** (`npm run db:seed:demo`, `scripts/seed-demo.ts`): crea la organización «Hogar Andino S.A.» (plan Pro;
+    `presentacion@twinchain.dev` administradora y `operador.demo@twinchain.dev`, misma clave: `SEED_DEMO_PASSWORD`), una cadena de 10 nodos,
+    una alerta de degradación sostenida vigente en Cerámica Cuyo, CD Córdoba en vigilancia y 3 simulaciones guardadas. Es idempotente (solo
+    toca su organización) y determinístico por día: la serie del sensor depende de las semanas, así que **conviene correrlo el día de la
+    presentación** y volver a mirar las cifras. Usa DIRECT_URL de `.env.local` (para ensayar sin Neon, apuntarlo a una base local).
   - **Pruebas funcionales de integración** (`npm run test:funcional`, `scripts/pruebas-funcionales.ts`, 48 casos PF-01 a PF-48 contra la API y una base local; resultados en `docs/pruebas-funcionales-resultados.md`; prerrequisitos en la cabecera del script).
   - **Tests:** Vitest (`npm test`, 179) y, para el servicio de ML, pytest (`cd twinchain-ml && .venv/bin/pytest`, 22). Los de la ingesta sintética y el estado operativo incluyen las
     calibraciones de Monte Carlo del CUSUM y de los umbrales de atención/crítico: **no relajarlos para que
