@@ -15,7 +15,6 @@ import { ChainCanvas } from "@/components/canvas/chain-canvas";
 import { Button } from "@/components/ui/button";
 import {
   classifySeverity,
-  observedForScenario,
   replayRun,
   runScenarioSimulation,
   shareWorthwhile,
@@ -163,8 +162,10 @@ export default function ScenarioResultPage({
     return runScenarioSimulation(chainNodes, chainEdges, events, adapter.rows, scenario.projectionHorizonWeeks, {
       seed: hashSeed(scenario.id),
       replications: 12,
-      decisionWeek: scenario.decisionWeek,
-      observed: observedForScenario(adapter.rows, events, scenario.decisionWeek),
+      // Sin decisionWeek ni semanas observadas a propósito: la semana 0 de la vista previa es el INICIO de la
+      // disrupción, no la decisión. Si no, en una simulación desde una alerta (el desvío ya lleva semanas) la
+      // proyección arranca con la red casi toda en rojo y no se ve cómo se propaga. Es solo una animación
+      // ilustrativa del avance; las cifras del resultado salen de la corrida real.
     });
   }, [chainNodes, chainEdges, events, adapter, scenario, playingIntro]);
 
