@@ -68,6 +68,7 @@ export default function CompareScenariosPage() {
 
       // Pérdida de operación por semana, en semanas equivalentes (la suma de los déficits relativos de la red).
       const perWeek = outcome?.weeklyLoss ?? [];
+      const cumulative = outcome?.cumulativeLoss ?? [];
       const badWeeks = outcome?.totalDeficit.median ?? 0;
       const firstAffectedWeek = perWeek.findIndex((v) => v > 0);
       const peakWeek = perWeek.reduce((best, v, idx) => (v > perWeek[best] ? idx : best), 0);
@@ -84,6 +85,7 @@ export default function CompareScenariosPage() {
         badWeeksLow: outcome?.totalDeficit.low ?? 0,
         badWeeksHigh: outcome?.totalDeficit.high ?? 0,
         perWeek,
+        cumulative,
         firstAffectedWeek,
         peakWeek,
         weeksInDeficit: perWeek.filter((v) => v > 0).length,
@@ -224,15 +226,17 @@ export default function CompareScenariosPage() {
               {/* Curvas superpuestas: en qué momento pega cada uno. */}
               <div className="rounded-2xl border border-border bg-card p-4">
                 <div className="mb-1 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                  <span className="text-[14px] font-medium">Cuándo pega cada uno</span>
-                  <span className="text-[11.5px] text-muted-foreground">operación perdida semana a semana</span>
+                  <span className="text-[14px] font-medium">Cómo se va acumulando la pérdida</span>
+                  <span className="text-[11.5px] text-muted-foreground">
+                    semanas de operación perdidas hasta cada semana; la distancia entre las líneas es lo que se gana con la mejor decisión
+                  </span>
                 </div>
                 <ScenarioComparisonChart
                   series={comparisons.map((c) => ({
                     id: c.scenario.id,
                     name: c.scenario.name,
                     color: c.color,
-                    perWeek: c.perWeek,
+                    cumulative: c.cumulative,
                   }))}
                 />
               </div>

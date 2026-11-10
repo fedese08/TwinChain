@@ -299,6 +299,11 @@ export interface SimulationOutcome {
   /** Mediana semana a semana de D (semanas equivalentes perdidas), del escenario que se muestra. */
   weeklyLoss: number[];
   /**
+   * Pérdida ACUMULADA hasta cada semana del horizonte (mediana y rango p10–p90), calculada réplica por réplica: su
+   * último punto es exactamente `totalDeficit`. No es la suma de las medianas semanales.
+   */
+  cumulativeLoss: { median: number; low: number; high: number }[];
+  /**
    * Por semana w del horizonte: pérdida que todavía se puede evitar reconfigurando en w (mediana). Para w = 0 es
    * exactamente E(H); para w > 0 es una aproximación: resta de D_A lo que ya aportaba D_B al decidir en s_r.
    */
@@ -354,6 +359,7 @@ export function runScenarioSimulation(
     projectionByNode: new Map(),
     totalDeficit: { median: 0, low: 0, high: 0 },
     weeklyLoss: new Array(H).fill(0),
+    cumulativeLoss: Array.from({ length: H }, () => ({ median: 0, low: 0, high: 0 })),
     avoidableFromWeek: new Array(H).fill(0),
     d0: 0,
     breakEvenKs: [],
@@ -499,6 +505,16 @@ export function runScenarioSimulation(
     }
   }
 
+  // Acumulado réplica por réplica: el total de cada réplica es la suma de sus semanas.
+  const cumulativeByWeek: number[][] = Array.from({ length: H }, () => []);
+  for (let r = 0; r < totals.length; r++) {
+    let running = 0;
+    for (let u = 0; u < H; u++) {
+      running += lossByWeek[u][r];
+      cumulativeByWeek[u].push(running);
+    }
+  }
+
   const srWeek = decision;
   const projectionByNode = new Map<string, ProjectedWeek[]>();
   reach.ids.forEach((id, j) => {
@@ -537,6 +553,7 @@ export function runScenarioSimulation(
     projectionByNode,
     totalDeficit: summarize(totals),
     weeklyLoss: lossByWeek.map((values) => summarize(values).median),
+    cumulativeLoss: cumulativeByWeek.map((values) => summarize(values)),
     avoidableFromWeek: avoidableByWeek.map((values) => summarize(values).median),
     d0: summarize(d0s).median,
     breakEvenKs: [...breakEvenKs].sort(ascending),

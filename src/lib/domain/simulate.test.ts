@@ -329,6 +329,27 @@ describe("réplicas", () => {
   });
 });
 
+describe("pérdida acumulada", () => {
+  it("crece semana a semana y su último punto es exactamente el total de la corrida (mediana y rango)", () => {
+    const ids = ["a", "b", "c"];
+    const outcome = runScenarioSimulation(nodesOf(...ids), [edge("a", "b"), edge("b", "c")], [event("a", 40)], history(ids, 100, 90, 110), 8, { seed: 3, replications: 12 });
+    const cumulative = outcome.cumulativeLoss;
+    expect(cumulative).toHaveLength(8);
+    for (let u = 1; u < cumulative.length; u++) {
+      expect(cumulative[u].median).toBeGreaterThanOrEqual(cumulative[u - 1].median - 1e-12);
+    }
+    const last = cumulative[cumulative.length - 1];
+    expect(last.median).toBeCloseTo(outcome.totalDeficit.median, 12);
+    expect(last.low).toBeCloseTo(outcome.totalDeficit.low, 12);
+    expect(last.high).toBeCloseTo(outcome.totalDeficit.high, 12);
+  });
+
+  it("sin eventos es cero en todas las semanas", () => {
+    const outcome = runScenarioSimulation(nodesOf("a"), [], [], history(["a"]), 4, { seed: 1 });
+    expect(outcome.cumulativeLoss.every((p) => p.median === 0 && p.low === 0 && p.high === 0)).toBe(true);
+  });
+});
+
 describe("costo estimado", () => {
   it("crece con las réplicas, el horizonte y la subred alcanzable, y no cuenta lo que no alcanza el evento", () => {
     const edges = [edge("a", "b"), edge("b", "c"), edge("x", "y")];
