@@ -302,8 +302,9 @@ export default function CompareScenariosPage() {
               </div>
 
               <div className="rounded-xl border border-border bg-muted/30 p-3 text-[11.5px] leading-relaxed text-muted-foreground">
-                Una &quot;semana de operación perdida&quot; equivale a tener toda la cadena parada durante una semana.
-                El rango de cada barra muestra hasta dónde puede variar el resultado según cómo se comporte la
+                Una &quot;semana de operación perdida&quot; equivale a un nodo parado durante una semana. La pérdida de la
+                red es la suma de todos los nodos alcanzados, por eso puede superar las semanas del horizonte. El
+                rango de cada barra muestra hasta dónde puede variar el resultado según cómo se comporte la
                 propagación.
               </div>
             </div>
