@@ -25,7 +25,7 @@ problema para que el cambio se pague**. TwinChain observa y proyecta; la decisi�
 | Sena, Federico | 1112998 |
 | Guevara, Facundo | 1113997 |
 
-Trabajo realizado en UADE. Contacto: fsena@uade.edu.ar.
+Proyecto Final de Ingeniería, UADE, 2026. Contacto: fsena@uade.edu.ar.
 
 ## Qué hace
 
